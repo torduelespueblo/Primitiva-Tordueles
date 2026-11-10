@@ -10,7 +10,8 @@ import {
   Bell,
   Menu,
   X,
-  AlertTriangle
+  AlertTriangle,
+  HardDrive
 } from 'lucide-react';
 import { SyndicateSettings } from '../types/lottery';
 import { pushNotificationService } from '../services/pushNotifications';
@@ -54,6 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'dashboard', label: 'Mi Jugada', icon: LayoutDashboard },
     { id: 'tickets', label: 'Historial Boletos', icon: Receipt },
     { id: 'members', label: 'Socios & Espera', icon: Users },
+    { id: 'workspace', label: 'Drive & Sheets', icon: HardDrive },
     { id: 'rules', label: 'Reglamento', icon: BookOpen },
   ];
 

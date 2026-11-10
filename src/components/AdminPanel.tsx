@@ -16,13 +16,14 @@ import { whatsappService } from '../services/whatsappService';
 import { pushNotificationService } from '../services/pushNotifications';
 import { processTicketWithAI } from '../services/aiService';
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
-
-
+import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
 
 import {
   Settings,
   Users,
   Upload,
+  HardDrive,
+
   Send,
   Calculator,
   Trophy,
@@ -64,7 +65,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onLogoutAdmin,
 }) => {
   const [activeSection, setActiveSection] = useState<
-    'CONFIG' | 'USERS' | 'TICKET_UPLOAD' | 'CALCULATOR' | 'SCRUTINY'
+    'CONFIG' | 'USERS' | 'TICKET_UPLOAD' | 'WORKSPACE' | 'CALCULATOR' | 'SCRUTINY'
   >('CONFIG');
 
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
@@ -344,6 +345,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           { id: 'CONFIG', label: 'Interruptores & WhatsApp', icon: Settings },
           { id: 'USERS', label: 'Gestión de Estados Socios', icon: Users },
           { id: 'TICKET_UPLOAD', label: 'Subir Resguardo Sellado', icon: Upload },
+          { id: 'WORKSPACE', label: 'Google Sheets & Drive', icon: HardDrive },
           { id: 'SCRUTINY', label: 'Escrutinio Oficial SELAE', icon: Trophy },
           { id: 'CALCULATOR', label: 'Calculadora Apuestas Múltiples', icon: Calculator },
         ].map(item => {
@@ -807,6 +809,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* SECTION: GOOGLE WORKSPACE (DRIVE & SHEETS) */}
+      {activeSection === 'WORKSPACE' && (
+        <GoogleWorkspacePanel
+          settings={settings}
+          onUpdateSettings={onUpdateSettings}
+          players={players}
+          onUpdatePlayers={onUpdatePlayers}
+          waitingList={waitingList}
+          tickets={tickets}
+        />
       )}
 
       {/* SECTION 4: SCRUTINY SIMULATOR */}
