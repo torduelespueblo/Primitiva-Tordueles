@@ -1,0 +1,155 @@
+import React from 'react';
+
+interface LogoProps {
+  className?: string;
+  size?: number | string;
+  variant?: 'full' | 'icon-only' | 'light';
+}
+
+export const Logo: React.FC<LogoProps> = ({
+  className = '',
+  size = 56,
+  variant = 'full',
+}) => {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 600 600"
+      width={size}
+      height={size}
+      className={`select-none ${className}`}
+      aria-label="Logo Peña La Primitiva Tordueles"
+    >
+      <defs>
+        <path id="logoTopArc" d="M 95,280 A 205,205 0 0,1 505,280" fill="none" />
+      </defs>
+
+      <g id="official-emblem">
+        {variant !== 'icon-only' && (
+          <>
+            {/* Outer guide dashes */}
+            <path
+              d="M 100,240 A 208,208 0 0,1 110,210"
+              fill="none"
+              stroke="#0d253f"
+              strokeWidth="4.5"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 112,335 A 208,208 0 0,0 128,375"
+              fill="none"
+              stroke="#0d253f"
+              strokeWidth="4.5"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 490,210 A 208,208 0 0,1 500,240"
+              fill="none"
+              stroke="#0d253f"
+              strokeWidth="4.5"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 472,375 A 208,208 0 0,0 488,335"
+              fill="none"
+              stroke="#0d253f"
+              strokeWidth="4.5"
+              strokeLinecap="round"
+            />
+
+            {/* Arched Text: PEÑA LA PRIMITIVA */}
+            <text
+              fill="#0d253f"
+              fontFamily="'Cinzel', 'Georgia', 'Times New Roman', serif"
+              fontWeight="900"
+              fontSize="34"
+              letterSpacing="8"
+            >
+              <textPath href="#logoTopArc" startOffset="50%" textAnchor="middle">
+                PEÑA LA PRIMITIVA
+              </textPath>
+            </text>
+
+            {/* Left 4-Point Star */}
+            <g transform="translate(110, 298)">
+              <path
+                d="M 0,-18 Q 0,0 18,0 Q 0,0 0,18 Q 0,0 -18,0 Q 0,0 0,-18 Z"
+                fill="#0d253f"
+              />
+              <line x1="-24" y1="0" x2="-19" y2="0" stroke="#0d253f" strokeWidth="3" strokeLinecap="round" />
+              <line x1="19" y1="0" x2="24" y2="0" stroke="#0d253f" strokeWidth="3" strokeLinecap="round" />
+              <line x1="0" y1="-24" x2="0" y2="-19" stroke="#0d253f" strokeWidth="3" strokeLinecap="round" />
+              <line x1="0" y1="19" x2="0" y2="24" stroke="#0d253f" strokeWidth="3" strokeLinecap="round" />
+            </g>
+
+            {/* Right Lottery Drum Sphere */}
+            <g transform="translate(490, 298)">
+              <circle cx="0" cy="0" r="18" fill="none" stroke="#0d253f" strokeWidth="3.5" />
+              <circle cx="0" cy="0" r="6.5" fill="none" stroke="#0d253f" strokeWidth="2.5" />
+              <circle cx="-10.5" cy="-7" r="3" fill="#0d253f" />
+              <circle cx="10.5" cy="-7" r="3" fill="#0d253f" />
+              <circle cx="-11" cy="7" r="3" fill="#0d253f" />
+              <circle cx="11" cy="7" r="3" fill="#0d253f" />
+              <circle cx="0" cy="12" r="3" fill="#0d253f" />
+              <circle cx="0" cy="-12" r="3" fill="#0d253f" />
+            </g>
+          </>
+        )}
+
+        {/* Main Solid Navy Circle */}
+        <circle cx="300" cy="310" r="158" fill="#0d253f" />
+        {/* Inner Concentric White Ring */}
+        <circle cx="300" cy="310" r="146" fill="none" stroke="#ffffff" strokeWidth="5" />
+
+        {/* Tree Silhouette Outline in Crisp White */}
+        <path d="M 215,395 Q 300,370 385,395 Z" fill="#ffffff" opacity="0.15" />
+        
+        <g fill="none" stroke="#ffffff" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round">
+          {/* Trunk and Roots Base */}
+          <path d="M 235,395 Q 275,390 286,345" />
+          <path d="M 365,395 Q 325,390 314,345" />
+
+          {/* Left Bough */}
+          <path d="M 286,345 C 286,310 260,305 235,315 C 220,320 216,305 220,295 C 226,275 255,275 272,305 C 282,320 292,322 300,312" />
+          {/* Right Bough */}
+          <path d="M 314,345 C 314,310 340,305 365,315 C 380,320 384,305 380,295 C 374,275 345,275 328,305 C 318,320 308,322 300,312" />
+
+          {/* Crown Cloud Silhouette */}
+          <path d="M 230,295 
+                   C 215,285 210,250 228,230 
+                   C 238,218 255,212 272,216 
+                   C 285,195 320,192 342,208 
+                   C 358,210 375,222 376,238 
+                   C 390,252 388,276 375,295 
+                   C 365,310 355,322 342,322 
+                   C 328,322 320,315 315,310" />
+
+          {/* Interior Branch Lines */}
+          <path d="M 245,260 C 235,240 252,228 275,232" strokeWidth="6" />
+          <path d="M 355,260 C 365,240 348,228 328,232" strokeWidth="6" />
+          <path d="M 285,215 C 300,205 315,205 330,215" strokeWidth="6" />
+        </g>
+
+        {/* White Backing Plate for Tordueles Banner */}
+        <path
+          d="M 125,385 C 125,372 135,362 150,362 L 450,362 C 465,362 475,372 475,385 L 475,425 C 475,438 465,448 450,448 L 150,448 C 135,448 125,438 125,425 Z"
+          fill="#ffffff"
+        />
+
+        {/* Tordueles Text */}
+        <text
+          x="300"
+          y="422"
+          fill="#0d253f"
+          fontFamily="'Georgia', 'Times New Roman', serif"
+          fontWeight="900"
+          fontSize="62"
+          letterSpacing="-1"
+          textAnchor="middle"
+        >
+          Tordueles
+        </text>
+      </g>
+    </svg>
+  );
+};

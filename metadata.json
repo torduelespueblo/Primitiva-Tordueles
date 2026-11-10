@@ -1,0 +1,6 @@
+{
+  "name": "Peña Primitiva Tordueles",
+  "description": "WebApp PWA oficial de la Peña de Lotería Primitiva Tordueles: ciclos de juego, reglamento, fondo común de premios, lista de espera y automatización con Google Apps Script y Green API.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
