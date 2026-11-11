@@ -4,6 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <script>
+      // Prevent @vite/client from attempting HMR WebSocket connections in AI Studio iframe
+      (function() {
+        if (typeof window !== 'undefined' && window.WebSocket) {
+          var OrigWS = window.WebSocket;
+          window.WebSocket = function(url, protocols) {
+            var protoStr = Array.isArray(protocols) ? protocols.join(',') : (protocols || '');
+            if (protoStr.indexOf('vite-hmr') !== -1 || (typeof url === 'string' && url.indexOf('vite-hmr') !== -1)) {
+              return {
+                readyState: 3, // CLOSED
+                close: function() {},
+                send: function() {},
+                addEventListener: function() {},
+                removeEventListener: function() {},
+                dispatchEvent: function() { return false; },
+                onopen: null,
+                onclose: null,
+                onerror: null,
+                onmessage: null,
+              };
+            }
+            return new OrigWS(url, protocols);
+          };
+          window.WebSocket.prototype = OrigWS.prototype;
+          window.WebSocket.CONNECTING = OrigWS.CONNECTING;
+          window.WebSocket.OPEN = OrigWS.OPEN;
+          window.WebSocket.CLOSING = OrigWS.CLOSING;
+          window.WebSocket.CLOSED = OrigWS.CLOSED;
+        }
+      })();
+
       // Suppress harmless Vite HMR WebSocket connection closed notices in embedded iframe preview
       window.addEventListener('error', function (event) {
         if (event && event.message && event.message.includes('WebSocket closed without opened')) {
