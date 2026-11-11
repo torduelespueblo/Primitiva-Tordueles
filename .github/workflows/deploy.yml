@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - principal
   workflow_dispatch:
 
 permissions:
@@ -31,7 +32,7 @@ jobs:
           node-version: 20
 
       - name: Instalar dependencias
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Compilar aplicación web (Vite)
         run: npm run build
