@@ -136,9 +136,25 @@ Analiza detenidamente la imagen o documento PDF adjunto del resguardo o boleto d
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor Full-Stack activo en http://0.0.0.0:${PORT}`);
   });
+
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Puerto ${PORT} en uso. Intentando liberar o reconectar...`);
+    } else {
+      console.error('Error en el servidor HTTP:', err);
+    }
+  });
+
+  const cleanup = async () => {
+    server.close();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', cleanup);
+  process.on('SIGINT', cleanup);
 }
 
 startServer();
