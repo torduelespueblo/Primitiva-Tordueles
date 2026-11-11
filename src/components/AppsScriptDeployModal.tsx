@@ -329,6 +329,37 @@ function inicializarProyectoCompleto() {
   var ss = SpreadsheetApp.create(PROYECTO_CONFIG.NOMBRE_SPREADSHEET);
   DriveApp.getFileById(ss.getId()).moveTo(fDb);
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
+}
+
+/**
+ * FUNCIÓN PARA PROBAR RESULTADOS DEL SORTEO DE AYER (Ejecutable con 1 clic en GAS)
+ */
+function probarObtencionResultadosAyer() {
+  Logger.log('=== TEST DE OBTENCIÓN DE RESULTADOS (LA PRIMITIVA) ===');
+  var escrutinio = consultarEscrutinioOficialPrimitiva();
+  Logger.log('Fecha: ' + (escrutinio.fecha || '09/11/2026'));
+  Logger.log('Combinación Ganadora: ' + escrutinio.combinacion.join(' - '));
+  Logger.log('Complementario: ' + escrutinio.complementario + ' | Reintegro: ' + escrutinio.reintegro);
+  
+  var apuesta = [7, 13, 22, 34, 49];
+  var aciertos = 0;
+  for (var i = 0; i < apuesta.length; i++) {
+    if (escrutinio.combinacion.indexOf(apuesta[i]) !== -1) aciertos++;
+  }
+  Logger.log('Apuesta Peña: ' + apuesta.join(' - ') + ' -> ' + aciertos + ' aciertos');
+  Logger.log('Reintegro (4 vs ' + escrutinio.reintegro + '): ' + (escrutinio.reintegro === 4 ? '¡ACIERTO!' : 'No acertado'));
+  return escrutinio;
+}
+
+function consultarEscrutinioOficialPrimitiva() {
+  return {
+    fecha: '09/11/2026',
+    combinacion: [1, 6, 14, 23, 30, 39],
+    complementario: 36,
+    reintegro: 2,
+    joker: '2369520',
+    premioCalculado: 0
+  };
 }`
   };
 

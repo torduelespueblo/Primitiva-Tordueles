@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { TicketDraw } from '../types/lottery';
 import { TicketCard } from './TicketCard';
-import { Receipt, Filter, Trophy, Calendar } from 'lucide-react';
+import { Receipt, Filter, Trophy, Calendar, Layers } from 'lucide-react';
+import { MultipleBetsGuide } from './MultipleBetsGuide';
 
 interface TicketsHistoryProps {
   tickets: TicketDraw[];
@@ -10,6 +11,7 @@ interface TicketsHistoryProps {
 
 export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, currentCycle }) => {
   const [filter, setFilter] = useState<'ALL' | 'CURRENT_CYCLE' | 'PRIZES_ONLY'>('ALL');
+  const [showMultiplesGuide, setShowMultiplesGuide] = useState(false);
 
   const filteredTickets = tickets.filter(t => {
     if (filter === 'CURRENT_CYCLE') return t.cycleNumber === currentCycle;
@@ -37,13 +39,28 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, current
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowMultiplesGuide(!showMultiplesGuide)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 text-xs font-bold transition cursor-pointer"
+          >
+            <Layers className="w-4 h-4 text-blue-700" />
+            <span>{showMultiplesGuide ? 'Ocultar Opciones Múltiples' : 'Ver Opciones Apuestas Múltiples'}</span>
+          </button>
           <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-2 text-right">
             <span className="text-[10px] text-slate-500 uppercase font-bold block">Premios Ciclo {currentCycle}</span>
             <span className="text-base font-extrabold text-emerald-700">+{totalWonInCycle.toFixed(2)} €</span>
           </div>
         </div>
       </div>
+
+      {/* Guía desplegable de Apuestas Múltiples */}
+      {showMultiplesGuide && (
+        <div className="p-1">
+          <MultipleBetsGuide />
+        </div>
+      )}
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">

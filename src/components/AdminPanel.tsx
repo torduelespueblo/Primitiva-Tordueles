@@ -7,25 +7,25 @@ import {
   MultipleBetType
 } from '../types/lottery';
 import {
-  OFFICIAL_MULTIPLE_BETS,
-  getRecommendedBet,
   calculateScrutiny
 } from '../services/lotteryRules';
 import { greenApiService } from '../services/greenApi';
 import { whatsappService } from '../services/whatsappService';
 import { pushNotificationService } from '../services/pushNotifications';
 import { processTicketWithAI } from '../services/aiService';
+import { generateDailyLotteryBulletin } from '../services/lotteryDailyService';
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
 import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
+import { MultipleBetsGuide } from './MultipleBetsGuide';
 
 import {
   Settings,
   Users,
   Upload,
   HardDrive,
-
   Send,
-  Calculator,
+  Layers,
+  Newspaper,
   Trophy,
   Check,
   AlertTriangle,
@@ -65,11 +65,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onLogoutAdmin,
 }) => {
   const [activeSection, setActiveSection] = useState<
-    'CONFIG' | 'USERS' | 'TICKET_UPLOAD' | 'WORKSPACE' | 'CALCULATOR' | 'SCRUTINY'
+    'CONFIG' | 'USERS' | 'TICKET_UPLOAD' | 'WORKSPACE' | 'MULTIPLE_BETS' | 'SCRUTINY'
   >('CONFIG');
 
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [testMsgStatus, setTestMsgStatus] = useState<string | null>(null);
+  const [showBulletinPreview, setShowBulletinPreview] = useState(false);
+  const [bulletinSendStatus, setBulletinSendStatus] = useState<string | null>(null);
 
   // Formulario nuevo boleto
   const [newTicketJornada, setNewTicketJornada] = useState(settings.currentJornada);
@@ -138,12 +140,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [scrutinyReintegro, setScrutinyReintegro] = useState(4);
   const [scrutinyResult, setScrutinyResult] = useState<string | null>(null);
 
-  // Calculadora
-  const [calcPlayers, setCalcPlayers] = useState(players.filter(p => p.status === 'TITULAR').length);
-
   // Interruptores SÍ/NO
   const handleToggleDailySummary = (val: boolean) => {
     onUpdateSettings({ ...settings, sendDailyGeneralSummary: val });
+  };
+
+  const handleSendDailyBulletin = async () => {
+    setBulletinSendStatus('Enviando boletín diario completo (ONLAE + ONCE) vía Green API...');
+    const bulletin = generateDailyLotteryBulletin();
+    const result = await whatsappService.sendTextMessage(
+      bulletin.formattedWhatsAppMessage,
+      {
+        instanceId: settings.greenApiInstanceId,
+        token: settings.greenApiToken,
+        chatId: settings.greenApiChatId,
+      }
+    );
+    if (result.success) {
+      setBulletinSendStatus('¡Boletín diario oficial (ONLAE + ONCE) enviado con éxito al grupo!');
+    } else {
+      setBulletinSendStatus(`Error al enviar: ${result.error}`);
+    }
+    setTimeout(() => setBulletinSendStatus(null), 6000);
   };
 
   const handleToggle2035 = (val: boolean) => {
@@ -827,13 +845,59 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {activeSection === 'SCRUTINY' && (
         <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
           <div>
-            <h3 className="font-bold text-base text-[#0d253f] flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-amber-500" />
-              Escrutinio Oficial SELAE & Cálculo de Aciertos
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Introduce la combinación ganadora oficial para calcular aciertos y aplicar el reparto según el Art. 5 (Menores a Bolsa, Mayores a Banco).
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="font-bold text-base text-[#0d253f] flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-amber-500" />
+                  Escrutinio Oficial SELAE & Cálculo de Aciertos
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Prueba o introduce la combinación ganadora oficial para calcular aciertos y aplicar el reparto según el Art. 5 (Menores a Bolsa, Mayores a Banco).
+                </p>
+              </div>
+            </div>
+
+            {/* Presets de sorteos reales para pruebas inmediatas */}
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3">
+              <span className="block text-[11px] font-bold text-amber-900 mb-1.5">
+                Probar con sorteos reales oficiales recientes:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScrutinyWinning('1, 6, 14, 23, 30, 39');
+                    setScrutinyComp(36);
+                    setScrutinyReintegro(2);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition cursor-pointer shadow-2xs"
+                >
+                  📅 Lunes 9 Nov (Ayer): 01-06-14-23-30-39 (C:36, R:2)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScrutinyWinning('9, 13, 19, 25, 26, 30');
+                    setScrutinyComp(34);
+                    setScrutinyReintegro(4);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition cursor-pointer shadow-2xs"
+                >
+                  📅 Sábado 7 Nov: 09-13-19-25-26-30 (C:34, R:4)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScrutinyWinning('4, 8, 9, 15, 31, 32');
+                    setScrutinyComp(2);
+                    setScrutinyReintegro(3);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition cursor-pointer shadow-2xs"
+                >
+                  📅 Jueves 5 Nov: 04-08-09-15-31-32 (C:2, R:3)
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
@@ -868,10 +932,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
+          {/* Comparativa visual en tiempo real contra la apuesta activa de la peña */}
+          {tickets[0] && (
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-800">
+                  Comprobación en vivo contra la apuesta activa (Jornada {tickets[0].jornadaNumber}):
+                </span>
+                <span className="font-mono text-slate-500 text-[11px]">
+                  Apuesta: [{tickets[0].playedNumbers.join(', ')}] | Reintegro jugado: {tickets[0].playedReintegro}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-slate-600">Aciertos detectados:</span>
+                {(() => {
+                  const winNums = scrutinyWinning.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+                  const hits = tickets[0].playedNumbers.filter(n => winNums.includes(n));
+                  const reintegroMatch = scrutinyReintegro === tickets[0].playedReintegro;
+                  return (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {hits.length > 0 ? (
+                        hits.map(h => (
+                          <span key={h} className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-mono font-bold text-xs">
+                            ✓ {h}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-500 italic">0 aciertos en combinación</span>
+                      )}
+                      {reintegroMatch && (
+                        <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white font-bold text-xs">
+                          ★ Reintegro Acertado ({scrutinyReintegro})
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
           <div className="pt-2 flex items-center gap-4">
             <button
               onClick={handleRunScrutiny}
-              className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition"
+              className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
             >
               Ejecutar Escrutinio y Acreditar Bolsa
             </button>

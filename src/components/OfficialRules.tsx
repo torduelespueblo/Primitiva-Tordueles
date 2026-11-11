@@ -10,6 +10,7 @@ import {
   Scale,
   Printer
 } from 'lucide-react';
+import { MultipleBetsGuide } from './MultipleBetsGuide';
 
 export const OfficialRules: React.FC = () => {
   const handlePrint = () => {
@@ -166,6 +167,11 @@ export const OfficialRules: React.FC = () => {
               </p>
             </div>
           </div>
+        </section>
+
+        {/* ANEXO OFICIAL: OPCIONES DE APUESTAS MÚLTIPLES */}
+        <section className="pt-4 border-t border-slate-100">
+          <MultipleBetsGuide />
         </section>
       </div>
     </div>
