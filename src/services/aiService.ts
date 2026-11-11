@@ -90,9 +90,12 @@ export async function processTicketWithAI(
 
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
+      const defaultMsg = response.status === 404
+        ? 'El endpoint backend de extracción con IA no está disponible en este servidor estático (GitHub Pages). Introduce los números manualmente o utiliza el servidor Node.js.'
+        : `Error en el servidor al procesar con IA (${response.status})`;
       return {
         success: false,
-        error: errJson.error || `Error en el servidor al procesar con IA (${response.status})`,
+        error: errJson.error || defaultMsg,
       };
     }
 
