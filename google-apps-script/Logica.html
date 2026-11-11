@@ -1,0 +1,335 @@
+<script>
+  /**
+   * ==========================================================================
+   * PEÑA PRIMITIVA TORDUELES - CONTROLADOR DE CLIENTE (SPA)
+   * Archivo: Logica.html
+   * ==========================================================================
+   * Flujo de Vistas:
+   * 1. Login por DNI contra Google Sheets
+   * 2. Bloqueo y Aceptación de Normas si Reglamento = FALSE
+   * 3. Dashboard Principal con Tesorería, Estado de Pago y Sorteos
+   */
+
+  // Estado Global en Cliente
+  let estadoApp = {
+    usuario: null,
+    dashboard: null
+  };
+
+  // Inicialización al cargar el DOM
+  document.addEventListener('DOMContentLoaded', function () {
+    // Restaurar último DNI recordado en este dispositivo si existe
+    try {
+      const ultimoDni = localStorage.getItem('tordueles_dni');
+      if (ultimoDni) {
+        const inputDni = document.getElementById('inputDNI');
+        if (inputDni) inputDni.value = ultimoDni;
+      }
+    } catch (e) {}
+  });
+
+  /**
+   * Alterna entre vistas de la SPA de forma instantánea
+   * @param {string} viewId - ID del contenedor: 'viewLogin', 'viewRules', 'viewDashboard'
+   */
+  function cambiarVista(viewId) {
+    const vistas = document.querySelectorAll('.view-section');
+    vistas.forEach(v => v.classList.remove('active'));
+
+    const vistaDestino = document.getElementById(viewId);
+    if (vistaDestino) {
+      vistaDestino.classList.add('active');
+    }
+
+    // El botón de salir solo es visible cuando hay usuario autenticado en el Dashboard o Reglas
+    const headerActions = document.getElementById('headerActions');
+    if (headerActions) {
+      headerActions.style.display = (viewId === 'viewDashboard' || viewId === 'viewRules') ? 'flex' : 'none';
+    }
+
+    // Scroll al inicio suave
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /**
+   * Muestra u oculta el spinner de carga
+   */
+  function toggleCargando(activo, mensaje) {
+    const overlay = document.getElementById('loadingOverlay');
+    const texto = document.getElementById('loadingText');
+    if (texto && mensaje) texto.innerText = mensaje;
+    if (overlay) {
+      if (activo) overlay.classList.add('active');
+      else overlay.classList.remove('active');
+    }
+  }
+
+  // ==========================================================================
+  // 1. FLUJO DE LOGIN POR DNI
+  // ==========================================================================
+
+  function ejecutarLogin(event) {
+    if (event) event.preventDefault();
+
+    const input = document.getElementById('inputDNI');
+    const alertBox = document.getElementById('loginAlert');
+    alertBox.style.display = 'none';
+
+    if (!input || !input.value.trim()) {
+      mostrarErrorLogin('Por favor, escribe tu DNI o NIE.');
+      return;
+    }
+
+    const dni = input.value.trim().toUpperCase();
+    toggleCargando(true, 'Verificando DNI en el censo oficial...');
+
+    // Invocación al servidor Google Apps Script
+    google.script.run
+      .withSuccessHandler(function (respuesta) {
+        toggleCargando(false);
+        if (!respuesta || !respuesta.success) {
+          mostrarErrorLogin(respuesta ? respuesta.message : 'Error desconocido al validar el DNI.');
+          return;
+        }
+
+        // Guardar sesión y DNI en almacenamiento local
+        estadoApp.usuario = respuesta.user;
+        try {
+          localStorage.setItem('tordueles_dni', dni);
+        } catch (e) {}
+
+        // Validar si tiene pendiente aceptar el reglamento (Reglamento == FALSE)
+        if (!respuesta.user.reglamentoAceptado) {
+          cambiarVista('viewRules');
+        } else {
+          cargarDatosCompletosDashboard(dni);
+        }
+      })
+      .withFailureHandler(function (error) {
+        toggleCargando(false);
+        mostrarErrorLogin('Error de comunicación con Google Sheets: ' + (error.message || error));
+      })
+      .validarLoginDNI(dni);
+  }
+
+  function mostrarErrorLogin(msg) {
+    const alertBox = document.getElementById('loginAlert');
+    if (alertBox) {
+      alertBox.innerText = msg;
+      alertBox.style.display = 'flex';
+    }
+  }
+
+  // ==========================================================================
+  // 2. FLUJO DE ACEPTACIÓN OBLIGATORIA DEL REGLAMENTO
+  // ==========================================================================
+
+  function actualizarBotonReglas() {
+    const chk = document.getElementById('chkAcceptRules');
+    const btn = document.getElementById('btnAcceptRules');
+    if (chk && btn) {
+      btn.disabled = !chk.checked;
+      btn.style.opacity = chk.checked ? '1' : '0.5';
+      btn.style.cursor = chk.checked ? 'pointer' : 'not-allowed';
+    }
+  }
+
+  function confirmarAceptacionReglamento() {
+    if (!estadoApp.usuario || !estadoApp.usuario.dni) {
+      cambiarVista('viewLogin');
+      return;
+    }
+
+    const alertBox = document.getElementById('rulesAlert');
+    alertBox.style.display = 'none';
+
+    toggleCargando(true, 'Registrando tu aceptación formal en el registro...');
+
+    google.script.run
+      .withSuccessHandler(function (respuesta) {
+        if (!respuesta || !respuesta.success) {
+          toggleCargando(false);
+          alertBox.innerText = respuesta ? respuesta.message : 'No se pudo registrar la aceptación.';
+          alertBox.style.display = 'flex';
+          return;
+        }
+
+        // Actualizamos estado en memoria y procedemos al Dashboard
+        estadoApp.usuario.reglamentoAceptado = true;
+        cargarDatosCompletosDashboard(estadoApp.usuario.dni);
+      })
+      .withFailureHandler(function (err) {
+        toggleCargando(false);
+        alertBox.innerText = 'Error al guardar la aceptación: ' + (err.message || err);
+        alertBox.style.display = 'flex';
+      })
+      .aceptarReglamento(estadoApp.usuario.dni);
+  }
+
+  // ==========================================================================
+  // 3. CARGA Y PINTADO DEL DASHBOARD
+  // ==========================================================================
+
+  function cargarDatosCompletosDashboard(dni) {
+    toggleCargando(true, 'Cargando saldo, escrutinios y datos de la peña...');
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        toggleCargando(false);
+        if (!res || !res.success) {
+          alert('Aviso: ' + (res ? res.message : 'No se pudieron obtener los datos.'));
+          return;
+        }
+
+        estadoApp.dashboard = res.data;
+        if (res.data.usuario) {
+          estadoApp.usuario = res.data.usuario;
+        }
+
+        renderizarDashboard(res.data);
+        cambiarVista('viewDashboard');
+      })
+      .withFailureHandler(function (err) {
+        toggleCargando(false);
+        alert('Error al conectar con la base de datos: ' + (err.message || err));
+      })
+      .obtenerDatosDashboard(dni);
+  }
+
+  function renderizarDashboard(data) {
+    const user = estadoApp.usuario;
+
+    // 1. Saldo de la peña (Pestaña 'Tesorería' -> Bolsa de Premios)
+    const lblBolsa = document.getElementById('lblBolsaPremios');
+    if (lblBolsa && data.tesoreria) {
+      lblBolsa.innerText = formatearMoneda(data.tesoreria.bolsaPremios);
+    }
+
+    // 2. Datos del Socio Autenticado
+    if (user) {
+      document.getElementById('lblNombreUsuario').innerText = user.nombreCompleto || user.nombre || 'Socio';
+      document.getElementById('lblDniUsuario').innerText = 'DNI: ' + user.dni;
+      document.getElementById('lblEstadoSocio').innerText = user.estado || 'Titular';
+      document.getElementById('lblParticipacion').innerText = user.porcentajeParticipacion || '100%';
+
+      const lblPago = document.getElementById('lblEstadoPago');
+      const badgePago = document.getElementById('badgeEstadoPago');
+      const esPagado = (user.estadoPago || '').toUpperCase() === 'PAGADO';
+
+      if (lblPago && badgePago) {
+        lblPago.innerText = esPagado ? 'Al Día (Pagado)' : 'Pendiente';
+        badgePago.className = esPagado ? 'badge-item badge-status-paid' : 'badge-item badge-status-pending';
+      }
+
+      // Enlace dinámico de WhatsApp para comunicar el pago
+      const btnWhatsapp = document.getElementById('btnWhatsappPago');
+      if (btnWhatsapp) {
+        const textoMsg = encodeURIComponent(
+          '🌲 *PEÑA PRIMITIVA TORDUELES - PAGO REALIZADO* 🌲\n\n' +
+          'Hola Administrador, confirmo que he realizado el abono de la cuota de 10 € correspondiente a las siguientes 10 jornadas.\n\n' +
+          '👤 *Socio:* ' + user.nombreCompleto + '\n' +
+          '🪪 *DNI:* ' + user.dni + '\n' +
+          '📅 *Fecha:* ' + new Date().toLocaleDateString('es-ES')
+        );
+        btnWhatsapp.href = 'https://api.whatsapp.com/send?text=' + textoMsg;
+      }
+    }
+
+    // 3. Último Boleto / Combinación Jugada
+    const cardBoleto = document.getElementById('cardUltimoBoleto');
+    if (cardBoleto && data.ultimoSorteo && data.ultimoSorteo.combinacionJugada) {
+      cardBoleto.style.display = 'block';
+      document.getElementById('lblJornadaBoleto').innerText = 'Jornada ' + data.ultimoSorteo.jornada + ' • ' + data.ultimoSorteo.fecha;
+      document.getElementById('lblCosteBoleto').innerText = formatearMoneda(data.ultimoSorteo.importeJugado);
+
+      // Bolas de la combinación
+      const containerBolas = document.getElementById('ballsCombinacionJugada');
+      containerBolas.innerHTML = '';
+      const numeros = data.ultimoSorteo.combinacionJugada.split(',').map(n => n.trim()).filter(Boolean);
+      numeros.forEach(num => {
+        const bola = document.createElement('div');
+        bola.className = 'lottery-ball highlight';
+        bola.innerText = num.length === 1 ? '0' + num : num;
+        containerBolas.appendChild(bola);
+      });
+
+      // Enlace a la foto del resguardo si existe
+      const lnkResguardo = document.getElementById('lnkVerResguardo');
+      if (lnkResguardo) {
+        if (data.ultimoSorteo.fotoResguardo && data.ultimoSorteo.fotoResguardo.startsWith('http')) {
+          lnkResguardo.href = data.ultimoSorteo.fotoResguardo;
+          lnkResguardo.style.display = 'inline-block';
+        } else {
+          lnkResguardo.style.display = 'none';
+        }
+      }
+    } else if (cardBoleto) {
+      cardBoleto.style.display = 'none';
+    }
+
+    // 4. Historial de Sorteos (Pestaña 'Sorteos')
+    const containerSorteos = document.getElementById('containerSorteos');
+    if (containerSorteos) {
+      containerSorteos.innerHTML = '';
+
+      if (!data.sorteos || data.sorteos.length === 0) {
+        containerSorteos.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 16px;">No hay sorteos registrados todavía.</p>';
+        return;
+      }
+
+      data.sorteos.forEach(sorteo => {
+        const item = document.createElement('div');
+        item.className = 'draw-card';
+
+        const aciertosTexto = sorteo.aciertos !== null ? sorteo.aciertos + ' aciertos' : 'Pendiente de escrutinio';
+        const premioTexto = sorteo.cantidadPremiada > 0 ? '+' + formatearMoneda(sorteo.cantidadPremiada) : 'Sin premio';
+
+        item.innerHTML = `
+          <div class="draw-header">
+            <span class="draw-jornada">Jornada ${sorteo.jornada}</span>
+            <span class="draw-date">${sorteo.fecha}</span>
+          </div>
+
+          <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">
+            <strong>Jugada:</strong> ${sorteo.combinacionJugada || 'No registrada'}
+          </div>
+
+          ${sorteo.combinacionGanadora ? `
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">
+              <strong>Ganadora:</strong> <span style="font-weight: 700; color: var(--primary-navy);">${sorteo.combinacionGanadora}</span>
+            </div>
+          ` : ''}
+
+          <div class="draw-results-row">
+            <div>
+              <span style="color: var(--text-muted); display: block; font-size: 0.68rem;">Aciertos Peña</span>
+              <strong style="color: var(--primary-navy);">${aciertosTexto}</strong>
+            </div>
+            <div style="text-align: right;">
+              <span style="color: var(--text-muted); display: block; font-size: 0.68rem;">Premio Obtenido</span>
+              <strong style="color: ${sorteo.cantidadPremiada > 0 ? 'var(--success-green)' : 'var(--text-muted)'};">${premioTexto}</strong>
+            </div>
+          </div>
+        `;
+
+        containerSorteos.appendChild(item);
+      });
+    }
+  }
+
+  function cerrarSesion() {
+    estadoApp.usuario = null;
+    estadoApp.dashboard = null;
+    const inputDni = document.getElementById('inputDNI');
+    if (inputDni) inputDni.value = '';
+    cambiarVista('viewLogin');
+  }
+
+  function formatearMoneda(valor) {
+    const num = parseFloat(valor) || 0;
+    return num.toLocaleString('es-ES', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }) + ' €';
+  }
+</script>

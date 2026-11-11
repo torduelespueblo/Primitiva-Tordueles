@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>Peña Primitiva Tordueles | Portal del Jugador</title>
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+
+  <!-- Contenedor PWA Mobile-First -->
+  <div class="app-container">
+    
+    <!-- Encabezado Superior -->
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <div class="brand-logo-badge">
+          <!-- Emblema Oficial: Árbol integrado en la 'T' de Tordueles -->
+          <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="46" stroke="#0A2540" stroke-width="6"/>
+            <!-- Copa de Roble -->
+            <path d="M50 20C40 20 32 28 32 38C26 40 22 46 22 52C22 59 27 65 34 66C36 71 42 74 50 74C58 74 64 71 66 66C73 65 78 59 78 52C78 46 74 40 68 38C68 28 60 20 50 20Z" fill="#0A2540"/>
+            <!-- 'T' y Tronco Estilizado -->
+            <path d="M30 32H70V39H54V76H46V39H30V32Z" fill="#FF6B00"/>
+            <path d="M46 54C42 50 36 48 34 46" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+            <path d="M54 54C58 50 64 48 66 46" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Primitiva Tordueles</h1>
+          <p>Portal Oficial del Jugador</p>
+        </div>
+      </div>
+
+      <div class="header-actions" id="headerActions" style="display: none;">
+        <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
+      </div>
+    </header>
+
+    <!-- Contenido Dinámico de la SPA -->
+    <main class="app-content">
+
+      <!-- ================================================================= -->
+      <!-- VISTA 1: LOGIN POR DNI                                            -->
+      <!-- ================================================================= -->
+      <section id="viewLogin" class="view-section active">
+        <div class="login-box">
+          <div class="login-icon-circle">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </div>
+
+          <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--primary-navy); margin-bottom: 4px;">
+            Acceso al Área de Socios
+          </h2>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">
+            Introduce tu DNI o NIE para consultar tu estado, boletos y saldo de la peña.
+          </p>
+
+          <div id="loginAlert" class="alert-box alert-error" style="display: none; margin-top: 14px;"></div>
+
+          <form id="formLogin" onsubmit="ejecutarLogin(event)">
+            <div class="form-group">
+              <label class="form-label" for="inputDNI">DNI / NIE del Titular:</label>
+              <input
+                type="text"
+                id="inputDNI"
+                class="input-dni"
+                placeholder="12345678A"
+                maxlength="10"
+                required
+                autocomplete="off"
+              />
+            </div>
+
+            <button type="submit" class="btn-primary" id="btnLogin">
+              <span>Entrar a Mi Área</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+          </form>
+
+          <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 16px;">
+            ¿Aún no estás registrado? Inscríbete a través del Formulario Oficial de Google para acceder a la lista de espera por estricto sello de tiempo.
+          </p>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- VISTA 2: ACEPTACIÓN OBLIGATORIA DEL REGLAMENTO                    -->
+      <!-- ================================================================= -->
+      <section id="viewRules" class="view-section">
+        <div class="rules-container">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6B00" stroke-width="2.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--primary-navy);">
+              Declaración de Conformidad Oficial
+            </h2>
+          </div>
+
+          <p style="font-size: 0.78rem; color: var(--text-secondary);">
+            Para acceder a los datos financieros y participar en los sorteos de la peña, es requisito estatutario aceptar formalmente las bases:
+          </p>
+
+          <div id="rulesAlert" class="alert-box alert-error" style="display: none; margin-top: 10px;"></div>
+
+          <div class="rules-scroll-area">
+            <h4>Artículo 1. Financiación y Ciclos</h4>
+            <p>La participación se abona por bloques indivisibles de 10 jornadas a razón de 1,00 € semanal por jugador (10 € por ciclo completo). La renovación del siguiente ciclo debe abonarse obligatoriamente entre la jornada 7 y la 9.</p>
+
+            <h4>Artículo 2. Apuestas Múltiples Variables</h4>
+            <p>El importe jugado se adaptará automáticamente al número de titulares que completen el pago en cada ciclo. Ninguna combinación es fija: se generan aleatoriamente en el terminal oficial de SELAE.</p>
+
+            <h4>Artículo 3. Bajas y Lista de Espera</h4>
+            <p>Quien no abone la renovación antes del fin de la jornada 9, jugará la jornada 10 como última y causará baja definitiva, perdiendo número y antigüedad. La vacante se ofrecerá al primer suplente por estricto sello temporal de inscripción, disponiendo de 24 horas exactas para abonar.</p>
+
+            <h4>Artículo 4. Reparto de Premios</h4>
+            <p>Los premios menores o iguales a 2.000 € se destinarán íntegramente a la Bolsa de Premios Menores (fondo común acumulado). Los premios mayores a 2.000 € se tramitan en entidad bancaria para su transferencia individual.</p>
+          </div>
+
+          <label class="checkbox-container">
+            <input type="checkbox" id="chkAcceptRules" onchange="actualizarBotonReglas()" />
+            <span>He leído, comprendo y acepto íntegramente el Reglamento Oficial de la Peña Primitiva Tordueles y el tratamiento de mis datos de socio.</span>
+          </label>
+
+          <button
+            type="button"
+            class="btn-primary"
+            id="btnAcceptRules"
+            disabled
+            style="opacity: 0.5; cursor: not-allowed;"
+            onclick="confirmarAceptacionReglamento()"
+          >
+            Aceptar Normas y Acceder
+          </button>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- VISTA 3: DASHBOARD PRINCIPAL                                      -->
+      <!-- ================================================================= -->
+      <section id="viewDashboard" class="view-section">
+        
+        <!-- Tarjeta Hero: Bolsa de Premios Acumulada -->
+        <div class="card card-hero-treasury">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <span class="hero-tag">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              Bolsa de Premios Menores
+            </span>
+            <span style="font-size: 0.7rem; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 9999px;">
+              Tesorería Oficial
+            </span>
+          </div>
+
+          <div class="hero-amount" id="lblBolsaPremios">0,00 €</div>
+
+          <div class="hero-meta">
+            Fondo común acumulado de premios menores (&le; 2.000 €). Separado de la cuota de apuestas semanales.
+          </div>
+        </div>
+
+        <!-- Tarjeta de Estado del Jugador -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Socio Autenticado</span>
+              <h3 id="lblNombreUsuario" style="font-size: 1rem; font-weight: 800; color: var(--primary-navy);">-</h3>
+              <p id="lblDniUsuario" style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">-</p>
+            </div>
+            <div id="badgeEstadoPago" class="badge-item badge-status-paid" style="padding: 6px 12px; text-align: center;">
+              <span class="badge-label">Pago Ciclo</span>
+              <span id="lblEstadoPago" class="badge-value">-</span>
+            </div>
+          </div>
+
+          <div class="user-badge-grid">
+            <div class="badge-item">
+              <span class="badge-label">Condición</span>
+              <span id="lblEstadoSocio" class="badge-value">Titular</span>
+            </div>
+            <div class="badge-item">
+              <span class="badge-label">Participación</span>
+              <span id="lblParticipacion" class="badge-value">-</span>
+            </div>
+          </div>
+
+          <!-- Botón de WhatsApp para comunicar el pago de las siguientes 10 jornadas -->
+          <div style="margin-top: 16px;">
+            <a
+              id="btnWhatsappPago"
+              href="#"
+              target="_blank"
+              class="btn-secondary btn-whatsapp"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67Z"/>
+              </svg>
+              <span>Enviar WhatsApp al admin una vez hecho el pago de las siguientes 10 jornadas</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Último Boleto / Combinación Jugada -->
+        <div class="card" id="cardUltimoBoleto" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 0.75rem; font-weight: 800; color: var(--accent-orange); text-transform: uppercase;">
+              ★ Apuesta Activa de la Jornada
+            </span>
+            <span id="lblJornadaBoleto" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">-</span>
+          </div>
+
+          <div style="text-align: center; margin: 10px 0;">
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px;">Combinación múltiple validada en terminal SELAE:</p>
+            <div id="ballsCombinacionJugada" class="lottery-balls-row"></div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); padding-top: 8px; border-top: 1px solid var(--border-color);">
+            <span>Coste: <strong id="lblCosteBoleto">-</strong></span>
+            <a id="lnkVerResguardo" href="#" target="_blank" style="color: var(--primary-navy); font-weight: 700; text-decoration: underline; display: none;">
+              Ver Foto Resguardo
+            </a>
+          </div>
+        </div>
+
+        <!-- Historial de Últimos Sorteos -->
+        <div>
+          <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--primary-navy); margin: 18px 0 10px 4px; display: flex; align-items: center; gap: 6px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 8v4l3 3"></path>
+              <circle cx="12" cy="12" r="9"></circle>
+            </svg>
+            Historial de Sorteos y Escrutinios
+          </h3>
+
+          <div id="containerSorteos">
+            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 20px;">Cargando histórico...</p>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Footer Legal -->
+    <footer class="footer-legal">
+      Peña La Primitiva Tordueles &copy; Burgos. Sistema oficial sobre Google Workspace & Green API.
+    </footer>
+
+  </div>
+
+  <!-- Overlay de Carga Global -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <p id="loadingText" style="font-size: 0.85rem; font-weight: 600;">Verificando credenciales...</p>
+  </div>
+
+  <!-- Inclusión de la Lógica JavaScript -->
+  <?!= include('Logica'); ?>
+
+</body>
+</html>

@@ -12,6 +12,8 @@ import {
   Calendar,
   HelpCircle
 } from 'lucide-react';
+import { formatTimestampWithCentiseconds } from '../utils/dateFormat';
+
 
 interface MembersAndWaitlistProps {
   players: Player[];
@@ -123,12 +125,8 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
                           <span className="text-[10px] text-slate-500 font-normal block">{player.notes}</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 hidden sm:table-cell">
-                        {new Date(player.registrationTimestamp).toLocaleDateString('es-ES', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
+                      <td className="py-3 px-4 text-slate-600 font-mono text-[11px] hidden sm:table-cell">
+                        {formatTimestampWithCentiseconds(player.registrationTimestamp)}
                       </td>
                       <td className="py-3 px-4">
                         {player.currentCyclePaid ? (
@@ -197,7 +195,7 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
               Regla de Asignación por Antigüedad & 24 Horas
             </h4>
             <p>
-              Las vacantes que se produzcan por falta de renovación o baja voluntaria se adjudican por <strong>estricto orden cronológico</strong> del sello de tiempo (timestamp) del Formulario de Google.
+              Las vacantes que se produzcan por falta de renovación o baja voluntaria se adjudican por <strong>estricto orden cronológico</strong> del sello de tiempo (timestamp con fecha, hora, minutos, segundos y centésimas) del Formulario de Google para dirimir sin coincidencias el momento exacto de inscripción.
             </p>
             <p>
               El primer suplente notificado dispone de <strong>exactamente 24 horas</strong> para abonar los 10€ del ciclo completo. Si no realiza el ingreso en plazo, la vacante pasará inmediatamente al siguiente aspirante de la lista.
@@ -211,7 +209,7 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
                   <tr>
                     <th className="py-3 px-4">Orden</th>
                     <th className="py-3 px-4">Aspirante</th>
-                    <th className="py-3 px-4">Timestamp Oficial (Google Form)</th>
+                    <th className="py-3 px-4">Marca Temporal (Seg. y Centésimas)</th>
                     <th className="py-3 px-4">Estado del Turno</th>
                     <th className="py-3 px-4">Plazo Restante</th>
                   </tr>
@@ -243,15 +241,8 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
-                          {new Date(entry.registrationTimestamp).toLocaleString('es-ES', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          })}
+                        <td className="py-3 px-4 font-mono text-[11px] text-slate-700 font-medium">
+                          {formatTimestampWithCentiseconds(entry.registrationTimestamp)}
                         </td>
                         <td className="py-3 px-4">
                           {entry.status === 'NOTIFICADO_24H' ? (

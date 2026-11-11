@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS: SyndicateSettings = {
   currentJornada: 8, // En pleno periodo de renovación (Jornadas 7 a 9)
   prizeFundBalance: 384.50,
   googleFormUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSc_TorduelesLoteriaRegistro/viewform',
-  googleAppsScriptUrl: '',
+  googleAppsScriptUrl: 'https://script.google.com/macros/s/AKfycbxFolqBPLovSHOHM0ST-bBtyzlCzTG64ZmzNvNSaDgawIT6MP1RXwg9BhE2ZKJt_weJCw/exec',
   googleSheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
   greenApiInstanceId: '710722795241',
   greenApiToken: 'a1c3c85f04d34a21ae86403c9ebdbdb54854f9d5f94842a1b3',
@@ -37,7 +37,7 @@ const INITIAL_PLAYERS: Player[] = [
     name: 'José Antonio Martínez Peña',
     email: 'jantonio.mp@gmail.com',
     phone: '+34 612 34 56 01',
-    registrationTimestamp: '2024-01-10T10:14:22Z',
+    registrationTimestamp: '2024-01-10T10:14:22.18Z',
     status: 'TITULAR',
     currentCyclePaid: true,
     paidUntilCycle: 4,
@@ -50,7 +50,7 @@ const INITIAL_PLAYERS: Player[] = [
     name: 'María Carmen Gómez Arroyo',
     email: 'mcarmen.gomez@gmail.com',
     phone: '+34 620 45 67 02',
-    registrationTimestamp: '2024-01-10T10:15:04Z',
+    registrationTimestamp: '2024-01-10T10:15:04.45Z',
     status: 'TITULAR',
     currentCyclePaid: true,
     paidUntilCycle: 4,
@@ -62,7 +62,7 @@ const INITIAL_PLAYERS: Player[] = [
     name: 'Francisco Javier Tordueles Díez',
     email: 'fjavier.td@gmail.com',
     phone: '+34 633 56 78 03',
-    registrationTimestamp: '2024-01-10T10:16:30Z',
+    registrationTimestamp: '2024-01-10T10:16:30.73Z',
     status: 'TITULAR',
     currentCyclePaid: true,
     paidUntilCycle: 3,
@@ -75,7 +75,7 @@ const INITIAL_PLAYERS: Player[] = [
     name: 'Lucía Santamaría Barbero',
     email: 'lucia.stmaria@gmail.com',
     phone: '+34 644 67 89 04',
-    registrationTimestamp: '2024-01-10T10:18:15Z',
+    registrationTimestamp: '2024-01-10T10:18:15.91Z',
     status: 'TITULAR',
     currentCyclePaid: true,
     paidUntilCycle: 4,
@@ -225,9 +225,9 @@ const INITIAL_WAITING_LIST: WaitingListEntry[] = [
     name: 'Ignacio Román Delgado',
     email: 'ignacio.roman@gmail.com',
     phone: '+34 671 22 33 44',
-    registrationTimestamp: '2024-02-14T11:22:15Z',
-    notifiedAt: '2026-11-10T08:00:00Z',
-    deadline24h: '2026-11-11T08:00:00Z',
+    registrationTimestamp: '2024-02-14T11:22:15.34Z',
+    notifiedAt: '2026-11-10T08:00:00.00Z',
+    deadline24h: '2026-11-11T08:00:00.00Z',
     status: 'NOTIFICADO_24H',
   },
   {
@@ -235,7 +235,7 @@ const INITIAL_WAITING_LIST: WaitingListEntry[] = [
     name: 'Sonia Barbero Casado',
     email: 'sonia.barbero@gmail.com',
     phone: '+34 682 33 44 55',
-    registrationTimestamp: '2024-02-18T16:45:00Z',
+    registrationTimestamp: '2024-02-18T16:45:00.82Z',
     status: 'ESPERANDO',
   },
   {
@@ -243,7 +243,7 @@ const INITIAL_WAITING_LIST: WaitingListEntry[] = [
     name: 'Carlos Andrés Mahamud',
     email: 'carlos.andres@gmail.com',
     phone: '+34 693 44 55 66',
-    registrationTimestamp: '2024-03-01T09:10:33Z',
+    registrationTimestamp: '2024-03-01T09:10:33.19Z',
     status: 'ESPERANDO',
   },
   {
@@ -251,7 +251,7 @@ const INITIAL_WAITING_LIST: WaitingListEntry[] = [
     name: 'Teresa Santillán Moral',
     email: 'teresa.smoral@gmail.com',
     phone: '+34 614 55 66 77',
-    registrationTimestamp: '2024-03-12T19:05:42Z',
+    registrationTimestamp: '2024-03-12T19:05:42.67Z',
     status: 'ESPERANDO',
   },
 ];
@@ -361,10 +361,18 @@ export const storageService = {
     try {
       const parsed = JSON.parse(raw);
       // Actualizar automáticamente a las credenciales oficiales de Green API proporcionadas por el usuario
+      let needsUpdate = false;
       if (!parsed.greenApiInstanceId || parsed.greenApiInstanceId === '7103859201') {
         parsed.greenApiInstanceId = DEFAULT_SETTINGS.greenApiInstanceId;
         parsed.greenApiToken = DEFAULT_SETTINGS.greenApiToken;
         parsed.greenApiChatId = DEFAULT_SETTINGS.greenApiChatId;
+        needsUpdate = true;
+      }
+      if (!parsed.googleAppsScriptUrl || parsed.googleAppsScriptUrl.endsWith('/exe')) {
+        parsed.googleAppsScriptUrl = DEFAULT_SETTINGS.googleAppsScriptUrl;
+        needsUpdate = true;
+      }
+      if (needsUpdate) {
         localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify({ ...DEFAULT_SETTINGS, ...parsed }));
       }
       return { ...DEFAULT_SETTINGS, ...parsed };

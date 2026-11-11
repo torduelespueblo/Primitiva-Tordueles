@@ -3,6 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <script>
+      // Suppress harmless Vite HMR WebSocket connection closed notices in embedded iframe preview
+      window.addEventListener('error', function (event) {
+        if (event && event.message && event.message.includes('WebSocket closed without opened')) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+          return true;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        if (event && event.reason && String(event.reason).includes('WebSocket closed without opened')) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+          return true;
+        }
+      }, true);
+    </script>
     <title>Peña Primitiva Tordueles | WebApp Oficial</title>
     <meta name="description" content="Portal oficial de la Peña de Lotería Primitiva Tordueles. Seguimiento de ciclos de 10 jornadas, apuestas múltiples adaptables, fondo común y lista de espera." />
     <meta name="theme-color" content="#0d253f" />

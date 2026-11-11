@@ -89,8 +89,15 @@ export default function App() {
   // Sincronización en segundo plano con Google Apps Script si está configurado
   useEffect(() => {
     if (settings.googleAppsScriptUrl) {
-      fetch(settings.googleAppsScriptUrl)
-        .then(res => res.json())
+      const url = new URL(settings.googleAppsScriptUrl);
+      if (!url.searchParams.has('format')) {
+        url.searchParams.set('format', 'json');
+      }
+      fetch(url.toString())
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
         .then(data => {
           if (data && data.status === 'OK') {
             setSettings(prev => ({
@@ -102,7 +109,10 @@ export default function App() {
             }));
           }
         })
-        .catch(err => console.log('Apps Script Sync Note:', err));
+        .catch(err => {
+          // Si el despliegue devuelve 403 o no es JSON aún, se mantiene el estado local
+          console.debug('Apps Script Sync Note:', err.message || err);
+        });
     }
   }, [settings.googleAppsScriptUrl]);
 

@@ -16,16 +16,6 @@ async function startServer() {
   // Middleware para recibir imágenes / PDFs en base64
   app.use(express.json({ limit: '30mb' }));
 
-  // Inicialización del cliente Gemini oficial de Google
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-
   // Endpoint de extracción de números de boleto mediante IA
   app.post('/api/extract-ticket', async (req, res) => {
     try {
@@ -36,11 +26,21 @@ async function startServer() {
         });
       }
 
-      if (!process.env.GEMINI_API_KEY) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
         return res.status(500).json({
           error: 'La variable GEMINI_API_KEY no está disponible en el servidor.',
         });
       }
+
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
 
       const response = await ai.models.generateContent({
         model: 'gemini-3.8-flash',
@@ -124,6 +124,7 @@ Analiza detenidamente la imagen o documento PDF adjunto del resguardo o boleto d
       server: {
         middlewareMode: true,
         hmr: false,
+        watch: null,
       },
       appType: 'spa',
     });

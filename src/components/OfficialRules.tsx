@@ -104,7 +104,7 @@ export const OfficialRules: React.FC = () => {
           </div>
           <div className="pl-7 space-y-2 text-xs sm:text-sm text-slate-600">
             <p>
-              <strong>3.1. Orden Cronológico Inalterable:</strong> Las vacantes se asignarán por estricto orden de antigüedad basado en el sello de tiempo (timestamp) registrado en el Formulario oficial de Google.
+              <strong>3.1. Orden Cronológico Inalterable:</strong> Las vacantes se asignarán por estricto orden de antigüedad basado en el sello de tiempo (timestamp con fecha, hora, minutos, segundos y centésimas) registrado en el Formulario oficial de Google para dirimir cualquier coincidencia y fijar la prelación exacta.
             </p>
             <p>
               <strong>3.2. Exclusión por Falta de Pago:</strong> Si un integrante titular no abona la cuota antes de finalizar la jornada 9, la jornada 10 será su última jugada del ciclo y será excluido definitivamente de la peña, procediéndose de inmediato a avisar al primer suplente de la lista.

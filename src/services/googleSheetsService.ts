@@ -1,5 +1,10 @@
 /**
  * Servicio para interactuar con la API oficial de Google Sheets v4
+ * Compatible con la estructura estándar técnica:
+ * - 'Usuarios'
+ * - 'Sorteos'
+ * - 'Tesorería'
+ * - 'Configuracion'
  */
 
 import { Player, SyndicateSettings, TicketDraw, WaitingListEntry } from '../types/lottery';
@@ -89,7 +94,7 @@ export const googleSheetsService = {
   },
 
   /**
-   * Crea una nueva hoja de cálculo oficial para la peña en Google Drive con las 4 pestañas requeridas
+   * Crea una nueva hoja de cálculo oficial con las 4 pestañas requeridas
    */
   async createSyndicateSpreadsheet(
     accessToken: string,
@@ -104,13 +109,13 @@ export const googleSheetsService = {
     const createUrl = 'https://sheets.googleapis.com/v4/spreadsheets';
     const payload = {
       properties: {
-        title: title || 'Peña Primitiva Tordueles - Base de Datos Oficial',
+        title: title || 'Primitiva Tordueles - Base de Datos',
       },
       sheets: [
-        { properties: { title: 'Configuracion', tabColor: { red: 0.05, green: 0.15, blue: 0.25 } } },
-        { properties: { title: 'Socios_Activos', tabColor: { red: 0.1, green: 0.4, blue: 0.8 } } },
-        { properties: { title: 'Lista_Espera_Formulario', tabColor: { red: 0.9, green: 0.6, blue: 0.1 } } },
-        { properties: { title: 'Historico_Jornadas', tabColor: { red: 0.1, green: 0.7, blue: 0.4 } } },
+        { properties: { title: 'Usuarios', tabColor: { red: 0.04, green: 0.15, blue: 0.25 } } },
+        { properties: { title: 'Sorteos', tabColor: { red: 0.1, green: 0.4, blue: 0.8 } } },
+        { properties: { title: 'Tesorería', tabColor: { red: 0.9, green: 0.6, blue: 0.1 } } },
+        { properties: { title: 'Configuracion', tabColor: { red: 0.1, green: 0.7, blue: 0.4 } } },
       ],
     };
 
@@ -131,7 +136,7 @@ export const googleSheetsService = {
     const created = await res.json();
     const spreadsheetId = created.spreadsheetId;
 
-    // Rellenar las pestañas con los datos iniciales
+    // Rellenar las pestañas con los datos iniciales y fórmulas
     await this.exportAllData(accessToken, spreadsheetId, data);
 
     return {
@@ -146,7 +151,7 @@ export const googleSheetsService = {
   },
 
   /**
-   * Exporta todos los datos actuales de la aplicación a las 4 pestañas de Google Sheets
+   * Exporta todos los datos actuales a las pestañas de Google Sheets respetando fórmulas
    */
   async exportAllData(
     accessToken: string,
@@ -158,102 +163,100 @@ export const googleSheetsService = {
       tickets: TicketDraw[];
     }
   ): Promise<void> {
-    // 1. Pestaña 'Configuracion'
-    const configRows: (string | number)[][] = [
-      ['Clave', 'Valor', 'Descripcion'],
-      ['CICLO_ACTUAL', data.settings.currentCycle, 'Número de ciclo vigente'],
-      ['JORNADA_ACTUAL', data.settings.currentJornada, 'Jornada actual (1 a 10)'],
-      ['BOLSA_PREMIOS_MENORES', data.settings.prizeFundBalance, 'Fondo acumulado de premios menores <= 2000€'],
-      ['ENVIAR_BOLETIN_DIARIO_GENERAL', data.settings.sendDailyGeneralSummary ? 'SI' : 'NO', 'Boletín diario general'],
-      ['ENVIAR_RESGUARDO_2035', data.settings.sendDrawDayTicketAt2035 ? 'SI' : 'NO', 'Envío resguardo a las 20:35h'],
-      ['GREEN_API_INSTANCE_ID', data.settings.greenApiInstanceId, 'ID de Instancia Green API'],
-      ['GREEN_API_TOKEN', data.settings.greenApiToken, 'Token Green API'],
-      ['GREEN_API_CHAT_ID', data.settings.greenApiChatId, 'Chat ID Grupo de WhatsApp'],
-      ['ULTIMA_ACTUALIZACION', new Date().toISOString(), 'Fecha y hora de última sincronización'],
-    ];
-
-    // 2. Pestaña 'Socios_Activos'
-    const sociosRows: (string | number)[][] = [
+    // 1. Pestaña 'Usuarios'
+    const usuariosRows: (string | number | boolean)[][] = [
       [
-        'Nº Socio',
-        'Nombre Completo',
-        'Email',
-        'Telefono',
-        'Timestamp Registro',
-        'Estado (TITULAR/SUPLENTE/BAJA)',
-        'Ciclo Pagado',
-        'Pagado Hasta Ciclo',
-        'Estado Renovacion',
-        'Notas',
+        'Marca temporal',
+        'Nombre',
+        'Apellidos',
+        'DNI',
+        'Teléfono',
+        'IBAN',
+        'Estado de Pago',
+        'Ciclo Actual',
+        'Reglamento Aceptado',
+        '% Participación',
+        'Estado',
       ],
-      ...data.players.map(p => [
-        p.memberNumber,
-        p.name,
-        p.email,
-        p.phone || '',
-        p.registrationTimestamp,
-        p.status,
-        p.currentCyclePaid ? 'SI' : 'NO',
-        p.paidUntilCycle,
-        p.renewalStatus,
-        p.notes || '',
-      ]),
+      ...data.players.map((p, idx) => {
+        const parts = p.name.trim().split(' ');
+        const nombre = parts[0] || p.name;
+        const apellidos = parts.slice(1).join(' ') || '';
+        const filaNum = idx + 2;
+        const estadoLabel = p.status === 'TITULAR' ? 'Titular' : p.status === 'SUPLENTE' ? 'Suplente' : 'Baja';
+        const pagoLabel = p.currentCyclePaid ? 'Pagado' : 'Pendiente';
+        return [
+          p.registrationTimestamp,
+          nombre,
+          apellidos,
+          '', // DNI
+          p.phone || '',
+          '', // IBAN
+          pagoLabel,
+          data.settings.currentCycle,
+          true,
+          `=IF(K${filaNum}="Titular", 1 / COUNTIF($K$2:$K, "Titular"), 0)`,
+          estadoLabel,
+        ];
+      }),
     ];
 
-    // 3. Pestaña 'Lista_Espera_Formulario'
-    const esperaRows: (string | number)[][] = [
-      ['Timestamp Inscripcion', 'Posicion Cola', 'Nombre', 'Email', 'Telefono', 'Fecha Aviso', 'Limite 24h', 'Estado'],
-      ...data.waitingList.map((w, idx) => [
-        w.registrationTimestamp,
-        idx + 1,
-        w.name,
-        w.email,
-        w.phone || '',
-        w.notifiedAt || '',
-        w.deadline24h || '',
-        w.status,
-      ]),
-    ];
-
-    // 4. Pestaña 'Historico_Jornadas'
-    const jornadasRows: (string | number)[][] = [
+    // 2. Pestaña 'Sorteos'
+    const sorteosRows: (string | number)[][] = [
       [
-        'ID Boleto',
-        'Ciclo',
         'Jornada',
-        'Fecha Sorteo',
-        'Tipo Apuesta',
-        'Numeros Jugados',
-        'Reintegro',
-        'Coste (€)',
+        'Fecha',
+        'Resguardo',
+        'Foto Resguardo',
+        'Importe Jugado',
+        'Combinación Jugada',
+        'Combinación Ganadora',
         'Aciertos',
-        'Premio Obtenido (€)',
-        'Enlace Resguardo',
+        'Cantidad Premiada',
+        'Premio Menor',
       ],
-      ...data.tickets.map(t => [
-        t.id,
-        t.cycleNumber,
-        t.jornadaNumber,
-        t.drawDate,
-        t.betType,
-        t.playedNumbers ? t.playedNumbers.join(', ') : '',
-        t.playedReintegro !== undefined ? t.playedReintegro : '',
-        t.cost,
-        t.hitsCount !== undefined ? t.hitsCount : '',
-        t.totalPrize !== undefined ? t.totalPrize : 0,
-        t.receiptImageUrl || '',
-      ]),
+      ...data.tickets.map((t, idx) => {
+        const filaNum = idx + 2;
+        return [
+          t.jornadaNumber,
+          t.drawDate,
+          `SELAE-${t.id}`,
+          t.receiptImageUrl || '',
+          t.cost,
+          t.playedNumbers ? t.playedNumbers.join(', ') : '',
+          t.winningNumbers ? t.winningNumbers.join(', ') : '',
+          t.hitsCount !== undefined ? t.hitsCount : '',
+          t.totalPrize !== undefined ? t.totalPrize : 0,
+          `=IF(I${filaNum}<=2000, I${filaNum}, 0)`,
+        ];
+      }),
     ];
 
-    // Guardar mediante batchUpdate values
+    // 3. Pestaña 'Tesorería'
+    const tesoreriaRows: (string | number)[][] = [
+      ['ID', 'Ciclo', 'Fondo de Apuestas', 'Bolsa de Premios'],
+      [
+        1,
+        `Ciclo ${data.settings.currentCycle}`,
+        '=SUM(Usuarios!H:H)*10 - SUM(Sorteos!E:E)',
+        '=SUM(Sorteos!J:J)',
+      ],
+    ];
+
+    // 4. Pestaña 'Configuracion'
+    const configuracionRows: (string | number)[][] = [
+      ['ModoResumen', 'NotificarTodos'],
+      [data.settings.sendDailyGeneralSummary ? 'SÍ' : 'NO', 'NO'],
+    ];
+
     const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`;
     const batchPayload = {
       valueInputOption: 'USER_ENTERED',
       data: [
-        { range: 'Configuracion!A1:C20', values: configRows },
-        { range: 'Socios_Activos!A1:J150', values: sociosRows },
-        { range: 'Lista_Espera_Formulario!A1:G100', values: esperaRows },
-        { range: 'Historico_Jornadas!A1:K100', values: jornadasRows },
+        { range: 'Usuarios!A1:K150', values: usuariosRows },
+        { range: 'Sorteos!A1:J100', values: sorteosRows },
+        { range: 'Tesorería!A1:D2', values: tesoreriaRows },
+        { range: 'Configuracion!A1:B2', values: configuracionRows },
       ],
     };
 
@@ -282,7 +285,13 @@ export const googleSheetsService = {
     settingsPartial: Partial<SyndicateSettings>;
     players?: Player[];
   }> {
-    const ranges = encodeURIComponent('Configuracion!A2:C15') + '&ranges=' + encodeURIComponent('Socios_Activos!A2:J100');
+    // Consultar pestañas 'Usuarios', 'Tesorería', 'Configuracion'
+    const ranges = [
+      encodeURIComponent('Usuarios!A2:K100'),
+      encodeURIComponent('Tesorería!C2:D2'),
+      encodeURIComponent('Configuracion!A2:B2'),
+    ].join('&ranges=');
+
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?ranges=${ranges}`;
 
     const res = await fetch(url, {
@@ -297,45 +306,56 @@ export const googleSheetsService = {
     const json = await res.json();
     const valueRanges = json.valueRanges || [];
 
-    const configRows: string[][] = valueRanges[0]?.values || [];
-    const sociosRows: string[][] = valueRanges[1]?.values || [];
+    const usuariosRows: string[][] = valueRanges[0]?.values || [];
+    const tesoreriaRows: string[][] = valueRanges[1]?.values || [];
+    const configRows: string[][] = valueRanges[2]?.values || [];
 
     const settingsPartial: Partial<SyndicateSettings> = {};
 
-    configRows.forEach(row => {
-      const key = (row[0] || '').trim();
-      const val = (row[1] || '').trim();
-      if (key === 'CICLO_ACTUAL') settingsPartial.currentCycle = Number(val) || 1;
-      if (key === 'JORNADA_ACTUAL') settingsPartial.currentJornada = Number(val) || 1;
-      if (key === 'BOLSA_PREMIOS_MENORES') settingsPartial.prizeFundBalance = Number(val) || 0;
-      if (key === 'ENVIAR_BOLETIN_DIARIO_GENERAL') settingsPartial.sendDailyGeneralSummary = val.toUpperCase() === 'SI';
-      if (key === 'ENVIAR_RESGUARDO_2035') settingsPartial.sendDrawDayTicketAt2035 = val.toUpperCase() === 'SI';
-      if (key === 'GREEN_API_INSTANCE_ID') settingsPartial.greenApiInstanceId = val;
-      if (key === 'GREEN_API_TOKEN') settingsPartial.greenApiToken = val;
-      if (key === 'GREEN_API_CHAT_ID') settingsPartial.greenApiChatId = val;
-    });
+    // 1. Configuración
+    if (configRows.length > 0 && configRows[0].length >= 1) {
+      const modoResumen = (configRows[0][0] || '').toString().trim().toUpperCase();
+      settingsPartial.sendDailyGeneralSummary = modoResumen === 'SÍ' || modoResumen === 'SI';
+    }
 
+    // 2. Tesorería
+    if (tesoreriaRows.length > 0 && tesoreriaRows[0].length >= 2) {
+      const bolsaRaw = tesoreriaRows[0][1];
+      if (bolsaRaw !== undefined && bolsaRaw !== '') {
+        const cleaned = String(bolsaRaw).replace(/[^\d.,-]/g, '').replace(',', '.');
+        const num = parseFloat(cleaned);
+        if (!isNaN(num)) {
+          settingsPartial.prizeFundBalance = num;
+        }
+      }
+    }
+
+    // 3. Usuarios
     const parsedPlayers: Player[] = [];
-    sociosRows.forEach((row, idx) => {
+    usuariosRows.forEach((row, idx) => {
       if (row.length >= 2 && row[1]) {
-        const rawStatus = (row[8] || 'PENDIENTE').toUpperCase();
-        const validRenewal =
-          rawStatus === 'RENOVADO' || rawStatus === 'URGENTE_EXPIRA' || rawStatus === 'EXCLUIDO'
-            ? rawStatus
-            : 'PENDIENTE';
+        const nombre = (row[1] || '').trim();
+        const apellidos = (row[2] || '').trim();
+        const fullName = apellidos ? `${nombre} ${apellidos}` : nombre;
+        const estadoRaw = (row[10] || 'Titular').trim().toUpperCase();
+        const status: 'TITULAR' | 'SUPLENTE' | 'BAJA' =
+          estadoRaw === 'TITULAR' ? 'TITULAR' : estadoRaw === 'SUPLENTE' ? 'SUPLENTE' : 'BAJA';
+        const pagoRaw = (row[6] || 'Pagado').trim().toUpperCase();
+        const isPaid = pagoRaw === 'PAGADO' || pagoRaw === 'SI';
+        const cicloActual = Number(row[7]) || 1;
 
         parsedPlayers.push({
           id: `sp-${idx + 1}`,
-          memberNumber: Number(row[0]) || idx + 1,
-          name: row[1],
-          email: row[2] || '',
-          phone: row[3] || '',
-          registrationTimestamp: row[4] || new Date().toISOString(),
-          status: (row[5] as 'TITULAR' | 'SUPLENTE' | 'BAJA') || 'TITULAR',
-          currentCyclePaid: String(row[6]).toUpperCase() === 'SI' || row[6] === '1',
-          paidUntilCycle: Number(row[7]) || 1,
-          renewalStatus: validRenewal,
-          notes: row[9] || '',
+          memberNumber: idx + 1,
+          name: fullName,
+          email: `${nombre.toLowerCase().replace(/\s+/g, '')}@example.com`,
+          phone: row[4] || '',
+          registrationTimestamp: row[0] || new Date().toISOString(),
+          status,
+          currentCyclePaid: isPaid,
+          paidUntilCycle: cicloActual,
+          renewalStatus: isPaid ? 'RENOVADO' : 'PENDIENTE',
+          notes: row[3] ? `DNI: ${row[3]}` : '',
         });
       }
     });

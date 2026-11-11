@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, ExternalLink, Code2, Server, HelpCircle, X } from 'lucide-react';
+import { Copy, Check, ExternalLink, Code2, Server, HelpCircle, X, FileCode } from 'lucide-react';
 
 interface AppsScriptDeployModalProps {
   isOpen: boolean;
@@ -17,165 +17,460 @@ export const AppsScriptDeployModal: React.FC<AppsScriptDeployModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [urlInput, setUrlInput] = useState(appsScriptUrl);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<'WebApp.gs' | 'Index.html' | 'Estilos.html' | 'Logica.html' | 'Code.gs'>('WebApp.gs');
 
   if (!isOpen) return null;
 
-  const scriptCode = `/**
- * PEÑA LA PRIMITIVA TORDUELES - BACKEND GOOGLE APPS SCRIPT
- * Pega este código en Extensiones > Apps Script de tu Google Sheet.
+  const filesContent: Record<string, string> = {
+    'WebApp.gs': `/**
+ * PEÑA PRIMITIVA TORDUELES - WEBAPP FRONTEND CONTROLLER (HtmlService)
+ * Archivo: WebApp.gs en Google Apps Script
  */
-var CONFIG = {
+function doGet(e) {
+  // Soporte de API JSON para sincronización con la PWA
+  if (e && e.parameter && (e.parameter.action === 'status' || e.parameter.format === 'json')) {
+    try {
+      var ss = obtenerSpreadsheetPeña();
+      var sheetTesoreria = ss.getSheetByName('Tesorería');
+      var sheetSorteos = ss.getSheetByName('Sorteos');
+      var bolsa = 384.50;
+      var ciclo = 3;
+      var jornada = 8;
+      if (sheetTesoreria && sheetTesoreria.getLastRow() >= 2) {
+        var filaT = sheetTesoreria.getRange(2, 1, 1, 4).getValues()[0];
+        ciclo = parseInt(filaT[1], 10) || ciclo;
+        bolsa = parseFloat(filaT[3]) || bolsa;
+      }
+      if (sheetSorteos && sheetSorteos.getLastRow() >= 2) {
+        var ultFilaSorteo = sheetSorteos.getRange(sheetSorteos.getLastRow(), 1, 1, 1).getValue();
+        jornada = parseInt(ultFilaSorteo, 10) || jornada;
+      }
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'OK',
+        ciclo: ciclo,
+        jornada: jornada,
+        bolsaPremios: bolsa,
+        boletinDiarioActivo: false
+      })).setMimeType(ContentService.MimeType.JSON);
+    } catch(err) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'ERROR',
+        message: err.message
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Entrega de la interfaz web Single Page Application para el jugador
+  var template = HtmlService.createTemplateFromFile('Index');
+  return template.evaluate()
+    .setTitle('Peña Primitiva Tordueles | Portal del Jugador')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
+    .addMetaTag('theme-color', '#0A2540')
+    .addMetaTag('apple-mobile-web-app-capable', 'yes')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function validarLoginDNI(dniInput) {
+  var dniLimpio = (dniInput || '').trim().toUpperCase().replace(/[\\s-]/g, '');
+  var ss = obtenerSpreadsheetPeña();
+  var sheet = ss.getSheetByName('Usuarios');
+  var datos = sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).getValues();
+
+  for (var i = 0; i < datos.length; i++) {
+    var fila = datos[i];
+    var dniFila = (fila[3] || '').toString().trim().toUpperCase().replace(/[\\s-]/g, '');
+    if (dniFila === dniLimpio) {
+      if ((fila[10] || '').toString().toUpperCase() === 'BAJA') {
+        return { success: false, message: 'Tu usuario figura como BAJA en el registro oficial.' };
+      }
+      return {
+        success: true,
+        user: {
+          dni: dniLimpio,
+          nombre: fila[1],
+          apellidos: fila[2],
+          nombreCompleto: fila[1] + ' ' + fila[2],
+          estadoPago: fila[6] || 'Pendiente',
+          cicloActual: fila[7] || 1,
+          reglamentoAceptado: fila[8] === true || fila[8] === 'TRUE',
+          porcentajeParticipacion: typeof fila[9] === 'number' ? (fila[9] * 100).toFixed(2) + '%' : fila[9],
+          estado: fila[10] || 'Titular'
+        }
+      };
+    }
+  }
+  return { success: false, message: 'DNI no encontrado en la lista de usuarios.' };
+}
+
+function aceptarReglamento(dniInput) {
+  var dniLimpio = (dniInput || '').trim().toUpperCase().replace(/[\\s-]/g, '');
+  var ss = obtenerSpreadsheetPeña();
+  var sheet = ss.getSheetByName('Usuarios');
+  var dnis = sheet.getRange(2, 4, sheet.getLastRow() - 1, 1).getValues();
+  for (var i = 0; i < dnis.length; i++) {
+    if ((dnis[i][0] || '').toString().trim().toUpperCase().replace(/[\\s-]/g, '') === dniLimpio) {
+      sheet.getRange(i + 2, 9).setValue(true);
+      return { success: true };
+    }
+  }
+  return { success: false, message: 'Usuario no encontrado.' };
+}
+
+function obtenerDatosDashboard(dniInput) {
+  var ss = obtenerSpreadsheetPeña();
+  var sheetTesoreria = ss.getSheetByName('Tesorería');
+  var filaT = sheetTesoreria.getRange(2, 1, 1, 4).getValues()[0];
+  var sheetSorteos = ss.getSheetByName('Sorteos');
+  var datosS = sheetSorteos.getLastRow() >= 2 ? sheetSorteos.getRange(2, 1, sheetSorteos.getLastRow() - 1, 10).getValues() : [];
+
+  var sorteos = [];
+  for (var s = datosS.length - 1; s >= 0; s--) {
+    sorteos.push({
+      jornada: datosS[s][0],
+      fecha: Utilities.formatDate(new Date(datosS[s][1]), 'GMT+1', 'dd/MM/yyyy'),
+      resguardo: datosS[s][2],
+      fotoResguardo: datosS[s][3],
+      importeJugado: datosS[s][4],
+      combinacionJugada: datosS[s][5],
+      combinacionGanadora: datosS[s][6],
+      aciertos: datosS[s][7],
+      cantidadPremiada: datosS[s][8],
+      premioMenor: datosS[s][9]
+    });
+  }
+
+  var u = validarLoginDNI(dniInput);
+  return {
+    success: true,
+    data: {
+      tesoreria: { fondoApuestas: filaT[2] || 0, bolsaPremios: filaT[3] || 0 },
+      sorteos: sorteos,
+      ultimoSorteo: sorteos[0] || null,
+      usuario: u.success ? u.user : null
+    }
+  };
+}
+
+function obtenerSpreadsheetPeña() {
+  return SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || SpreadsheetApp.getActiveSpreadsheet().getId());
+}`,
+    'Index.html': `<!-- Archivo: Index.html en Google Apps Script -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>Peña Primitiva Tordueles | Portal del Jugador</title>
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <div class="brand-logo-badge">
+          <svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="46" stroke="#0A2540" stroke-width="6"/><path d="M50 20C40 20 32 28 32 38C26 40 22 46 22 52C22 59 27 65 34 66C36 71 42 74 50 74C58 74 64 71 66 66C73 65 78 59 78 52C78 46 74 40 68 38C68 28 60 20 50 20Z" fill="#0A2540"/><path d="M30 32H70V39H54V76H46V39H30V32Z" fill="#FF6B00"/></svg>
+        </div>
+        <div class="brand-text"><h1>Primitiva Tordueles</h1><p>Portal Oficial del Jugador</p></div>
+      </div>
+      <div class="header-actions" id="headerActions" style="display:none;"><button class="btn-logout" onclick="cerrarSesion()">Salir</button></div>
+    </header>
+    <main class="app-content">
+      <!-- VISTA 1: LOGIN POR DNI -->
+      <section id="viewLogin" class="view-section active">
+        <div class="login-box">
+          <h2>Acceso al Área de Socios</h2>
+          <div id="loginAlert" class="alert-box alert-error" style="display:none;"></div>
+          <form id="formLogin" onsubmit="ejecutarLogin(event)">
+            <input type="text" id="inputDNI" class="input-dni" placeholder="12345678A" required />
+            <button type="submit" class="btn-primary">Entrar a Mi Área</button>
+          </form>
+        </div>
+      </section>
+      <!-- VISTA 2: ACEPTACIÓN DE NORMAS -->
+      <section id="viewRules" class="view-section">
+        <div class="rules-container">
+          <h2>Declaración de Conformidad Oficial</h2>
+          <div class="rules-scroll-area">
+            <h4>Artículo 1. Financiación</h4><p>Bloques indivisibles de 10 jornadas a 1€ semanal.</p>
+            <h4>Artículo 3. Bajas y Lista de Espera</h4><p>Orden por timestamp estricto con centésimas.</p>
+          </div>
+          <label><input type="checkbox" id="chkAcceptRules" onchange="actualizarBotonReglas()" /> Acepto el Reglamento Oficial</label>
+          <button id="btnAcceptRules" disabled onclick="confirmarAceptacionReglamento()">Aceptar Normas y Acceder</button>
+        </div>
+      </section>
+      <!-- VISTA 3: DASHBOARD PRINCIPAL -->
+      <section id="viewDashboard" class="view-section">
+        <div class="card card-hero-treasury">
+          <span class="hero-tag">Bolsa de Premios Menores</span>
+          <div class="hero-amount" id="lblBolsaPremios">0,00 €</div>
+        </div>
+        <div class="card">
+          <h3 id="lblNombreUsuario">-</h3>
+          <span id="lblEstadoPago">-</span>
+          <a id="btnWhatsappPago" href="#" class="btn-secondary btn-whatsapp">Enviar WhatsApp al admin una vez hecho el pago de las siguientes 10 jornadas</a>
+        </div>
+        <div id="containerSorteos"></div>
+      </section>
+    </main>
+  </div>
+  <div id="loadingOverlay" class="loading-overlay"><div class="spinner"></div><p id="loadingText">Cargando...</p></div>
+  <?!= include('Logica'); ?>
+</body>
+</html>`,
+    'Estilos.html': `<!-- Archivo: Estilos.html en Google Apps Script -->
+<style>
+  :root {
+    --primary-navy: #0A2540;
+    --accent-orange: #FF6B00;
+    --bg-light: #F8F9FA;
+    --surface-card: #FFFFFF;
+    --border-color: #E2E8F0;
+  }
+  body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg-light); margin: 0; }
+  .app-container { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #fff; }
+  .app-header { background: var(--primary-navy); color: #fff; padding: 16px; display: flex; justify-content: space-between; }
+  .btn-primary { background: var(--accent-orange); color: #fff; border: none; padding: 12px; width: 100%; border-radius: 12px; font-weight: 800; cursor: pointer; }
+  .btn-whatsapp { background: #25D366; color: #fff; padding: 12px; border-radius: 12px; font-weight: 700; text-align: center; display: block; text-decoration: none; margin-top: 10px; }
+  .card-hero-treasury { background: linear-gradient(135deg, #0A2540 0%, #163B61 100%); color: #fff; padding: 18px; border-radius: 16px; margin-bottom: 12px; }
+  .hero-amount { font-size: 2.2rem; font-weight: 900; margin: 8px 0; }
+  .view-section { display: none; padding: 16px; }
+  .view-section.active { display: block; }
+  .loading-overlay { position: fixed; inset: 0; background: rgba(10,37,64,0.6); display: none; align-items: center; justify-content: center; color: #fff; z-index: 100; }
+  .loading-overlay.active { display: flex; }
+</style>`,
+    'Logica.html': `<!-- Archivo: Logica.html en Google Apps Script -->
+<script>
+  let estadoApp = { usuario: null };
+
+  function cambiarVista(id) {
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.getElementById('headerActions').style.display = (id === 'viewDashboard') ? 'block' : 'none';
+  }
+
+  function ejecutarLogin(e) {
+    if (e) e.preventDefault();
+    const dni = document.getElementById('inputDNI').value.trim().toUpperCase();
+    document.getElementById('loadingOverlay').classList.add('active');
+    google.script.run
+      .withSuccessHandler(res => {
+        document.getElementById('loadingOverlay').classList.remove('active');
+        if (!res.success) { document.getElementById('loginAlert').innerText = res.message; document.getElementById('loginAlert').style.display = 'block'; return; }
+        estadoApp.usuario = res.user;
+        if (!res.user.reglamentoAceptado) cambiarVista('viewRules');
+        else cargarDashboard(dni);
+      })
+      .validarLoginDNI(dni);
+  }
+
+  function actualizarBotonReglas() {
+    const chk = document.getElementById('chkAcceptRules');
+    document.getElementById('btnAcceptRules').disabled = !chk.checked;
+  }
+
+  function confirmarAceptacionReglamento() {
+    document.getElementById('loadingOverlay').classList.add('active');
+    google.script.run
+      .withSuccessHandler(res => {
+        cargarDashboard(estadoApp.usuario.dni);
+      })
+      .aceptarReglamento(estadoApp.usuario.dni);
+  }
+
+  function cargarDashboard(dni) {
+    document.getElementById('loadingOverlay').classList.add('active');
+    google.script.run
+      .withSuccessHandler(res => {
+        document.getElementById('loadingOverlay').classList.remove('active');
+        document.getElementById('lblBolsaPremios').innerText = res.data.tesoreria.bolsaPremios.toFixed(2) + ' €';
+        document.getElementById('lblNombreUsuario').innerText = res.data.usuario.nombreCompleto;
+        document.getElementById('lblEstadoPago').innerText = res.data.usuario.estadoPago;
+        const msg = encodeURIComponent('🌲 *PEÑA PRIMITIVA TORDUELES* 🌲\\nConfirmo el pago de las siguientes 10 jornadas. Socio: ' + res.data.usuario.nombreCompleto);
+        document.getElementById('btnWhatsappPago').href = 'https://api.whatsapp.com/send?text=' + msg;
+        cambiarVista('viewDashboard');
+      })
+      .obtenerDatosDashboard(dni);
+  }
+
+  function cerrarSesion() {
+    estadoApp.usuario = null;
+    cambiarVista('viewLogin');
+  }
+</script>`,
+    'Code.gs': `/**
+ * PEÑA PRIMITIVA TORDUELES - BACKEND MAESTRO & INFRAESTRUCTURA
+ * Archivo: Code.gs en Google Apps Script
+ * Ejecuta 'inicializarProyectoCompleto' para desplegar en 1 clic.
+ */
+var PROYECTO_CONFIG = {
+  DRIVE_ROOT_FOLDER_ID: '1uUS-eQGVS62zzBiOr3eeZ5RpQNbwN0Qn',
+  NOMBRE_SISTEMA: 'Primitiva Tordueles - Sistema Base',
+  NOMBRE_SPREADSHEET: 'Primitiva Tordueles - Base de Datos',
+  SHEET_USUARIOS: 'Usuarios',
+  SHEET_SORTEOS: 'Sorteos',
+  SHEET_TESORERIA: 'Tesorería',
+  SHEET_CONFIGURACION: 'Configuracion',
   GREEN_API_INSTANCE_ID: '710722795241',
   GREEN_API_TOKEN: 'a1c3c85f04d34a21ae86403c9ebdbdb54854f9d5f94842a1b3',
-  GREEN_API_CHAT_ID: '120363430888892480@g.us',
-  SHEET_CONFIG: 'Configuracion',
-  SHEET_SOCIOS: 'Socios_Activos',
-  SHEET_ESPERA: 'Lista_Espera_Formulario',
-  SHEET_JORNADAS: 'Historico_Jornadas',
-  CUOTA_SEMANAL: 1.0,
-  DURACION_CICLO: 10
+  GREEN_API_CHAT_ID: '120363430888892480@g.us'
 };
 
-function inicializarEstructuraHojas() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetConfig = ss.getSheetByName(CONFIG.SHEET_CONFIG) || ss.insertSheet(CONFIG.SHEET_CONFIG);
-  if (sheetConfig.getLastRow() === 0) {
-    sheetConfig.appendRow(['Clave', 'Valor', 'Descripcion']);
-    sheetConfig.appendRow(['CICLO_ACTUAL', '3', 'Ciclo vigente']);
-    sheetConfig.appendRow(['JORNADA_ACTUAL', '8', 'Jornada actual (1 a 10)']);
-    sheetConfig.appendRow(['BOLSA_PREMIOS_MENORES', '384.50', 'Fondo común premios <= 2000€']);
-    sheetConfig.appendRow(['ENVIAR_BOLETIN_DIARIO_GENERAL', 'NO', 'Interruptor SI/NO boletín general']);
-    sheetConfig.appendRow(['ENVIAR_RESGUARDO_2035', 'SI', 'Enviar resguardo a las 20:35h']);
-  }
-}
-
-function triggerEnviarResguardo2035() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetConfig = ss.getSheetByName(CONFIG.SHEET_CONFIG);
-  var ciclo = sheetConfig.getRange('B2').getValue();
-  var jornada = sheetConfig.getRange('B3').getValue();
-  enviarMensajeWhatsApp('🌲 *PEÑA PRIMITIVA TORDUELES* 🌲\\n🎟️ Resguardo validado a las 20:35h para la Jornada ' + jornada + '/10 (Ciclo ' + ciclo + '). ¡Mucha suerte!');
-}
-
-function enviarMensajeWhatsApp(texto) {
-  var url = 'https://api.green-api.com/waInstance' + CONFIG.GREEN_API_INSTANCE_ID + '/sendMessage/' + CONFIG.GREEN_API_TOKEN;
-  UrlFetchApp.fetch(url, {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify({ chatId: CONFIG.GREEN_API_CHAT_ID, message: texto }),
-    muteHttpExceptions: true
-  });
-}
-
-function doGet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetConfig = ss.getSheetByName(CONFIG.SHEET_CONFIG);
-  var data = {
-    ciclo: sheetConfig.getRange('B2').getValue(),
-    jornada: sheetConfig.getRange('B3').getValue(),
-    bolsaPremios: sheetConfig.getRange('B4').getValue(),
-    boletinDiarioActivo: sheetConfig.getRange('B5').getValue() === 'SI'
+function inicializarProyectoCompleto() {
+  var root = DriveApp.getFolderById(PROYECTO_CONFIG.DRIVE_ROOT_FOLDER_ID);
+  var main = root.createFolder(PROYECTO_CONFIG.NOMBRE_SISTEMA);
+  var fDb = main.createFolder('01_Base_de_Datos');
+  main.createFolder('02_Resguardos_Boletos');
+  main.createFolder('03_Comprobantes_Pago');
+  main.createFolder('04_Documentación_y_Reglamento');
+  var ss = SpreadsheetApp.create(PROYECTO_CONFIG.NOMBRE_SPREADSHEET);
+  DriveApp.getFileById(ss.getId()).moveTo(fDb);
+  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
+}`
   };
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
-}`;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(scriptCode);
+    navigator.clipboard.writeText(filesContent[selectedFile]);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
   const handleSave = () => {
-    onSaveUrl(urlInput);
+    let clean = (urlInput || '').trim();
+    if (clean.endsWith('/exe')) {
+      clean = clean + 'c';
+    }
+    setUrlInput(clean);
+    onSaveUrl(clean);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
+  };
+
+  const getCleanUrl = () => {
+    let clean = (urlInput || '').trim();
+    if (clean.endsWith('/exe')) {
+      clean = clean + 'c';
+    }
+    return clean;
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-xs">
       <div className="relative w-full max-w-3xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="bg-[#0d253f] px-6 py-4 text-white flex items-center justify-between">
+        <div className="bg-[#0A2540] px-6 py-4 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-white/10">
-              <Server className="w-5 h-5 text-sky-400" />
+              <Server className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h3 className="font-bold text-base font-serif">Despliegue Google Apps Script Backend</h3>
-              <p className="text-xs text-slate-300">Base de datos 100% gratuita en Google Sheets</p>
+              <h3 className="font-bold text-base font-serif">Google Apps Script (HtmlService & Backend)</h3>
+              <p className="text-xs text-slate-300">Archivos oficiales listos para copiar y desplegar en GAS</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:text-white">
+          <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:text-white cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm text-slate-700">
-          {/* Steps */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-[#0d253f] text-sm">Instrucciones de Despliegue en 3 Minutos:</h4>
-            <ol className="list-decimal pl-5 space-y-2 text-xs text-slate-600">
-              <li>
-                Abre tu hoja de cálculo en <strong>Google Sheets</strong> (donde se registran las respuestas del Formulario de Google).
-              </li>
-              <li>
-                En el menú superior, pulsa en <strong>Extensiones &gt; Apps Script</strong>.
-              </li>
-              <li>
-                Borra cualquier código existente y <strong>pega el código oficial</strong> que aparece abajo (o usa el archivo <code>google-apps-script/Code.gs</code>).
-              </li>
-              <li>
-                Ejecuta una vez la función <code>inicializarEstructuraHojas</code> para crear automáticamente las pestañas necesarias.
-              </li>
-              <li>
-                Pulsa en <strong>Implementar &gt; Nueva implementación</strong>, selecciona tipo <em>"Aplicación web"</em>, en <em>"Quién tiene acceso"</em> selecciona <em>"Cualquiera"</em> y copia la URL generada.
-              </li>
-            </ol>
+        <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm text-slate-700">
+          {/* File selector pills */}
+          <div>
+            <span className="block font-bold text-xs text-[#0A2540] mb-2">Selecciona el archivo para copiar a Apps Script:</span>
+            <div className="flex flex-wrap gap-1.5">
+              {(['WebApp.gs', 'Index.html', 'Estilos.html', 'Logica.html', 'Code.gs'] as const).map(fileName => (
+                <button
+                  key={fileName}
+                  onClick={() => setSelectedFile(fileName)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    selectedFile === fileName
+                      ? 'bg-[#0A2540] text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <FileCode className="w-3.5 h-3.5" />
+                  <span>{fileName}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Code preview & copy button */}
           <div className="relative rounded-xl bg-slate-900 p-4 text-slate-200 font-mono text-xs">
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-              <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <Code2 className="w-4 h-4 text-sky-400" /> Code.gs (Google Apps Script)
+              <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5">
+                <Code2 className="w-4 h-4" /> {selectedFile}
               </span>
               <button
                 onClick={handleCopy}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-sans text-xs font-bold transition"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#FF6B00] hover:bg-[#E05E00] text-white font-sans text-xs font-bold transition cursor-pointer"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? '¡Copiado!' : 'Copiar Código Completo'}</span>
+                <span>{copied ? '¡Copiado!' : `Copiar ${selectedFile}`}</span>
               </button>
             </div>
-            <pre className="overflow-x-auto max-h-48 text-[11px] leading-relaxed text-slate-300">
-              {scriptCode}
+            <pre className="overflow-x-auto max-h-56 text-[11px] leading-relaxed text-slate-300">
+              {filesContent[selectedFile]}
             </pre>
           </div>
 
           {/* Input for WebApp URL */}
-          <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-2">
-            <label className="block font-bold text-xs text-slate-800">
-              URL de la Aplicación Web (Apps Script WebApp URL):
-            </label>
+          <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block font-bold text-xs text-slate-800">
+                URL de la Aplicación Web (Apps Script WebApp URL):
+              </label>
+              {getCleanUrl() && (
+                <a
+                  href={getCleanUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900 underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Abrir WebApp en pestaña nueva
+                </a>
+              )}
+            </div>
             <div className="flex gap-2">
               <input
                 type="url"
                 value={urlInput}
                 onChange={e => setUrlInput(e.target.value)}
                 placeholder="https://script.google.com/macros/s/AKfycb.../exec"
-                className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs focus:ring-2 focus:ring-blue-900 outline-hidden"
+                className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs focus:ring-2 focus:ring-blue-900 outline-hidden font-mono"
               />
               <button
                 onClick={handleSave}
-                className="px-4 py-2 rounded-xl bg-[#0d253f] hover:bg-[#153a61] text-xs font-bold text-white transition"
+                className="px-4 py-2 rounded-xl bg-[#0A2540] hover:bg-[#163B61] text-xs font-bold text-white transition cursor-pointer"
               >
                 {savedSuccess ? '¡Guardada!' : 'Vincular'}
               </button>
             </div>
-            <p className="text-[11px] text-slate-500">
-              Al guardar la URL, la PWA sincronizará las jornadas y datos directamente con tu Google Sheets en tiempo real.
-            </p>
+
+            {/* Guía rápida de configuración de despliegue en Google Apps Script */}
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-[11px] text-blue-900 space-y-1.5">
+              <p className="font-bold flex items-center gap-1.5">
+                <HelpCircle className="w-3.5 h-3.5 text-blue-700" />
+                Configuración del Despliegue en script.google.com:
+              </p>
+              <ul className="list-disc pl-4 space-y-0.5 text-slate-700">
+                <li>
+                  <strong>Terminación de la URL:</strong> Debe terminar en <code className="bg-blue-100 px-1 rounded text-blue-800 font-mono">/exec</code> (la app auto-completa la &apos;c&apos; si se pega con <code className="bg-blue-100 px-1 rounded text-blue-800 font-mono">/exe</code>).
+                </li>
+                <li>
+                  <strong>Permiso de Acceso (Importante para evitar Error 403 Forbidden):</strong> En Apps Script, al pulsar <em>Implementar &gt; Gestionar implementaciones &gt; Editar</em> (icono de lápiz), asegúrate de que:
+                  <ul className="list-disc pl-4 mt-0.5">
+                    <li><strong>Ejecutar como:</strong> Yo (torduelespueblo@gmail.com)</li>
+                    <li><strong>Quién tiene acceso:</strong> <em>Cualquier persona</em> (Anyone)</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 
@@ -183,7 +478,7 @@ function doGet() {
         <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-xs font-bold text-slate-800 transition"
+            className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-xs font-bold text-slate-800 transition cursor-pointer"
           >
             Cerrar
           </button>
