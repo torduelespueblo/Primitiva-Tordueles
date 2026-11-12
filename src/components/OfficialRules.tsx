@@ -80,13 +80,17 @@ export const OfficialRules: React.FC = () => {
           </div>
           <div className="pl-7 space-y-2 text-xs sm:text-sm text-slate-600">
             <p>
-              <strong>2.1. Ajuste Automático al Presupuesto:</strong> El importe y tamaño de la apuesta múltiple oficial se adaptará automáticamente al número exacto de jugadores que hayan completado el pago en cada ciclo.
+              <strong>2.1. Ajuste Automático al Presupuesto y Escalado de Jugadores:</strong> El importe y tamaño de la apuesta múltiple oficial se adaptará automáticamente al número exacto de jugadores que hayan completado el pago en cada ciclo. Dado que cada jugador aporta 1,00 € por sorteo, para aumentar el tamaño de la peña y jugar una combinación mayor, el número total de participantes deberá coincidir siempre con el número exacto de apuestas directas que exige cada bloque múltiple oficial. No se admitirán cifras intermedias de jugadores.
             </p>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-              <strong className="text-slate-900">Ejemplos de optimización oficial:</strong>
-              <ul className="list-disc pl-4 mt-1 space-y-1">
-                <li>44 participantes al corriente: Múltiple autorizada de 5 números por 44,00 € (44 apuestas directas).</li>
-                <li>84 participantes al corriente: Múltiple de 9 números por 84,00 € (84 apuestas directas).</li>
+              <strong className="text-slate-900">Las opciones de apuestas múltiples de La Primitiva y los cupos exactos requeridos son:</strong>
+              <ul className="list-disc pl-4 mt-1.5 space-y-1">
+                <li>Múltiple de 7 números: 7 apuestas (requiere 7 jugadores por 7,00 €).</li>
+                <li>Múltiple de 8 números: 28 apuestas (requiere 28 jugadores por 28,00 €).</li>
+                <li>Múltiple de 5 números (fijo): 44 apuestas (requiere 44 jugadores por 44,00 €).</li>
+                <li>Múltiple de 9 números: 84 apuestas (requiere 84 jugadores por 84,00 €).</li>
+                <li>Múltiple de 10 números: 210 apuestas (requiere 210 jugadores por 210,00 €).</li>
+                <li>Múltiple de 11 números: 462 apuestas (requiere 462 jugadores por 462,00 €).</li>
               </ul>
             </div>
             <p>
@@ -100,18 +104,24 @@ export const OfficialRules: React.FC = () => {
           <div className="flex items-center gap-2.5 text-[#0d253f]">
             <Clock className="w-5 h-5 text-blue-900" />
             <h2 className="text-base sm:text-lg font-bold font-serif">
-              Artículo 3. Control de Lista de Espera y Plazo de 24 Horas
+              Artículo 3. Control de Lista de Espera, Inscripción y Plazos
             </h2>
           </div>
           <div className="pl-7 space-y-2 text-xs sm:text-sm text-slate-600">
             <p>
-              <strong>3.1. Orden Cronológico Inalterable:</strong> Las vacantes se asignarán por estricto orden de antigüedad basado en el sello de tiempo (timestamp con fecha, hora, minutos, segundos y centésimas) registrado en el Formulario oficial de Google para dirimir cualquier coincidencia y fijar la prelación exacta.
+              <strong>3.1. Requisitos de Inscripción y Aceptación de Bases:</strong> Para formalizar la inscripción en la peña, es obligatoria la recopilación de Nombre, Apellidos, Teléfono Móvil y marcar la casilla de Aceptación del Reglamento. Por motivos de privacidad, no se exigirá el DNI ni el IBAN en el alta inicial. No obstante, todo socio acepta expresamente que, en caso de resultar agraciado con un premio que requiera dichos datos, estará obligado a facilitar su DNI/NIF y su número de cuenta (IBAN).
             </p>
             <p>
-              <strong>3.2. Exclusión por Falta de Pago:</strong> Si un integrante titular no abona la cuota antes de finalizar la jornada 9, la jornada 10 será su última jugada del ciclo y será excluido definitivamente de la peña, procediéndose de inmediato a avisar al primer suplente de la lista.
+              <strong>3.2. Orden Cronológico Inalterable:</strong> Las vacantes se asignarán por estricto orden de antigüedad basado en el sello de tiempo registrado al completar la inscripción.
             </p>
             <p>
-              <strong>3.3. Plazo Estricto de 24 Horas para Suplentes:</strong> El aspirante notificado dispondrá de <strong>24 horas exactas</strong> para abonar los 10,00 € correspondientes al nuevo ciclo. Transcurrido dicho plazo sin justificante de ingreso, decaerá en su derecho y se avisará al siguiente suplente.
+              <strong>3.3. Exclusión por Falta de Pago:</strong> Si un integrante titular no abona la cuota antes de finalizar la jornada 9, será excluido de la peña.
+            </p>
+            <p>
+              <strong>3.4. Plazo Estricto de 24 Horas para Suplentes:</strong> El aspirante notificado dispondrá de <strong>24 horas exactas</strong> para abonar los 10,00 € correspondientes al nuevo ciclo.
+            </p>
+            <p>
+              <strong>3.5. Ampliación de la Peña y Salto de Nivel:</strong> Si la lista de espera ("Suplentes") crece lo suficiente como para alcanzar el siguiente bloque oficial, el ascenso de categoría no se realizará de forma automática. El Administrador deberá evaluar y aprobar manualmente este salto de nivel antes de finalizar el ciclo vigente. Tras la confirmación de los pagos, la peña al completo pasará a jugar el nuevo bloque en el siguiente ciclo.
             </p>
           </div>
         </section>
@@ -126,13 +136,13 @@ export const OfficialRules: React.FC = () => {
           </div>
           <div className="pl-7 space-y-2 text-xs sm:text-sm text-slate-600">
             <p>
-              <strong>4.1. Pérdida de Derechos por Baja:</strong> Toda persona que cause baja (voluntaria o por impago) perderá su condición de socio, su número de jugador y su antigüedad acumulada. Si en el futuro desea reingresar, deberá inscribirse de nuevo en el Formulario de Google y situarse al final de la cola de espera.
+              <strong>4.1. Pérdida de Derechos por Baja:</strong> Toda persona que cause baja perderá su condición de socio. Si desea reingresar, deberá situarse al final de la cola.
             </p>
             <p>
-              <strong>4.2. No Heredabilidad de la Plaza:</strong> En caso de fallecimiento de un socio titular, <strong>la plaza en la peña no se hereda a familiares ni allegados</strong>.
+              <strong>4.2. No Heredabilidad de la Plaza:</strong> En caso de fallecimiento, <strong>la plaza no se hereda</strong>.
             </p>
             <p>
-              <strong>4.3. Liquidación a Herederos Legales:</strong> La plaza vacante pasará al primer suplente tras finalizar el ciclo de 10 jornadas que el socio fallecido tuviera previamente abonado. La parte proporcional neta de cualquier premio obtenido durante dicho ciclo vigente se entregará formalmente a sus legítimos herederos legales.
+              <strong>4.3. Liquidación a Herederos Legales:</strong> La plaza vacante pasará al primer suplente tras finalizar el ciclo abonado. La parte neta de cualquier premio obtenido en dicho ciclo se entregará a sus herederos legales.
             </p>
           </div>
         </section>
@@ -151,7 +161,7 @@ export const OfficialRules: React.FC = () => {
                 5.1. Premios Menores (hasta 2.000,00 €):
               </strong>
               <p>
-                Los premios de cuantía igual o inferior a 2.000,00 € obtenidos en cada sorteo se acumularán íntegramente en el <strong>Fondo Común (Bolsa de Premios Menores)</strong> de la peña, constituyendo una cuenta de reserva separada del presupuesto semanal de apuestas. Este fondo no es susceptible de reparto parcial ni de devolución en caso de baja de un integrante.
+                Se acumularán íntegramente en el <strong>Fondo Común de la peña</strong>.
               </p>
             </div>
 
@@ -160,10 +170,7 @@ export const OfficialRules: React.FC = () => {
                 5.2. Premios Mayores (superiores a 2.000,00 €):
               </strong>
               <p>
-                Los premios que superen los 2.000,00 € obligan legalmente a la tramitación y cobro del resguardo oficial en una entidad bancaria concertada por SELAE, presentando el DNI / NIF de la totalidad de los miembros activos que componen la peña en dicho sorteo.
-              </p>
-              <p>
-                De acuerdo con la legislación tributaria española (Ley 16/2012), si el premio supera los 40.000,00 €, la entidad bancaria retendrá automáticamente el <strong>20% en concepto de gravamen especial</strong> sobre el importe que exceda de dicha base exenta, transfiriendo posteriormente la parte líquida neta al número de cuenta (IBAN) individual aportado por cada socio.
+                Obligan legalmente a la tramitación presentando el DNI de la totalidad de los miembros. La entidad bancaria retendrá automáticamente el 20% en concepto de gravamen especial sobre el importe que exceda de 40.000,00 €. Posteriormente, se transferirá la parte líquida neta al IBAN individual. Al tratarse de transferencias bancarias para el reparto de estas cantidades (mayores de 2.000,00 € y de 40.000,00 €), cada jugador asumirá de forma individual los posibles gastos o comisiones por transferencia que aplique la entidad bancaria, descontándose dichas comisiones directamente del importe a percibir.
               </p>
             </div>
           </div>

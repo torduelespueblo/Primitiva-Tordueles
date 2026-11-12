@@ -3,269 +3,1378 @@
 <head>
   <base target="_top">
   <meta charset="UTF-8">
-  <title>Peña Primitiva Tordueles | Portal del Jugador</title>
-  <?!= include('Estilos'); ?>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Peña Primitiva Tordueles | Portal Oficial</title>
+  
+  <!-- Librería html2pdf.js para generación profesional de PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    :root {
+      --navy-dark: #0A2540;
+      --navy-light: #163B61;
+      --orange-accent: #FF6B00;
+      --orange-hover: #e55e00;
+      --bg-canvas: #F8F9FA;
+      --surface-card: #FFFFFF;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #E2E8F0;
+      --emerald-green: #10b981;
+      --shadow-soft: 0 10px 25px -5px rgba(10, 37, 64, 0.08), 0 8px 10px -6px rgba(10, 37, 64, 0.04);
+      --shadow-lg: 0 20px 25px -5px rgba(10, 37, 64, 0.12), 0 10px 10px -5px rgba(10, 37, 64, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0;
+    }
+
+    /* Contenedor Principal Responsive */
+    .app-shell {
+      width: 100%;
+      max-width: 520px;
+      min-height: 100vh;
+      background: var(--surface-card);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.06);
+      position: relative;
+    }
+
+    /* Cabecera Oficial */
+    .app-header {
+      background: linear-gradient(145deg, var(--navy-dark) 0%, var(--navy-light) 100%);
+      color: #ffffff;
+      padding: 22px 20px 20px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 3px solid var(--orange-accent);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+
+    .brand-container {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* Emblema circular oficial SVG */
+    .emblem-badge {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: #ffffff;
+      padding: 2px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .brand-info h1 {
+      font-size: 1.18rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .brand-info p {
+      font-size: 0.76rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .btn-header-action {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-header-action:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    /* Área de Contenido Principal */
+    .content-body {
+      padding: 24px 20px 40px 20px;
+      flex: 1;
+    }
+
+    /* Transiciones fluidas entre pantallas */
+    .view-card {
+      display: none;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    .view-card.active {
+      display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ======================================================== */
+    /* PANTALLA 1: ACCESO (SOLO DNI Y BOTÓN ENTRAR)              */
+    /* ======================================================== */
+    .auth-hero-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 20px;
+      background: #eff6ff;
+      color: var(--navy-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 12px auto 18px auto;
+    }
+
+    .auth-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--navy-dark);
+      text-align: center;
+      line-height: 1.25;
+      margin-bottom: 6px;
+    }
+
+    .auth-subtitle {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      text-align: center;
+      max-width: 340px;
+      margin: 0 auto 26px auto;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--navy-dark);
+      margin-bottom: 8px;
+    }
+
+    .input-field {
+      width: 100%;
+      padding: 15px 16px;
+      border: 2px solid var(--border-color);
+      border-radius: 14px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--navy-dark);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: #fdfdfd;
+      transition: all 0.2s;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: var(--navy-dark);
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(10, 37, 64, 0.08);
+    }
+
+    .btn-main {
+      width: 100%;
+      padding: 16px;
+      background: var(--orange-accent);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 6px 16px rgba(255, 107, 0, 0.28);
+      transition: all 0.2s;
+      margin-top: 10px;
+    }
+
+    .btn-main:hover {
+      background: var(--orange-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(255, 107, 0, 0.35);
+    }
+
+    .btn-main:active {
+      transform: translateY(1px);
+    }
+
+    .btn-main:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Avisos y Banners */
+    .alert-banner {
+      padding: 14px 16px;
+      border-radius: 14px;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .alert-info {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+    }
+
+    .alert-warning {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+    }
+
+    .alert-privacy {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+    }
+
+    /* ======================================================== */
+    /* PANTALLA 2: FORMULARIO DE REGISTRO INTELIGENTE           */
+    /* ======================================================== */
+    .register-header {
+      margin-bottom: 20px;
+    }
+
+    .badge-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #e0f2fe;
+      color: #0369a1;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .register-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--navy-dark);
+      line-height: 1.25;
+    }
+
+    .register-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .input-text {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1.5px solid var(--border-color);
+      border-radius: 12px;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      background: #ffffff;
+      transition: all 0.2s;
+    }
+
+    .input-text:focus {
+      outline: none;
+      border-color: var(--navy-dark);
+      box-shadow: 0 0 0 3px rgba(10, 37, 64, 0.08);
+    }
+
+    /* CONTENEDOR VISUAL CON SCROLL DEL REGLAMENTO OFICIAL (TIPOGRAFÍA GRANDE MÓVIL) */
+    .rules-scroll-box {
+      height: 380px;
+      overflow-y: auto;
+      background: #ffffff;
+      border: 2px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px 18px;
+      margin: 16px 0 18px 0;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Tipografía grande y altamente legible para móviles */
+    .rules-scroll-box h3 {
+      font-size: 1.15rem;
+      color: var(--navy-dark);
+      font-weight: 800;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #f1f5f9;
+    }
+
+    .rules-scroll-box h4 {
+      font-size: 1.02rem;
+      color: var(--navy-dark);
+      font-weight: 800;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .rules-scroll-box p, 
+    .rules-scroll-box li {
+      font-size: 0.96rem; /* Tipografía grande para lectura cómoda en smartphones */
+      line-height: 1.65;
+      color: #334155;
+      margin-bottom: 10px;
+    }
+
+    .rules-scroll-box ul {
+      padding-left: 20px;
+      margin-bottom: 12px;
+    }
+
+    .rules-scroll-box li {
+      margin-bottom: 6px;
+    }
+
+    .rules-scroll-box strong {
+      color: #0f172a;
+      font-weight: 700;
+    }
+
+    .rules-highlight-card {
+      background: #f8fafc;
+      border-left: 4px solid var(--navy-dark);
+      padding: 10px 14px;
+      border-radius: 0 10px 10px 0;
+      margin: 10px 0;
+      font-size: 0.92rem;
+    }
+
+    /* Casilla de Verificación */
+    .checkbox-wrapper {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1.5px solid var(--border-color);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+      margin-bottom: 16px;
+    }
+
+    .checkbox-wrapper:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+
+    .checkbox-input {
+      width: 22px;
+      height: 22px;
+      margin-top: 2px;
+      accent-color: var(--orange-accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .checkbox-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--navy-dark);
+      line-height: 1.45;
+    }
+
+    /* Botón Destacado Descargar PDF */
+    .btn-pdf-download {
+      width: 100%;
+      padding: 14px;
+      background: #ffffff;
+      color: var(--navy-dark);
+      border: 2px solid var(--navy-dark);
+      border-radius: 14px;
+      font-size: 0.92rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s;
+      margin-bottom: 14px;
+    }
+
+    .btn-pdf-download:hover {
+      background: #f0fdf4;
+      border-color: var(--emerald-green);
+      color: #065f46;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+    }
+
+    .btn-link-back {
+      display: block;
+      width: 100%;
+      text-align: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+      margin-top: 6px;
+      text-decoration: underline;
+    }
+
+    .btn-link-back:hover {
+      color: var(--navy-dark);
+    }
+
+    /* ======================================================== */
+    /* PANTALLA 3: PANEL DEL JUGADOR (DASHBOARD)                 */
+    /* ======================================================== */
+    .dash-hero {
+      background: linear-gradient(145deg, var(--navy-dark) 0%, var(--navy-light) 100%);
+      color: #ffffff;
+      padding: 24px 20px;
+      border-radius: 20px;
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dash-hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: #bae6fd;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .dash-amount {
+      font-size: 2.3rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      margin: 8px 0;
+      color: #ffffff;
+    }
+
+    .dash-meta {
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+
+    .member-profile-card {
+      background: #ffffff;
+      border: 1.5px solid var(--border-color);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    .profile-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 12px;
+    }
+
+    .status-pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 800;
+    }
+
+    .pill-paid {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .pill-titular {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .pill-suplente {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .lottery-ball-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 14px 0;
+    }
+
+    .lottery-ball {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+      border: 2px solid var(--navy-dark);
+      color: var(--navy-dark);
+      font-size: 1.1rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+    }
+
+    /* Modal de Spinner de Carga */
+    .loading-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 37, 64, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      color: #ffffff;
+    }
+
+    .loading-modal.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top-color: var(--orange-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 14px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ======================================================== */
+    /* PLANTILLA OCULTA PARA RENDERIZADO DEL PDF PROFESIONAL     */
+    /* ======================================================== */
+    #pdf-printable-template {
+      display: none;
+      background: #ffffff;
+      color: #1e293b;
+      padding: 24px;
+      font-size: 11pt;
+      line-height: 1.55;
+    }
+
+    .pdf-header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      border-bottom: 3px solid #0A2540;
+      padding-bottom: 16px;
+      margin-bottom: 22px;
+    }
+
+    .pdf-header-text h1 {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #0A2540;
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .pdf-header-text h2 {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #FF6B00;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }
+
+    .pdf-header-text p {
+      font-size: 9pt;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    .pdf-article {
+      margin-bottom: 16px;
+      page-break-inside: avoid;
+    }
+
+    .pdf-article h3 {
+      font-size: 12pt;
+      font-weight: 800;
+      color: #0A2540;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+    }
+
+    .pdf-article p, .pdf-article li {
+      font-size: 9.5pt;
+      line-height: 1.5;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .pdf-article ul {
+      padding-left: 20px;
+      margin-bottom: 8px;
+    }
+
+    .pdf-badge-table {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 8px 0;
+      font-size: 9pt;
+    }
+
+    .pdf-footer {
+      border-top: 1px solid #cbd5e1;
+      padding-top: 10px;
+      margin-top: 25px;
+      font-size: 8pt;
+      color: #64748b;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
 </head>
 <body>
 
-  <!-- Contenedor PWA Mobile-First -->
-  <div class="app-container">
-    
-    <!-- Encabezado Superior -->
+  <!-- CONTENEDOR PRINCIPAL MOBILE-FIRST -->
+  <div class="app-shell">
+
+    <!-- CABECERA OFICIAL CON EMBLEMA DE LA PEÑA -->
     <header class="app-header">
-      <div class="brand-wrapper">
-        <div class="brand-logo-badge">
-          <!-- Emblema Oficial: Árbol integrado en la 'T' de Tordueles -->
-          <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="50" cy="50" r="46" stroke="#0A2540" stroke-width="6"/>
-            <!-- Copa de Roble -->
-            <path d="M50 20C40 20 32 28 32 38C26 40 22 46 22 52C22 59 27 65 34 66C36 71 42 74 50 74C58 74 64 71 66 66C73 65 78 59 78 52C78 46 74 40 68 38C68 28 60 20 50 20Z" fill="#0A2540"/>
-            <!-- 'T' y Tronco Estilizado -->
-            <path d="M30 32H70V39H54V76H46V39H30V32Z" fill="#FF6B00"/>
-            <path d="M46 54C42 50 36 48 34 46" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-            <path d="M54 54C58 50 64 48 66 46" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+      <div class="brand-container">
+        <!-- Emblema Circular Oficial: Azul Marino con silueta de árbol central y texto circular -->
+        <div class="emblem-badge" title="Peña La Primitiva Tordueles">
+          <svg viewBox="0 0 100 100" width="54" height="54" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <!-- Ruta circular para el texto perimetral superior -->
+              <path id="circleTextPathTop" d="M 16,50 A 34,34 0 1,1 84,50" />
+              <!-- Ruta circular para el texto perimetral inferior -->
+              <path id="circleTextPathBottom" d="M 84,50 A 34,34 0 0,1 16,50" />
+            </defs>
+            <!-- Anillo Exterior Azul Marino Oficial -->
+            <circle cx="50" cy="50" r="48" fill="#0A2540" />
+            <circle cx="50" cy="50" r="45" fill="none" stroke="#FF6B00" stroke-width="1.5" />
+            
+            <!-- Texto Circular Oficial: PEÑA LA PRIMITIVA TORDUELES -->
+            <text font-family="Arial, sans-serif" font-size="5.2" font-weight="900" fill="#ffffff" letter-spacing="1.2">
+              <textPath href="#circleTextPathTop" startOffset="50%" text-anchor="middle">
+                PEÑA LA PRIMITIVA
+              </textPath>
+            </text>
+            <text font-family="Arial, sans-serif" font-size="5.2" font-weight="900" fill="#FF6B00" letter-spacing="1.2">
+              <textPath href="#circleTextPathBottom" startOffset="50%" text-anchor="middle">
+                • TORDUELES (BURGOS) •
+              </textPath>
+            </text>
+
+            <!-- Disco Central Blanco -->
+            <circle cx="50" cy="50" r="28" fill="#ffffff" stroke="#0A2540" stroke-width="1.2" />
+
+            <!-- Silueta Oficial del Árbol (Roble Castellano de Tordueles) -->
+            <g transform="translate(26, 25) scale(0.48)">
+              <!-- Copa frondosa del árbol -->
+              <path d="M50 8 C40 8 32 15 32 25 C26 27 20 33 20 40 C20 48 26 55 33 56 C35 62 42 66 50 66 C58 66 65 62 67 56 C74 55 80 48 80 40 C80 33 74 27 68 25 C68 15 60 8 50 8 Z" fill="#0A2540"/>
+              <!-- Tronco robusto y ramas estilizadas -->
+              <path d="M46 54 L44 86 L56 86 L54 54 Z" fill="#FF6B00"/>
+              <path d="M45 64 Q38 58 35 52" stroke="#ffffff" stroke-width="3" stroke-linecap="round" fill="none"/>
+              <path d="M55 64 Q62 58 65 52" stroke="#ffffff" stroke-width="3" stroke-linecap="round" fill="none"/>
+            </g>
           </svg>
         </div>
-        <div class="brand-text">
+
+        <div class="brand-info">
           <h1>Primitiva Tordueles</h1>
           <p>Portal Oficial del Jugador</p>
         </div>
       </div>
 
-      <div class="header-actions" id="headerActions" style="display: none;">
-        <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
+      <div id="headerUserActions" style="display: none;">
+        <button class="btn-header-action" onclick="cerrarSesionUsuario()">Salir</button>
       </div>
     </header>
 
-    <!-- Contenido Dinámico de la SPA -->
-    <main class="app-content">
+    <!-- CUERPO DINÁMICO DE LA APLICACIÓN -->
+    <main class="content-body">
 
-      <!-- ================================================================= -->
-      <!-- VISTA 1: LOGIN POR DNI                                            -->
-      <!-- ================================================================= -->
-      <section id="viewLogin" class="view-section active">
-        <div class="login-box">
-          <div class="login-icon-circle">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
+      <!-- ======================================================== -->
+      <!-- VISTA 1: ACCESO (SOLO DNI O NIE Y BOTÓN ENTRAR)          -->
+      <!-- ======================================================== -->
+      <section id="viewAccess" class="view-card active">
+        <div class="auth-hero-icon">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+
+        <h2 class="auth-title">Área Privada de Socios</h2>
+        <p class="auth-subtitle">
+          Consulta tu estado de participación, la combinación semanal validada y el saldo acumulado en la peña.
+        </p>
+
+        <div id="accessAlertBox" style="display: none;"></div>
+
+        <form onsubmit="handleDniSubmit(event)">
+          <div class="form-group">
+            <label class="form-label" for="inputUserDni">Introduce tu DNI o NIE:</label>
+            <input 
+              type="text" 
+              id="inputUserDni" 
+              class="input-field" 
+              placeholder="12345678Z" 
+              maxlength="10" 
+              autocomplete="off"
+              required 
+            />
           </div>
 
-          <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--primary-navy); margin-bottom: 4px;">
-            Acceso al Área de Socios
-          </h2>
-          <p style="font-size: 0.8rem; color: var(--text-muted);">
-            Introduce tu DNI o NIE para consultar tu estado, boletos y saldo de la peña.
-          </p>
+          <button type="submit" class="btn-main" id="btnSubmitDni">
+            <span>Entrar a Mi Área</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </button>
+        </form>
 
-          <div id="loginAlert" class="alert-box alert-error" style="display: none; margin-top: 14px;"></div>
-
-          <form id="formLogin" onsubmit="ejecutarLogin(event)">
-            <div class="form-group">
-              <label class="form-label" for="inputDNI">DNI / NIE del Titular:</label>
-              <input
-                type="text"
-                id="inputDNI"
-                class="input-dni"
-                placeholder="12345678A"
-                maxlength="10"
-                required
-                autocomplete="off"
-              />
-            </div>
-
-            <button type="submit" class="btn-primary" id="btnLogin">
-              <span>Entrar a Mi Área</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-                <polyline points="12 5 19 12 12 19"></polyline>
-              </svg>
-            </button>
-          </form>
-
-          <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 16px;">
-            ¿Aún no estás registrado? Inscríbete a través del Formulario Oficial de Google para acceder a la lista de espera por estricto sello de tiempo.
+        <div style="margin-top: 24px; padding: 14px; background: #f8fafc; border-radius: 14px; text-align: center; border: 1px solid var(--border-color);">
+          <p style="font-size: 0.78rem; color: var(--text-muted);">
+            💡 <strong>¿Primera vez en la peña?</strong> Introduce tu DNI; si aún no estás dado de alta, el sistema te guiará automáticamente al registro oficial de nuevos miembros.
           </p>
         </div>
       </section>
 
-      <!-- ================================================================= -->
-      <!-- VISTA 2: ACEPTACIÓN OBLIGATORIA DEL REGLAMENTO                    -->
-      <!-- ================================================================= -->
-      <section id="viewRules" class="view-section">
-        <div class="rules-container">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6B00" stroke-width="2.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+      <!-- ======================================================== -->
+      <!-- VISTA 2: FORMULARIO DE REGISTRO INTELIGENTE              -->
+      <!-- ======================================================== -->
+      <section id="viewRegister" class="view-card">
+        <div class="register-header">
+          <span class="badge-tag">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
-            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--primary-navy);">
-              Declaración de Conformidad Oficial
-            </h2>
-          </div>
-
-          <p style="font-size: 0.78rem; color: var(--text-secondary);">
-            Para acceder a los datos financieros y participar en los sorteos de la peña, es requisito estatutario aceptar formalmente las bases:
+            Nuevo Registro de Socio
+          </span>
+          <h2 class="register-title">Inscripción en la Peña</h2>
+          <p class="register-subtitle">
+            El DNI introducido no figura aún en el registro de socios activos. Completa tus datos a continuación para formalizar tu plaza.
           </p>
+        </div>
 
-          <div id="rulesAlert" class="alert-box alert-error" style="display: none; margin-top: 10px;"></div>
+        <!-- Aviso estricto de privacidad (NO DNI, NO IBAN) -->
+        <div class="alert-banner alert-privacy">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A2540" stroke-width="2.5" style="flex-shrink: 0; margin-top: 2px;">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          <div>
+            <strong style="color: var(--navy-dark); display: block; margin-bottom: 2px;">Compromiso de Privacidad Inicial:</strong>
+            Por tu seguridad, en este registro inicial <strong>NO se solicitará ni DNI/NIE ni número de cuenta bancaria (IBAN)</strong>. Estos datos solo se pedirán en caso de cobro de premios mayores a 2.000€ (Art. 5.2).
+          </div>
+        </div>
 
-          <div class="rules-scroll-area">
-            <h4>Artículo 1. Financiación y Ciclos</h4>
-            <p>La participación se abona por bloques indivisibles de 10 jornadas a razón de 1,00 € semanal por jugador (10 € por ciclo completo). La renovación del siguiente ciclo debe abonarse obligatoriamente entre la jornada 7 y la 9.</p>
-
-            <h4>Artículo 2. Apuestas Múltiples Variables</h4>
-            <p>El importe jugado se adaptará automáticamente al número de titulares que completen el pago en cada ciclo. Ninguna combinación es fija: se generan aleatoriamente en el terminal oficial de SELAE.</p>
-
-            <h4>Artículo 3. Bajas y Lista de Espera</h4>
-            <p>Quien no abone la renovación antes del fin de la jornada 9, jugará la jornada 10 como última y causará baja definitiva, perdiendo número y antigüedad. La vacante se ofrecerá al primer suplente por estricto sello temporal de inscripción, disponiendo de 24 horas exactas para abonar.</p>
-
-            <h4>Artículo 4. Reparto de Premios</h4>
-            <p>Los premios menores o iguales a 2.000 € se destinarán íntegramente a la Bolsa de Premios Menores (fondo común acumulado). Los premios mayores a 2.000 € se tramitan en entidad bancaria para su transferencia individual.</p>
+        <form onsubmit="handleRegisterSubmit(event)">
+          <!-- Campo obligatorio: Nombre -->
+          <div class="form-group">
+            <label class="form-label" for="regNombre">Nombre <span style="color: #ef4444;">*</span></label>
+            <input type="text" id="regNombre" class="input-text" placeholder="Ej. Carlos" required />
           </div>
 
-          <label class="checkbox-container">
-            <input type="checkbox" id="chkAcceptRules" onchange="actualizarBotonReglas()" />
-            <span>He leído, comprendo y acepto íntegramente el Reglamento Oficial de la Peña Primitiva Tordueles y el tratamiento de mis datos de socio.</span>
+          <!-- Campo obligatorio: Apellidos -->
+          <div class="form-group">
+            <label class="form-label" for="regApellidos">Apellidos <span style="color: #ef4444;">*</span></label>
+            <input type="text" id="regApellidos" class="input-text" placeholder="Ej. González Ruiz" required />
+          </div>
+
+          <!-- Campo obligatorio: Teléfono Móvil -->
+          <div class="form-group">
+            <label class="form-label" for="regTelefono">Teléfono Móvil (WhatsApp) <span style="color: #ef4444;">*</span></label>
+            <input type="tel" id="regTelefono" class="input-text" placeholder="Ej. 612 345 678" required />
+            <span style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-top: 4px;">
+              Necesario para el envío de los resguardos y avisos de vacantes de 24 horas.
+            </span>
+          </div>
+
+          <!-- CONTENEDOR VISUAL CON SCROLL DEL REGLAMENTO OFICIAL -->
+          <div class="form-group" style="margin-top: 22px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <label class="form-label" style="font-size: 0.9rem;">
+                Bases Oficiales y Estatutos Vinculantes:
+              </label>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">
+                Desliza para leer íntegro ↓
+              </span>
+            </div>
+
+            <!-- Contenedor con Scroll Vertical y tipografía grande legible para móviles -->
+            <div class="rules-scroll-box" id="rulesScrollContainer">
+              <h3>Reglamento Oficial de la Peña Primitiva Tordueles</h3>
+
+              <!-- ARTÍCULO 1 -->
+              <h4>Artículo 1. Financiación, Cuotas y Ciclos de Juego</h4>
+              <ul>
+                <li><strong>1.1. Cuota Unitaria:</strong> La participación en la peña tiene una cuota fija de <strong>1,00 € semanal por jugador</strong>.</li>
+                <li><strong>1.2. Bloques Indivisibles:</strong> Los pagos se realizarán por adelantado en bloques cerrados e indivisibles de <strong>10 jornadas (10,00 € por jugador y ciclo)</strong>. No se admiten pagos fraccionados ni semanas sueltas.</li>
+                <li><strong>1.3. Plazo Obligatorio de Renovación:</strong> La renovación de la cuota para el siguiente ciclo debe abonarse obligatoriamente entre la <strong>jornada 7 y la jornada 9</strong> del ciclo vigente.</li>
+              </ul>
+
+              <!-- ARTÍCULO 2 -->
+              <h4>Artículo 2. Apuestas Múltiples Adaptables e Imparcialidad</h4>
+              <ul>
+                <li><strong>2.1. Ajuste Automático al Presupuesto y Escalado de Jugadores:</strong> El importe y tamaño de la apuesta múltiple oficial se adaptará automáticamente al número exacto de jugadores que hayan completado el pago en cada ciclo. Dado que cada jugador aporta 1,00 € por sorteo, para aumentar el tamaño de la peña y jugar una combinación mayor, el número total de participantes deberá coincidir siempre con el número exacto de apuestas directas que exige cada bloque múltiple oficial. No se admitirán cifras intermedias de jugadores.</li>
+              </ul>
+
+              <div class="rules-highlight-card">
+                <strong>Opciones de apuestas múltiples de La Primitiva y cupos requeridos:</strong>
+                <ul style="margin-top: 6px; margin-bottom: 0;">
+                  <li>Múltiple de 7 números: 7 apuestas (requiere 7 jugadores por 7,00 €).</li>
+                  <li>Múltiple de 8 números: 28 apuestas (requiere 28 jugadores por 28,00 €).</li>
+                  <li>Múltiple de 5 números (fijo): 44 apuestas (requiere 44 jugadores por 44,00 €).</li>
+                  <li>Múltiple de 9 números: 84 apuestas (requiere 84 jugadores por 84,00 €).</li>
+                  <li>Múltiple de 10 números: 210 apuestas (requiere 210 jugadores por 210,00 €).</li>
+                  <li>Múltiple de 11 números: 462 apuestas (requiere 462 jugadores por 462,00 €).</li>
+                </ul>
+              </div>
+
+              <ul>
+                <li><strong>2.2. Combinaciones Aleatorias de Terminal:</strong> Las combinaciones jugadas nunca serán fijas. Se generarán de forma automática y aleatoria mediante el terminal oficial de Loterías y Apuestas del Estado.</li>
+              </ul>
+
+              <!-- ARTÍCULO 3 -->
+              <h4>Artículo 3. Control de Lista de Espera, Inscripción y Plazos</h4>
+              <ul>
+                <li><strong>3.1. Requisitos de Inscripción y Aceptación de Bases:</strong> Para formalizar la inscripción en la peña, es obligatoria la recopilación de Nombre, Apellidos, Teléfono Móvil y marcar la casilla de Aceptación del Reglamento. Por motivos de privacidad, no se exigirá el DNI ni el IBAN en el alta inicial. No obstante, todo socio acepta expresamente que, en caso de resultar agraciado con un premio que requiera dichos datos, estará obligado a facilitar su DNI/NIF y su número de cuenta (IBAN).</li>
+                <li><strong>3.2. Orden Cronológico Inalterable:</strong> Las vacantes se asignarán por estricto orden de antigüedad basado en el sello de tiempo registrado al completar la inscripción.</li>
+                <li><strong>3.3. Exclusión por Falta de Pago:</strong> Si un integrante titular no abona la cuota antes de finalizar la jornada 9, será excluido de la peña.</li>
+                <li><strong>3.4. Plazo Estricto de 24 Horas para Suplentes:</strong> El aspirante notificado dispondrá de 24 horas exactas para abonar los 10,00 € correspondientes al nuevo ciclo.</li>
+                <li><strong>3.5. Ampliación de la Peña y Salto de Nivel:</strong> Si la lista de espera ("Suplentes") crece lo suficiente como para alcanzar el siguiente bloque oficial, el ascenso de categoría no se realizará de forma automática. El Administrador deberá evaluar y aprobar manualmente este salto de nivel antes de finalizar el ciclo vigente. Tras la confirmación de los pagos, la peña al completo pasará a jugar el nuevo bloque en el siguiente ciclo.</li>
+              </ul>
+
+              <!-- ARTÍCULO 4 -->
+              <h4>Artículo 4. Bajas, Pérdida de Antigüedad y Régimen de Fallecimiento</h4>
+              <ul>
+                <li><strong>4.1. Pérdida de Derechos por Baja:</strong> Toda persona que cause baja perderá su condición de socio. Si desea reingresar, deberá situarse al final de la cola.</li>
+                <li><strong>4.2. No Heredabilidad de la Plaza:</strong> En caso de fallecimiento, la plaza no se hereda.</li>
+                <li><strong>4.3. Liquidación a Herederos Legales:</strong> La plaza vacante pasará al primer suplente tras finalizar el ciclo abonado. La parte neta de cualquier premio obtenido en dicho ciclo se entregará a sus herederos legales.</li>
+              </ul>
+
+              <!-- ARTÍCULO 5 -->
+              <h4>Artículo 5. Reparto de Premios Menores vs Mayores</h4>
+              <ul>
+                <li><strong>5.1. Premios Menores (hasta 2.000,00 €):</strong> Se acumularán íntegramente en el Fondo Común de la peña.</li>
+                <li><strong>5.2. Premios Mayores (superiores a 2.000,00 €):</strong> Obligan legalmente a la tramitación presentando el DNI de la totalidad de los miembros. La entidad bancaria retendrá automáticamente el 20% en concepto de gravamen especial sobre el importe que exceda de 40.000,00 €. Posteriormente, se transferirá la parte líquida neta al IBAN individual. Al tratarse de transferencias bancarias para el reparto de estas cantidades (mayores de 2.000,00 € y de 40.000,00 €), cada jugador asumirá de forma individual los posibles gastos o comisiones por transferencia que aplique la entidad bancaria, descontándose dichas comisiones directamente del importe a percibir.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- CHECKBOX OBLIGATORIO -->
+          <label class="checkbox-wrapper">
+            <input type="checkbox" id="chkAcceptRules" class="checkbox-input" onchange="validateRegistrationForm()" required />
+            <span class="checkbox-label">
+              He leído y acepto el Reglamento Oficial de la Peña Primitiva Tordueles
+            </span>
           </label>
 
-          <button
-            type="button"
-            class="btn-primary"
-            id="btnAcceptRules"
-            disabled
-            style="opacity: 0.5; cursor: not-allowed;"
-            onclick="confirmarAceptacionReglamento()"
-          >
-            Aceptar Normas y Acceder
+          <!-- BOTÓN DESTACADO: DESCARGAR REGLAMENTO EN PDF -->
+          <button type="button" class="btn-pdf-download" onclick="generarReglamentoPDF()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Descargar Reglamento en PDF</span>
           </button>
-        </div>
+
+          <!-- BOTÓN FINAL DE REGISTRO -->
+          <button type="submit" class="btn-main" id="btnSubmitRegister" disabled>
+            <span>Confirmar Inscripción y Reservar Plaza</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 13l4 4L19 7"></path>
+            </svg>
+          </button>
+
+          <!-- Enlace para volver a la pantalla de Acceso -->
+          <button type="button" class="btn-link-back" onclick="volverPantallaAcceso()">
+            ← Volver a comprobar otro DNI
+          </button>
+        </form>
       </section>
 
-      <!-- ================================================================= -->
-      <!-- VISTA 3: DASHBOARD PRINCIPAL                                      -->
-      <!-- ================================================================= -->
-      <section id="viewDashboard" class="view-section">
-        
-        <!-- Tarjeta Hero: Bolsa de Premios Acumulada -->
-        <div class="card card-hero-treasury">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <span class="hero-tag">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-              Bolsa de Premios Menores
-            </span>
-            <span style="font-size: 0.7rem; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 9999px;">
-              Tesorería Oficial
-            </span>
-          </div>
-
-          <div class="hero-amount" id="lblBolsaPremios">0,00 €</div>
-
-          <div class="hero-meta">
-            Fondo común acumulado de premios menores (&le; 2.000 €). Separado de la cuota de apuestas semanales.
-          </div>
-        </div>
-
-        <!-- Tarjeta de Estado del Jugador -->
-        <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
-            <div>
-              <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Socio Autenticado</span>
-              <h3 id="lblNombreUsuario" style="font-size: 1rem; font-weight: 800; color: var(--primary-navy);">-</h3>
-              <p id="lblDniUsuario" style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">-</p>
-            </div>
-            <div id="badgeEstadoPago" class="badge-item badge-status-paid" style="padding: 6px 12px; text-align: center;">
-              <span class="badge-label">Pago Ciclo</span>
-              <span id="lblEstadoPago" class="badge-value">-</span>
-            </div>
-          </div>
-
-          <div class="user-badge-grid">
-            <div class="badge-item">
-              <span class="badge-label">Condición</span>
-              <span id="lblEstadoSocio" class="badge-value">Titular</span>
-            </div>
-            <div class="badge-item">
-              <span class="badge-label">Participación</span>
-              <span id="lblParticipacion" class="badge-value">-</span>
-            </div>
-          </div>
-
-          <!-- Botón de WhatsApp para comunicar el pago de las siguientes 10 jornadas -->
-          <div style="margin-top: 16px;">
-            <a
-              id="btnWhatsappPago"
-              href="#"
-              target="_blank"
-              class="btn-secondary btn-whatsapp"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67Z"/>
-              </svg>
-              <span>Enviar WhatsApp al admin una vez hecho el pago de las siguientes 10 jornadas</span>
-            </a>
-          </div>
-        </div>
-
-        <!-- Último Boleto / Combinación Jugada -->
-        <div class="card" id="cardUltimoBoleto" style="display: none;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 0.75rem; font-weight: 800; color: var(--accent-orange); text-transform: uppercase;">
-              ★ Apuesta Activa de la Jornada
-            </span>
-            <span id="lblJornadaBoleto" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">-</span>
-          </div>
-
-          <div style="text-align: center; margin: 10px 0;">
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px;">Combinación múltiple validada en terminal SELAE:</p>
-            <div id="ballsCombinacionJugada" class="lottery-balls-row"></div>
-          </div>
-
-          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); padding-top: 8px; border-top: 1px solid var(--border-color);">
-            <span>Coste: <strong id="lblCosteBoleto">-</strong></span>
-            <a id="lnkVerResguardo" href="#" target="_blank" style="color: var(--primary-navy); font-weight: 700; text-decoration: underline; display: none;">
-              Ver Foto Resguardo
-            </a>
-          </div>
-        </div>
-
-        <!-- Historial de Últimos Sorteos -->
-        <div>
-          <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--primary-navy); margin: 18px 0 10px 4px; display: flex; align-items: center; gap: 6px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M12 8v4l3 3"></path>
-              <circle cx="12" cy="12" r="9"></circle>
+      <!-- ======================================================== -->
+      <!-- VISTA 3: PANEL DEL JUGADOR (DASHBOARD)                   -->
+      <!-- ======================================================== -->
+      <section id="viewDashboard" class="view-card">
+        <!-- Hero Card de Tesorería -->
+        <div class="dash-hero">
+          <div class="dash-hero-tag">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+              <circle cx="12" cy="12" r="3"></circle>
             </svg>
-            Historial de Sorteos y Escrutinios
-          </h3>
-
-          <div id="containerSorteos">
-            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 20px;">Cargando histórico...</p>
+            Bolsa de Premios Menores
+          </div>
+          <div class="dash-amount" id="dashBolsaPremios">384,50 €</div>
+          <div class="dash-meta">
+            Fondo común de reserva acumulado (premios ≤ 2.000 €). Separado de la cuota de juego semanal.
           </div>
         </div>
+
+        <!-- Ficha del Jugador -->
+        <div class="member-profile-card">
+          <div class="profile-row">
+            <div>
+              <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Socio Registrado</span>
+              <h3 id="dashNombreUsuario" style="font-size: 1.1rem; font-weight: 800; color: var(--navy-dark);">-</h3>
+              <p id="dashDniUsuario" style="font-size: 0.78rem; font-family: monospace; color: var(--text-muted);">-</p>
+            </div>
+            <div>
+              <span id="dashBadgeEstado" class="status-pill pill-paid">Pagado</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-cols: 2; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+            <div style="background: #f8fafc; padding: 10px; border-radius: 12px;">
+              <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">Condición</span>
+              <strong id="dashCondicion" style="font-size: 0.88rem; color: var(--navy-dark);">Titular</strong>
+            </div>
+            <div style="background: #f8fafc; padding: 10px; border-radius: 12px;">
+              <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">Ciclo en Vigor</span>
+              <strong id="dashCiclo" style="font-size: 0.88rem; color: var(--navy-dark);">Ciclo 3 • J8</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Boleto Activo de la Jornada -->
+        <div class="member-profile-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 0.75rem; font-weight: 800; color: var(--orange-accent); text-transform: uppercase;">
+              ★ Apuesta Oficial en Juego
+            </span>
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--navy-dark);">Jornada 8</span>
+          </div>
+
+          <p style="font-size: 0.78rem; color: var(--text-muted); text-align: center;">
+            Múltiple oficial de 5 números generada aleatoriamente en terminal SELAE:
+          </p>
+
+          <div class="lottery-ball-row">
+            <div class="lottery-ball">07</div>
+            <div class="lottery-ball">13</div>
+            <div class="lottery-ball">22</div>
+            <div class="lottery-ball">34</div>
+            <div class="lottery-ball">49</div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; font-size: 0.76rem; color: var(--text-muted); padding-top: 8px; border-top: 1px solid var(--border-color);">
+            <span>Coste: <strong>44,00 € (44 apuestas)</strong></span>
+            <span>Reintegro: <strong>[4]</strong></span>
+          </div>
+        </div>
+
+        <button type="button" class="btn-pdf-download" onclick="generarReglamentoPDF()" style="margin-top: 10px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Descargar Copia del Reglamento (PDF)</span>
+        </button>
 
       </section>
 
     </main>
 
-    <!-- Footer Legal -->
-    <footer class="footer-legal">
-      Peña La Primitiva Tordueles &copy; Burgos. Sistema oficial sobre Google Workspace & Green API.
+    <!-- FOOTER LEGAL -->
+    <footer style="padding: 16px; text-align: center; font-size: 0.72rem; color: #94a3b8; border-top: 1px solid var(--border-color); background: #ffffff;">
+      Peña La Primitiva Tordueles &copy; 2026 • Tordueles (Burgos) • Sistema Oficial
     </footer>
 
   </div>
 
-  <!-- Overlay de Carga Global -->
-  <div id="loadingOverlay" class="loading-overlay">
+  <!-- MODAL DE CARGA / SPINNER -->
+  <div id="loadingOverlay" class="loading-modal">
     <div class="spinner"></div>
-    <p id="loadingText" style="font-size: 0.85rem; font-weight: 600;">Verificando credenciales...</p>
+    <p id="loadingMsg" style="font-size: 0.9rem; font-weight: 700;">Verificando socio en backend...</p>
   </div>
 
-  <!-- Inclusión de la Lógica JavaScript -->
-  <?!= include('Logica'); ?>
+  <!-- ======================================================== -->
+  <!-- PLANTILLA OCULTA FORMATEADA PARA GENERAR EL PDF CON ALTA RESOLUCIÓN -->
+  <!-- ======================================================== -->
+  <div id="pdf-printable-template">
+    <!-- Encabezado con Logotipo Oficial en el PDF -->
+    <div class="pdf-header">
+      <!-- Emblema de la Peña para el PDF -->
+      <div style="width: 75px; height: 75px; flex-shrink: 0;">
+        <svg viewBox="0 0 100 100" width="75" height="75" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="48" fill="#0A2540" />
+          <circle cx="50" cy="50" r="45" fill="none" stroke="#FF6B00" stroke-width="2" />
+          <circle cx="50" cy="50" r="28" fill="#ffffff" />
+          <g transform="translate(26, 25) scale(0.48)">
+            <path d="M50 8 C40 8 32 15 32 25 C26 27 20 33 20 40 C20 48 26 55 33 56 C35 62 42 66 50 66 C58 66 65 62 67 56 C74 55 80 48 80 40 C80 33 74 27 68 25 C68 15 60 8 50 8 Z" fill="#0A2540"/>
+            <path d="M46 54 L44 86 L56 86 L54 54 Z" fill="#FF6B00"/>
+            <path d="M45 64 Q38 58 35 52" stroke="#ffffff" stroke-width="3" stroke-linecap="round" fill="none"/>
+            <path d="M55 64 Q62 58 65 52" stroke="#ffffff" stroke-width="3" stroke-linecap="round" fill="none"/>
+          </g>
+        </svg>
+      </div>
 
+      <div class="pdf-header-text">
+        <h1>Peña La Primitiva Tordueles</h1>
+        <h2>Reglamento Interno Oficial y Estatutos Vinculantes</h2>
+        <p>Tordueles (Burgos) • Documento Técnico Oficial Aprobado para Socios</p>
+      </div>
+    </div>
+
+    <!-- Contenido del PDF con los 5 artículos exactos -->
+    <div class="pdf-article">
+      <h3>Artículo 1. Financiación, Cuotas y Ciclos de Juego</h3>
+      <ul>
+        <li><strong>1.1. Cuota Unitaria:</strong> La participación en la peña tiene una cuota fija de <strong>1,00 € semanal por jugador</strong>.</li>
+        <li><strong>1.2. Bloques Indivisibles:</strong> Los pagos se realizarán por adelantado en bloques cerrados e indivisibles de <strong>10 jornadas (10,00 € por jugador y ciclo)</strong>. No se admiten pagos fraccionados ni semanas sueltas.</li>
+        <li><strong>1.3. Plazo Obligatorio de Renovación:</strong> La renovación de la cuota para el siguiente ciclo debe abonarse obligatoriamente entre la <strong>jornada 7 y la jornada 9</strong> del ciclo vigente.</li>
+      </ul>
+    </div>
+
+    <div class="pdf-article">
+      <h3>Artículo 2. Apuestas Múltiples Adaptables e Imparcialidad</h3>
+      <ul>
+        <li><strong>2.1. Ajuste Automático al Presupuesto y Escalado de Jugadores:</strong> El importe y tamaño de la apuesta múltiple oficial se adaptará automáticamente al número exacto de jugadores que hayan completado el pago en cada ciclo. Dado que cada jugador aporta 1,00 € por sorteo, para aumentar el tamaño de la peña y jugar una combinación mayor, el número total de participantes deberá coincidir siempre con el número exacto de apuestas directas que exige cada bloque múltiple oficial. No se admitirán cifras intermedias de jugadores.</li>
+      </ul>
+      <div class="pdf-badge-table">
+        <strong>Opciones de apuestas múltiples de La Primitiva y cupos exactos requeridos:</strong>
+        <ul style="margin-top: 4px; margin-bottom: 0;">
+          <li>Múltiple de 7 números: 7 apuestas (requiere 7 jugadores por 7,00 €).</li>
+          <li>Múltiple de 8 números: 28 apuestas (requiere 28 jugadores por 28,00 €).</li>
+          <li>Múltiple de 5 números (fijo): 44 apuestas (requiere 44 jugadores por 44,00 €).</li>
+          <li>Múltiple de 9 números: 84 apuestas (requiere 84 jugadores por 84,00 €).</li>
+          <li>Múltiple de 10 números: 210 apuestas (requiere 210 jugadores por 210,00 €).</li>
+          <li>Múltiple de 11 números: 462 apuestas (requiere 462 jugadores por 462,00 €).</li>
+        </ul>
+      </div>
+      <ul>
+        <li><strong>2.2. Combinaciones Aleatorias de Terminal:</strong> Las combinaciones jugadas nunca serán fijas. Se generarán de forma automática y aleatoria mediante el terminal oficial de Loterías y Apuestas del Estado.</li>
+      </ul>
+    </div>
+
+    <div class="pdf-article">
+      <h3>Artículo 3. Control de Lista de Espera, Inscripción y Plazos</h3>
+      <ul>
+        <li><strong>3.1. Requisitos de Inscripción y Aceptación de Bases:</strong> Para formalizar la inscripción en la peña, es obligatoria la recopilación de Nombre, Apellidos, Teléfono Móvil y marcar la casilla de Aceptación del Reglamento. Por motivos de privacidad, no se exigirá el DNI ni el IBAN en el alta inicial. No obstante, todo socio acepta expresamente que, en caso de resultar agraciado con un premio que requiera dichos datos, estará obligado a facilitar su DNI/NIF y su número de cuenta (IBAN).</li>
+        <li><strong>3.2. Orden Cronológico Inalterable:</strong> Las vacantes se asignarán por estricto orden de antigüedad basado en el sello de tiempo registrado al completar la inscripción.</li>
+        <li><strong>3.3. Exclusión por Falta de Pago:</strong> Si un integrante titular no abona la cuota antes de finalizar la jornada 9, será excluido de la peña.</li>
+        <li><strong>3.4. Plazo Estricto de 24 Horas para Suplentes:</strong> El aspirante notificado dispondrá de 24 horas exactas para abonar los 10,00 € correspondientes al nuevo ciclo.</li>
+        <li><strong>3.5. Ampliación de la Peña y Salto de Nivel:</strong> Si la lista de espera ("Suplentes") crece lo suficiente como para alcanzar el siguiente bloque oficial, el ascenso de categoría no se realizará de forma automática. El Administrador deberá evaluar y aprobar manualmente este salto de nivel antes de finalizar el ciclo vigente. Tras la confirmación de los pagos, la peña al completo pasará a jugar el nuevo bloque en el siguiente ciclo.</li>
+      </ul>
+    </div>
+
+    <div class="pdf-article">
+      <h3>Artículo 4. Bajas, Pérdida de Antigüedad y Régimen de Fallecimiento</h3>
+      <ul>
+        <li><strong>4.1. Pérdida de Derechos por Baja:</strong> Toda persona que cause baja perderá su condición de socio. Si desea reingresar, deberá situarse al final de la cola.</li>
+        <li><strong>4.2. No Heredabilidad de la Plaza:</strong> En caso de fallecimiento, la plaza no se hereda.</li>
+        <li><strong>4.3. Liquidación a Herederos Legales:</strong> La plaza vacante pasará al primer suplente tras finalizar el ciclo abonado. La parte neta de cualquier premio obtenido en dicho ciclo se entregará a sus herederos legales.</li>
+      </ul>
+    </div>
+
+    <div class="pdf-article">
+      <h3>Artículo 5. Reparto de Premios Menores vs Mayores</h3>
+      <ul>
+        <li><strong>5.1. Premios Menores (hasta 2.000,00 €):</strong> Se acumularán íntegramente en el Fondo Común de la peña.</li>
+        <li><strong>5.2. Premios Mayores (superiores a 2.000,00 €):</strong> Obligan legalmente a la tramitación presentando el DNI de la totalidad de los miembros. La entidad bancaria retendrá automáticamente el 20% en concepto de gravamen especial sobre el importe que exceda de 40.000,00 €. Posteriormente, se transferirá la parte líquida neta al IBAN individual. Al tratarse de transferencias bancarias para el reparto de estas cantidades (mayores de 2.000,00 € y de 40.000,00 €), cada jugador asumirá de forma individual los posibles gastos o comisiones por transferencia que aplique la entidad bancaria, descontándose dichas comisiones directamente del importe a percibir.</li>
+      </ul>
+    </div>
+
+    <div class="pdf-footer">
+      <span>Peña Primitiva Tordueles • Tordueles (Burgos)</span>
+      <span>Copia Oficial Certificada para el Socio</span>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- LÓGICA JAVASCRIPT DEL FRONTEND DUAL Y GENERACIÓN DE PDF  -->
+  <!-- ======================================================== -->
+  <script>
+    // Base de datos de socios en memoria para simulación del backend
+    const MOCK_SOCIOS = [
+      { dni: '12345678Z', nombre: 'Juan Pérez García', estado: 'Titular', pago: 'Pagado', ciclo: 'Ciclo 3 • J8' },
+      { dni: '87654321X', nombre: 'María Rodríguez Santos', estado: 'Titular', pago: 'Pagado', ciclo: 'Ciclo 3 • J8' },
+      { dni: '11223344B', nombre: 'Carlos Fernández Burgos', estado: 'Suplente', pago: 'Pendiente', ciclo: 'Ciclo 3' },
+      { dni: '99887766A', nombre: 'Laura Gómez Tordueles', estado: 'Titular', pago: 'Pagado', ciclo: 'Ciclo 3 • J8' }
+    ];
+
+    let currentDniIntent = '';
+
+    // Cambiar de vista con animación suave
+    function switchView(viewId) {
+      document.querySelectorAll('.view-card').forEach(el => {
+        el.classList.remove('active');
+      });
+      const target = document.getElementById(viewId);
+      if (target) {
+        target.classList.add('active');
+      }
+
+      // Mostrar botón de salir en la cabecera si estamos en dashboard
+      const headerActions = document.getElementById('headerUserActions');
+      if (headerActions) {
+        headerActions.style.display = (viewId === 'viewDashboard') ? 'block' : 'none';
+      }
+    }
+
+    // Mostrar overlay de carga
+    function showLoading(msg) {
+      document.getElementById('loadingMsg').innerText = msg || 'Procesando...';
+      document.getElementById('loadingOverlay').classList.add('active');
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.remove('active');
+    }
+
+    // 1. MANEJO DE LA CONSULTA DE DNI (PANTALLA DUAL)
+    function handleDniSubmit(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('inputUserDni');
+      const dniClean = (input.value || '').trim().toUpperCase().replace(/[\s-]/g, '');
+
+      if (!dniClean) {
+        alert('Por favor, introduce tu DNI o NIE.');
+        return;
+      }
+
+      currentDniIntent = dniClean;
+      showLoading('Consultando socio en la base de datos...');
+
+      // Simulación de llamada de red al backend (Apps Script)
+      setTimeout(() => {
+        hideLoading();
+
+        // Si se ejecuta en Google Apps Script nativo con google.script.run:
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(function(response) {
+              if (response && response.success && response.user) {
+                mostrarDashboardJugador(response.user);
+              } else {
+                abrirFormularioRegistro();
+              }
+            })
+            .withFailureHandler(function() {
+              abrirFormularioRegistro();
+            })
+            .validarLoginDNI(dniClean);
+          return;
+        }
+
+        // Simulación en entorno Frontend estándar
+        const socioEncontrado = MOCK_SOCIOS.find(s => s.dni === dniClean);
+
+        if (socioEncontrado) {
+          // El DNI existe -> Muestra el panel del jugador
+          mostrarDashboardJugador(socioEncontrado);
+        } else {
+          // El DNI NO existe -> Transformación fluida al Formulario de Registro
+          abrirFormularioRegistro();
+        }
+      }, 700);
+    }
+
+    // Transformación fluida a la pantalla de registro
+    function abrirFormularioRegistro() {
+      switchView('viewRegister');
+      // Scroll hacia arriba para iniciar el registro cómodamente
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Volver a la pantalla inicial de acceso
+    function volverPantallaAcceso() {
+      switchView('viewAccess');
+      const input = document.getElementById('inputUserDni');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+
+    // Validar formulario de registro para habilitar el botón final
+    function validateRegistrationForm() {
+      const chk = document.getElementById('chkAcceptRules');
+      const nombre = document.getElementById('regNombre').value.trim();
+      const apellidos = document.getElementById('regApellidos').value.trim();
+      const telefono = document.getElementById('regTelefono').value.trim();
+      const btn = document.getElementById('btnSubmitRegister');
+
+      const isValid = chk.checked && nombre.length > 0 && apellidos.length > 0 && telefono.length >= 6;
+      btn.disabled = !isValid;
+    }
+
+    // Escuchar inputs en el formulario de registro
+    document.getElementById('regNombre')?.addEventListener('input', validateRegistrationForm);
+    document.getElementById('regApellidos')?.addEventListener('input', validateRegistrationForm);
+    document.getElementById('regTelefono')?.addEventListener('input', validateRegistrationForm);
+
+    // 2. ENVÍO DEL FORMULARIO DE REGISTRO
+    function handleRegisterSubmit(e) {
+      if (e) e.preventDefault();
+      const nombre = document.getElementById('regNombre').value.trim();
+      const apellidos = document.getElementById('regApellidos').value.trim();
+      const telefono = document.getElementById('regTelefono').value.trim();
+      const chk = document.getElementById('chkAcceptRules');
+
+      if (!chk.checked) {
+        alert('Debes aceptar las bases del Reglamento Oficial para formalizar tu plaza.');
+        return;
+      }
+
+      showLoading('Registrando en lista de espera con timestamp de precisión...');
+
+      setTimeout(() => {
+        hideLoading();
+        // Generar timestamp con milisegundos simulado
+        const now = new Date();
+        const pad = (n, len = 2) => String(n).padStart(len, '0');
+        const msStr = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
+
+        // Añadir a socios en memoria con condición Suplente
+        const nuevoSocio = {
+          dni: currentDniIntent || 'PENDIENTE',
+          nombre: `${nombre} ${apellidos}`,
+          estado: 'Suplente',
+          pago: 'Pendiente',
+          ciclo: 'Ciclo 3'
+        };
+        MOCK_SOCIOS.push(nuevoSocio);
+
+        alert(`¡Inscripción confirmada con éxito!\n\n📋 Socio: ${nombre} ${apellidos}\n⏱️ Marca Temporal Oficial: ${msStr}\n👤 Estado Asignado: Suplente (Lista de Espera)\n\nHas sido incorporado a la cola oficial según el Art. 3 del Reglamento.`);
+
+        mostrarDashboardJugador(nuevoSocio);
+      }, 1000);
+    }
+
+    // 3. MOSTRAR PANEL DEL JUGADOR
+    function mostrarDashboardJugador(user) {
+      document.getElementById('dashNombreUsuario').innerText = user.nombre || 'Socio Autenticado';
+      document.getElementById('dashDniUsuario').innerText = user.dni ? `DNI: ${user.dni}` : 'DNI: Pendiente de verificar';
+      
+      const badge = document.getElementById('dashBadgeEstado');
+      badge.innerText = user.pago || 'Pagado';
+      badge.className = `status-pill ${user.pago === 'Pagado' ? 'pill-paid' : 'pill-suplente'}`;
+
+      const cond = document.getElementById('dashCondicion');
+      cond.innerText = user.estado || 'Titular';
+
+      const ciclo = document.getElementById('dashCiclo');
+      ciclo.innerText = user.ciclo || 'Ciclo 3 • J8';
+
+      switchView('viewDashboard');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Cerrar sesión
+    function cerrarSesionUsuario() {
+      currentDniIntent = '';
+      const input = document.getElementById('inputUserDni');
+      if (input) input.value = '';
+      switchView('viewAccess');
+    }
+
+    // 4. GENERADOR PROFESIONAL DE PDF CON html2pdf.js
+    function generarReglamentoPDF() {
+      showLoading('Generando documento PDF oficial...');
+
+      const element = document.getElementById('pdf-printable-template');
+      // Mostrar temporalmente en bloque fuera de pantalla para que html2pdf capture estilos completos
+      element.style.display = 'block';
+
+      const opt = {
+        margin: [12, 12, 12, 12],
+        filename: 'Reglamento_Oficial_Pena_Primitiva_Tordueles.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          letterRendering: true,
+          logging: false 
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        }
+      };
+
+      html2pdf().set(opt).from(element).save().then(function() {
+        element.style.display = 'none';
+        hideLoading();
+      }).catch(function(err) {
+        element.style.display = 'none';
+        hideLoading();
+        console.error('Error al generar PDF:', err);
+        // Fallback nativo de impresión si la librería no carga
+        window.print();
+      });
+    }
+  </script>
 </body>
 </html>

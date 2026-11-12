@@ -310,6 +310,309 @@ function configurarPestanaConfiguracion(ss) {
 }
 
 // ============================================================================
+// 3.B. FORMULARIO OFICIAL DE INSCRIPCIÓN Y DISPARADOR DE PRECISIÓN (MILISEGUNDOS)
+// ============================================================================
+
+/**
+ * 1. CREACIÓN AUTOMÁTICA DEL FORMULARIO DE INSCRIPCIÓN
+ * Genera un nuevo Google Form oficial para la Peña Primitiva Tordueles
+ * y lo vincula como receptor de respuestas a la hoja de cálculo activa.
+ * 
+ * - Título: "Inscripción - Peña Primitiva Tordueles"
+ * - Descripción: Informa de que no se pide DNI ni IBAN de entrada por privacidad;
+ *   estos solo se pedirán en caso de cobro de premios mayores a 2.000€.
+ * - Campos de texto corto obligatorios: Nombre, Apellidos, Teléfono Móvil.
+ * - Casilla de verificación obligatoria: Un único check para aceptar el "Reglamento Oficial".
+ * - Vinculación: Se enlaza como destino a la hoja de cálculo activa.
+ * - Instalación automática del disparador onFormSubmit.
+ */
+function crearFormulario() {
+  Logger.log('📝 Creando Formulario Oficial de Inscripción...');
+  
+  // 1. Obtener la hoja de cálculo activa o configurada en Drive
+  var ss = obtenerSpreadsheetConfigurado();
+  if (!ss) {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+  }
+  if (!ss) {
+    throw new Error('No se ha podido localizar la hoja de cálculo activa de la Peña.');
+  }
+  
+  // 2. Crear el formulario con el título oficial requerido
+  var titulo = 'Inscripción - Peña Primitiva Tordueles';
+  var form = FormApp.create(titulo);
+  
+  // 3. Descripción detallada informando sobre la política de privacidad (sin DNI ni IBAN de entrada)
+  var descripcion = 'Formulario oficial de inscripción y reserva de plaza en la Peña de Lotería La Primitiva de Tordueles (Burgos).\n\n' +
+    '🔒 AVISO DE PRIVACIDAD: Por motivos de seguridad y estricta privacidad, en este registro inicial NO se solicitará ni DNI/NIE ni número de cuenta bancaria (IBAN). ' +
+    'Estos datos identificativos y fiscales solo se requerirán de forma obligatoria a los integrantes activos en caso de cobro de premios mayores a 2.000€, conforme al Art. 5 del Reglamento Oficial y la normativa tributaria de SELAE.';
+  form.setDescription(descripcion);
+  
+  // 4. Parámetros de comportamiento
+  form.setAllowResponseEdits(false);
+  form.setLimitOneResponsePerUser(false);
+  form.setCollectEmail(false);
+  form.setShowLinkToRespondAgain(true);
+  
+  // 5. Campos de texto corto obligatorios:
+  // - Nombre
+  form.addTextItem()
+    .setTitle('Nombre')
+    .setHelpText('Introduce tu nombre de pila.')
+    .setRequired(true);
+    
+  // - Apellidos
+  form.addTextItem()
+    .setTitle('Apellidos')
+    .setHelpText('Introduce tus apellidos completos.')
+    .setRequired(true);
+    
+  // - Teléfono Móvil
+  form.addTextItem()
+    .setTitle('Teléfono Móvil')
+    .setHelpText('Teléfono de contacto con WhatsApp para notificaciones de vacantes y sorteos.')
+    .setRequired(true);
+    
+  // 6. Casilla de verificación obligatoria:
+  // Un único check para aceptar el "Reglamento Oficial"
+  var itemReglamento = form.addCheckboxItem();
+  itemReglamento.setTitle('Reglamento Oficial')
+    .setHelpText('Es condición indispensable aceptar las bases para formalizar la reserva de plaza.')
+    .setRequired(true);
+  itemReglamento.setChoices([
+    itemReglamento.createChoice('He leído y acepto íntegramente el Reglamento Oficial de la Peña Primitiva Tordueles (ciclos de 10 jornadas a 1€/semana, reglas de lista de espera con plazo de 24h para abonar y fondo común de premios).')
+  ]);
+  
+  // 7. Vincular el formulario a la hoja de cálculo activa
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+  
+  // 8. Organizar en Google Drive: Mover el archivo del formulario a la carpeta oficial de Documentación o Raíz
+  try {
+    var formFile = DriveApp.getFileById(form.getId());
+    var rootFolderId = PROYECTO_CONFIG.DRIVE_ROOT_FOLDER_ID;
+    if (rootFolderId) {
+      var rootFolder = DriveApp.getFolderById(rootFolderId);
+      var subCarpetas = rootFolder.getFoldersByName('04_Documentación_y_Reglamento');
+      var targetFolder = subCarpetas.hasNext() ? subCarpetas.next() : rootFolder;
+      formFile.moveTo(targetFolder);
+      Logger.log('📁 Formulario movido a la carpeta: ' + targetFolder.getName());
+    }
+  } catch (driveErr) {
+    Logger.log('Nota Drive (organización de archivo): ' + driveErr.message);
+  }
+  
+  // 9. Guardar la URL del formulario en las propiedades del script y en 'Configuracion'
+  try {
+    PropertiesService.getScriptProperties().setProperty('FORMULARIO_URL', form.getPublishedUrl());
+    PropertiesService.getScriptProperties().setProperty('FORMULARIO_ID', form.getId());
+    var sheetConfig = ss.getSheetByName(PROYECTO_CONFIG.SHEET_CONFIGURACION);
+    if (sheetConfig) {
+      sheetConfig.getRange('B2').setValue(form.getPublishedUrl());
+    }
+  } catch (eConfig) {}
+  
+  // 10. Instalar automáticamente el disparador onFormSubmit
+  activarDisparador();
+  
+  var editUrl = form.getEditUrl();
+  var publishedUrl = form.getPublishedUrl();
+  
+  Logger.log('========================================================');
+  Logger.log('✅ FORMULARIO CREADO Y VINCULADO CON ÉXITO');
+  Logger.log('🔗 URL de Edición (Admin): ' + editUrl);
+  Logger.log('🌐 URL Pública (Para Compartir): ' + publishedUrl);
+  Logger.log('📊 Hoja Vinculada: ' + ss.getUrl());
+  Logger.log('========================================================');
+  
+  return {
+    success: true,
+    formId: form.getId(),
+    editUrl: editUrl,
+    publishedUrl: publishedUrl,
+    spreadsheetUrl: ss.getUrl()
+  };
+}
+
+/**
+ * 2. DISPARADOR DE PRECISIÓN (MILISEGUNDOS) Y ASIGNACIÓN DE ESTADO POR DEFECTO
+ * Ejecutado automáticamente mediante el evento onFormSubmit de la hoja de cálculo.
+ * Realiza dos acciones clave en la fila recién insertada:
+ * 1) Captura el momento exacto con precisión de milisegundos (dd/MM/yyyy HH:mm:ss.SSS)
+ *    y sobrescribe la marca temporal genérica de Google Forms en la Columna A.
+ * 2) Escribe automáticamente la palabra "Suplente" en la Columna K (Estado del jugador),
+ *    independientemente de fórmulas o validaciones previas.
+ * 
+ * @param {Object} e - Objeto de evento de Google Apps Script para onFormSubmit.
+ */
+function onFormSubmit(e) {
+  Logger.log('📥 Procesando nuevo envío de formulario...');
+  
+  try {
+    var ss = obtenerSpreadsheetConfigurado();
+    if (!ss) {
+      ss = SpreadsheetApp.getActiveSpreadsheet();
+    }
+    
+    var sheet;
+    var row;
+    
+    // Si viene del evento de Google Apps Script con e.range
+    if (e && e.range) {
+      sheet = e.range.getSheet();
+      row = e.range.getRow();
+    } else {
+      // Si se prueba manualmente o e no viene poblado, usar la última fila activa
+      sheet = ss.getActiveSheet() || ss.getSheetByName(PROYECTO_CONFIG.SHEET_USUARIOS);
+      row = sheet.getLastRow();
+    }
+    
+    if (!sheet || row < 2) {
+      Logger.log('No se pudo determinar la fila insertada.');
+      return;
+    }
+    
+    Logger.log('Fila afectada en la hoja "' + sheet.getName() + '": ' + row);
+    
+    // 1. Capturar el momento exacto del envío con precisión de milisegundos
+    var ahora = new Date();
+    var zonaHoraria = Session.getScriptTimeZone() || 'GMT+1';
+    var timestampMilisegundos = Utilities.formatDate(ahora, zonaHoraria, 'dd/MM/yyyy HH:mm:ss.SSS');
+    
+    // Sobrescribir la marca temporal genérica en la Columna A (Columna 1)
+    var celdaA = sheet.getRange(row, 1);
+    celdaA.setNumberFormat('@'); // Formato texto plano para preservar milisegundos inalterables
+    celdaA.setValue(timestampMilisegundos);
+    Logger.log('⏱️ Sello de tiempo de alta precisión asignado a Columna A: ' + timestampMilisegundos);
+    
+    // 2. Escribir automáticamente la palabra "Suplente" en la Columna K (Columna 11: Estado)
+    // Se sobrepone a cualquier validación o fórmula previa
+    var celdaK = sheet.getRange(row, 11);
+    celdaK.setValue('Suplente');
+    celdaK.setFontWeight('bold');
+    Logger.log('👤 Estado "Suplente" asignado automáticamente a Columna K (Fila ' + row + ')');
+
+    // 3. Sincronización adicional si el formulario volcó en una pestaña de respuestas separada
+    // y existe la pestaña maestra 'Usuarios'
+    var sheetUsuarios = ss.getSheetByName(PROYECTO_CONFIG.SHEET_USUARIOS);
+    if (sheetUsuarios && sheet.getName() !== PROYECTO_CONFIG.SHEET_USUARIOS) {
+      sincronizarRespuestaEnPestanaUsuarios(sheet, row, sheetUsuarios, timestampMilisegundos);
+    }
+    
+    Logger.log('✅ Evento onFormSubmit completado con éxito.');
+  } catch (error) {
+    Logger.log('❌ Error en onFormSubmit: ' + error.message);
+  }
+}
+
+/**
+ * Función auxiliar para sincronizar la fila enviada por Google Forms
+ * dentro de la pestaña maestra 'Usuarios' con las columnas exactas de la peña:
+ * A: Marca temporal (con milisegundos)
+ * B: Nombre
+ * C: Apellidos
+ * D: DNI (vacío en el registro inicial por privacidad)
+ * E: Teléfono
+ * F: IBAN (vacío en el registro inicial por privacidad)
+ * G: Estado de Pago ("Pendiente")
+ * H: Ciclo Actual (1)
+ * I: Reglamento Aceptado (TRUE)
+ * J: % Participación
+ * K: Estado ("Suplente")
+ */
+function sincronizarRespuestaEnPestanaUsuarios(sheetRespuestas, rowRespuestas, sheetUsuarios, timestampMs) {
+  try {
+    var valoresResp = sheetRespuestas.getRange(rowRespuestas, 1, 1, sheetRespuestas.getLastColumn()).getValues()[0];
+    // Por defecto en Google Forms vinculados:
+    // [0]=Marca temporal, [1]=Nombre, [2]=Apellidos, [3]=Teléfono Móvil, [4]=Reglamento Oficial
+    var nombre = (valoresResp[1] || '').toString().trim();
+    var apellidos = (valoresResp[2] || '').toString().trim();
+    var telefono = (valoresResp[3] || '').toString().trim();
+    
+    var ultFilaUsuarios = sheetUsuarios.getLastRow() + 1;
+    
+    sheetUsuarios.getRange(ultFilaUsuarios, 1).setNumberFormat('@').setValue(timestampMs); // A
+    sheetUsuarios.getRange(ultFilaUsuarios, 2).setValue(nombre);                           // B
+    sheetUsuarios.getRange(ultFilaUsuarios, 3).setValue(apellidos);                        // C
+    sheetUsuarios.getRange(ultFilaUsuarios, 4).setValue('');                               // D (Sin DNI por privacidad)
+    sheetUsuarios.getRange(ultFilaUsuarios, 5).setNumberFormat('@').setValue(telefono);    // E
+    sheetUsuarios.getRange(ultFilaUsuarios, 6).setValue('');                               // F (Sin IBAN por privacidad)
+    sheetUsuarios.getRange(ultFilaUsuarios, 7).setValue('Pendiente');                      // G
+    sheetUsuarios.getRange(ultFilaUsuarios, 8).setValue(1);                                // H
+    sheetUsuarios.getRange(ultFilaUsuarios, 9).setValue(true);                             // I (Reglamento Aceptado)
+    sheetUsuarios.getRange(ultFilaUsuarios, 10).setFormula('=IF(K' + ultFilaUsuarios + '="Titular", 1 / COUNTIF($K$2:$K, "Titular"), 0)'); // J
+    sheetUsuarios.getRange(ultFilaUsuarios, 11).setValue('Suplente');                      // K (Suplente)
+    
+    Logger.log('📋 Registro replicado en pestaña "Usuarios" en la fila ' + ultFilaUsuarios);
+  } catch (errSync) {
+    Logger.log('Aviso sincronización pestaña Usuarios: ' + errSync.message);
+  }
+}
+
+/**
+ * 3. FUNCIÓN AUXILIAR: ACTIVACIÓN DEL DISPARADOR PROGRAMÁTICAMENTE
+ * Instala el disparador installable onFormSubmit sobre la hoja de cálculo activa.
+ * Previene duplicados verificando si ya existe un disparador idéntico.
+ */
+function activarDisparador() {
+  var ss = obtenerSpreadsheetConfigurado();
+  if (!ss) {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+  }
+  if (!ss) {
+    throw new Error('No se pudo acceder a la hoja de cálculo para instalar el disparador.');
+  }
+
+  // 1. Revisar los disparadores existentes para evitar duplicidades
+  var triggers = ScriptApp.getUserTriggers(ss);
+  for (var i = 0; i < triggers.length; i++) {
+    var trigger = triggers[i];
+    if (trigger.getHandlerFunction() === 'onFormSubmit' && 
+        trigger.getEventType() === ScriptApp.EventType.ON_FORM_SUBMIT) {
+      Logger.log('ℹ️ El disparador onFormSubmit ya se encuentra instalado y activo (ID: ' + trigger.getUniqueId() + ').');
+      return trigger;
+    }
+  }
+
+  // 2. Instalar el nuevo disparador onFormSubmit
+  var nuevoTrigger = ScriptApp.newTrigger('onFormSubmit')
+    .forSpreadsheet(ss)
+    .onFormSubmit()
+    .create();
+
+  Logger.log('🎯 ¡Disparador onFormSubmit instalado exitosamente con ID: ' + nuevoTrigger.getUniqueId() + '!');
+  return nuevoTrigger;
+}
+
+/**
+ * FUNCIÓN DE PRUEBA: Simulación de onFormSubmit con milisegundos y Suplente en Col K
+ * Ejecutable con 1 clic desde el editor de Google Apps Script.
+ */
+function probarDisparadorMilisegundos() {
+  Logger.log('🧪 Iniciando prueba de precisión en la última fila...');
+  var ss = obtenerSpreadsheetConfigurado();
+  var sheet = ss.getSheetByName(PROYECTO_CONFIG.SHEET_USUARIOS) || ss.getActiveSheet();
+  var row = sheet.getLastRow();
+  
+  if (row < 2) {
+    Logger.log('La hoja está vacía. Añadiendo una fila de prueba...');
+    sheet.appendRow([new Date(), 'Aspirante Prueba', 'Tordueles', '', '600123456', '', 'Pendiente', 1, true, 0, '']);
+    row = sheet.getLastRow();
+  }
+  
+  // Ejecutamos la lógica de onFormSubmit simulada
+  var ahora = new Date();
+  var zonaHoraria = Session.getScriptTimeZone() || 'GMT+1';
+  var timestampMs = Utilities.formatDate(ahora, zonaHoraria, 'dd/MM/yyyy HH:mm:ss.SSS');
+  
+  sheet.getRange(row, 1).setNumberFormat('@').setValue(timestampMs);
+  sheet.getRange(row, 11).setValue('Suplente');
+  
+  Logger.log('✅ Prueba completada en fila ' + row + ':');
+  Logger.log('   - Col A (Timestamp con milisegundos): ' + sheet.getRange(row, 1).getValue());
+  Logger.log('   - Col K (Estado asignado): ' + sheet.getRange(row, 11).getValue());
+}
+
+// ============================================================================
 // 4. AUTOMATIZACIONES BACKEND (GREEN API & ONLAE)
 // ============================================================================
 

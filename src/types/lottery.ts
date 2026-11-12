@@ -6,6 +6,7 @@ export interface Player {
   name: string;
   email: string;
   phone: string;
+  dni?: string; // DNI/NIF opcional para autenticación o cobro de premios mayores
   registrationTimestamp: string; // Timestamp inalterable de inscripción (Google Form)
   status: PlayerStatus;
   currentCyclePaid: boolean; // Si ha pagado el ciclo actual de 10 jornadas

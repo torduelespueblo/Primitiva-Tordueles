@@ -22,6 +22,7 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { ConformityModal } from './components/ConformityModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Footer } from './components/Footer';
+import { DualAccessRegistration } from './components/DualAccessRegistration';
 import { pushNotificationService } from './services/pushNotifications';
 
 export default function App() {
@@ -150,22 +151,34 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {!isConformityAccepted ? (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 bg-white rounded-3xl border border-slate-200 shadow-sm">
-            <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-2xl mb-4">
-              🔒
+          <div className="py-4">
+            <DualAccessRegistration
+              existingPlayers={players}
+              onAuthenticatedPlayer={(player) => {
+                handleAcceptConformity();
+              }}
+              onRegisteredNewPlayer={(newReg) => {
+                const newEntry: WaitingListEntry = {
+                  id: `w-${Date.now()}`,
+                  name: newReg.name,
+                  email: '',
+                  phone: newReg.phone,
+                  registrationTimestamp: newReg.timestamp,
+                  status: 'ESPERANDO'
+                };
+                handleUpdateWaitingList([...waitingList, newEntry]);
+                handleAcceptConformity();
+              }}
+              onOpenRulesModal={() => setShowConformityReview(true)}
+            />
+            <div className="text-center mt-4">
+              <button
+                onClick={() => setShowConformityReview(true)}
+                className="text-xs text-slate-500 hover:text-slate-800 underline transition cursor-pointer"
+              >
+                ¿Acceso directo con Declaración de Conformidad rápida?
+              </button>
             </div>
-            <h2 className="text-xl font-bold font-serif text-[#0d253f]">
-              Acceso Restringido por Normativa
-            </h2>
-            <p className="mt-2 text-sm text-slate-600 max-w-md">
-              Para consultar el estado financiero, los resguardos sellados y la lista de socios, debes aceptar la declaración de conformidad oficial y el tratamiento de datos personales.
-            </p>
-            <button
-              onClick={() => setShowConformityReview(true)}
-              className="mt-5 px-6 py-2.5 rounded-xl bg-[#0d253f] hover:bg-[#153a61] text-white font-bold text-sm shadow-xs transition"
-            >
-              Abrir Declaración de Conformidad
-            </button>
           </div>
         ) : (
           <>

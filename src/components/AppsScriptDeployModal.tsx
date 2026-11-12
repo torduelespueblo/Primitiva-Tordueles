@@ -158,67 +158,25 @@ function obtenerDatosDashboard(dniInput) {
 function obtenerSpreadsheetPeña() {
   return SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || SpreadsheetApp.getActiveSpreadsheet().getId());
 }`,
-    'Index.html': `<!-- Archivo: Index.html en Google Apps Script -->
+    'Index.html': `<!-- Archivo: Index.html (Pantalla Dual de Acceso y Registro con Generador de PDF) -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <base target="_top">
   <meta charset="UTF-8">
-  <title>Peña Primitiva Tordueles | Portal del Jugador</title>
-  <?!= include('Estilos'); ?>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Peña Primitiva Tordueles | Portal Oficial</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Para estilos y scripts completos, consulta el archivo google-apps-script/Index.html en el proyecto -->
 </head>
 <body>
-  <div class="app-container">
-    <header class="app-header">
-      <div class="brand-wrapper">
-        <div class="brand-logo-badge">
-          <svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="46" stroke="#0A2540" stroke-width="6"/><path d="M50 20C40 20 32 28 32 38C26 40 22 46 22 52C22 59 27 65 34 66C36 71 42 74 50 74C58 74 64 71 66 66C73 65 78 59 78 52C78 46 74 40 68 38C68 28 60 20 50 20Z" fill="#0A2540"/><path d="M30 32H70V39H54V76H46V39H30V32Z" fill="#FF6B00"/></svg>
-        </div>
-        <div class="brand-text"><h1>Primitiva Tordueles</h1><p>Portal Oficial del Jugador</p></div>
-      </div>
-      <div class="header-actions" id="headerActions" style="display:none;"><button class="btn-logout" onclick="cerrarSesion()">Salir</button></div>
-    </header>
-    <main class="app-content">
-      <!-- VISTA 1: LOGIN POR DNI -->
-      <section id="viewLogin" class="view-section active">
-        <div class="login-box">
-          <h2>Acceso al Área de Socios</h2>
-          <div id="loginAlert" class="alert-box alert-error" style="display:none;"></div>
-          <form id="formLogin" onsubmit="ejecutarLogin(event)">
-            <input type="text" id="inputDNI" class="input-dni" placeholder="12345678A" required />
-            <button type="submit" class="btn-primary">Entrar a Mi Área</button>
-          </form>
-        </div>
-      </section>
-      <!-- VISTA 2: ACEPTACIÓN DE NORMAS -->
-      <section id="viewRules" class="view-section">
-        <div class="rules-container">
-          <h2>Declaración de Conformidad Oficial</h2>
-          <div class="rules-scroll-area">
-            <h4>Artículo 1. Financiación</h4><p>Bloques indivisibles de 10 jornadas a 1€ semanal.</p>
-            <h4>Artículo 3. Bajas y Lista de Espera</h4><p>Orden por timestamp estricto con centésimas.</p>
-          </div>
-          <label><input type="checkbox" id="chkAcceptRules" onchange="actualizarBotonReglas()" /> Acepto el Reglamento Oficial</label>
-          <button id="btnAcceptRules" disabled onclick="confirmarAceptacionReglamento()">Aceptar Normas y Acceder</button>
-        </div>
-      </section>
-      <!-- VISTA 3: DASHBOARD PRINCIPAL -->
-      <section id="viewDashboard" class="view-section">
-        <div class="card card-hero-treasury">
-          <span class="hero-tag">Bolsa de Premios Menores</span>
-          <div class="hero-amount" id="lblBolsaPremios">0,00 €</div>
-        </div>
-        <div class="card">
-          <h3 id="lblNombreUsuario">-</h3>
-          <span id="lblEstadoPago">-</span>
-          <a id="btnWhatsappPago" href="#" class="btn-secondary btn-whatsapp">Enviar WhatsApp al admin una vez hecho el pago de las siguientes 10 jornadas</a>
-        </div>
-        <div id="containerSorteos"></div>
-      </section>
-    </main>
-  </div>
-  <div id="loadingOverlay" class="loading-overlay"><div class="spinner"></div><p id="loadingText">Cargando...</p></div>
-  <?!= include('Logica'); ?>
+  <!-- Contiene: 
+       1. Pantalla de Acceso (Introduce tu DNI y botón Entrar)
+       2. Transformación fluida a Formulario de Registro (Nombre, Apellidos, Teléfono Móvil)
+       3. Contenedor scroll con tipografía grande del Reglamento Oficial
+       4. Checkbox obligatorio y Botón destacado "Descargar Reglamento en PDF" (html2pdf)
+       5. Dashboard del Jugador
+  -->
 </body>
 </html>`,
     'Estilos.html': `<!-- Archivo: Estilos.html en Google Apps Script -->
@@ -329,6 +287,50 @@ function inicializarProyectoCompleto() {
   var ss = SpreadsheetApp.create(PROYECTO_CONFIG.NOMBRE_SPREADSHEET);
   DriveApp.getFileById(ss.getId()).moveTo(fDb);
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
+}
+
+/**
+ * 1. CREACIÓN AUTOMÁTICA DEL FORMULARIO DE INSCRIPCIÓN
+ */
+function crearFormulario() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var form = FormApp.create('Inscripción - Peña Primitiva Tordueles');
+  form.setDescription('Formulario oficial de inscripción y reserva de plaza en la Peña de Lotería La Primitiva de Tordueles (Burgos).\\n\\n🔒 AVISO DE PRIVACIDAD: Por motivos de seguridad y estricta privacidad, en este registro inicial NO se solicitará ni DNI/NIE ni número de cuenta bancaria (IBAN). Estos datos solo se requerirán a los integrantes activos en caso de cobro de premios mayores a 2.000€, conforme al Art. 5 del Reglamento Oficial.');
+  form.addTextItem().setTitle('Nombre').setRequired(true);
+  form.addTextItem().setTitle('Apellidos').setRequired(true);
+  form.addTextItem().setTitle('Teléfono Móvil').setRequired(true);
+  var check = form.addCheckboxItem();
+  check.setTitle('Reglamento Oficial').setRequired(true);
+  check.setChoices([check.createChoice('He leído y acepto íntegramente el Reglamento Oficial de la Peña Primitiva Tordueles (ciclos de 10 jornadas, normas de lista de espera con 24h para abonar y fondo común de premios).')]);
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+  activarDisparador();
+  Logger.log('Formulario creado: ' + form.getPublishedUrl());
+  return { editUrl: form.getEditUrl(), publishedUrl: form.getPublishedUrl() };
+}
+
+/**
+ * 2. DISPARADOR DE PRECISIÓN (MILISEGUNDOS) Y ASIGNACIÓN "SUPLENTE"
+ */
+function onFormSubmit(e) {
+  var sheet = (e && e.range) ? e.range.getSheet() : SpreadsheetApp.getActiveSheet();
+  var row = (e && e.range) ? e.range.getRow() : sheet.getLastRow();
+  if (row < 2) return;
+  var timestampMs = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'GMT+1', 'dd/MM/yyyy HH:mm:ss.SSS');
+  sheet.getRange(row, 1).setNumberFormat('@').setValue(timestampMs);
+  sheet.getRange(row, 11).setValue('Suplente');
+  Logger.log('Fila ' + row + ': Marca temporal ' + timestampMs + ' y Estado Suplente en Col K');
+}
+
+/**
+ * 3. ACTIVAR DISPARADOR PROGRAMÁTICAMENTE
+ */
+function activarDisparador() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var triggers = ScriptApp.getUserTriggers(ss);
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'onFormSubmit') return triggers[i];
+  }
+  return ScriptApp.newTrigger('onFormSubmit').forSpreadsheet(ss).onFormSubmit().create();
 }
 
 /**

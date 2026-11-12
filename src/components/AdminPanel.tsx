@@ -322,8 +322,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const recommended = getRecommendedBet(calcPlayers);
-
   return (
     <div className="space-y-6">
       {/* Top Bar */}
@@ -343,14 +341,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAppsScriptModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-amber-900 font-bold text-xs hover:bg-amber-50 shadow-xs transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-amber-900 font-bold text-xs hover:bg-amber-50 shadow-xs transition cursor-pointer"
           >
             <FileCode className="w-4 h-4 text-amber-700" />
             <span>Código Apps Script</span>
           </button>
           <button
             onClick={onLogoutAdmin}
-            className="px-3.5 py-2 rounded-xl bg-amber-800/80 hover:bg-amber-900 text-xs font-semibold text-white transition"
+            className="px-3.5 py-2 rounded-xl bg-amber-800/80 hover:bg-amber-900 text-xs font-semibold text-white transition cursor-pointer"
           >
             Cerrar Sesión
           </button>
@@ -365,7 +363,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           { id: 'TICKET_UPLOAD', label: 'Subir Resguardo Sellado', icon: Upload },
           { id: 'WORKSPACE', label: 'Google Sheets & Drive', icon: HardDrive },
           { id: 'SCRUTINY', label: 'Escrutinio Oficial SELAE', icon: Trophy },
-          { id: 'CALCULATOR', label: 'Calculadora Apuestas Múltiples', icon: Calculator },
+          { id: 'MULTIPLE_BETS', label: 'Opciones Apuestas Múltiples', icon: Layers },
         ].map(item => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
@@ -402,32 +400,69 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="space-y-4 divide-y divide-slate-100">
               {/* Switch 1: Boletín Diario General */}
-              <div className="pt-2 flex items-center justify-between gap-4">
-                <div>
-                  <strong className="text-sm text-slate-800 block">
-                    Envío del Resumen Diario General (SÍ / NO)
-                  </strong>
-                  <p className="text-xs text-slate-500">
-                    Si está <strong>ACTIVO (SÍ)</strong>, el sistema compila y envía un boletín diario con todos los sorteos (Primitiva + ONCE). Si está en <strong>NO</strong>, se limita exclusivamente a procesar el sorteo en el que participa la peña.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-bold ${settings.sendDailyGeneralSummary ? 'text-blue-900' : 'text-slate-400'}`}>
-                    {settings.sendDailyGeneralSummary ? 'SÍ (ACTIVO)' : 'NO (DESACTIVADO)'}
-                  </span>
-                  <button
-                    onClick={() => handleToggleDailySummary(!settings.sendDailyGeneralSummary)}
-                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                      settings.sendDailyGeneralSummary ? 'bg-blue-900' : 'bg-slate-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                        settings.sendDailyGeneralSummary ? 'translate-x-5' : 'translate-x-0'
+              <div className="pt-2 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <strong className="text-sm text-slate-800 block flex items-center gap-1.5">
+                      <Newspaper className="w-4 h-4 text-blue-900" />
+                      Envío del Resumen Diario General ONLAE + ONCE (SÍ / NO)
+                    </strong>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Si está <strong>ACTIVO (SÍ)</strong>, el sistema compila y envía cada noche el boletín con todos los sorteos del día (Bonoloto, Primitiva, Euromillones, Gordo, Lotería Nacional y todos los juegos de la ONCE). Si está en <strong>NO</strong>, solo procesa el sorteo de la peña.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold ${settings.sendDailyGeneralSummary ? 'text-blue-900' : 'text-slate-400'}`}>
+                      {settings.sendDailyGeneralSummary ? 'SÍ (ACTIVO)' : 'NO (DESACTIVADO)'}
+                    </span>
+                    <button
+                      onClick={() => handleToggleDailySummary(!settings.sendDailyGeneralSummary)}
+                      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                        settings.sendDailyGeneralSummary ? 'bg-blue-900' : 'bg-slate-300'
                       }`}
-                    />
-                  </button>
+                    >
+                      <span
+                        className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          settings.sendDailyGeneralSummary ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Acciones de prueba del Boletín Diario */}
+                <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowBulletinPreview(!showBulletinPreview)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-slate-600" />
+                    <span>{showBulletinPreview ? 'Ocultar Previsualización' : 'Previsualizar Boletín de Hoy'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendDailyBulletin}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Enviar Boletín a WhatsApp Ahora</span>
+                  </button>
+
+                  {bulletinSendStatus && (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {bulletinSendStatus}
+                    </span>
+                  )}
+                </div>
+
+                {/* Previsualización del mensaje formateado */}
+                {showBulletinPreview && (
+                  <div className="rounded-xl bg-slate-900 text-slate-200 p-4 text-xs font-mono whitespace-pre-wrap max-h-72 overflow-y-auto leading-relaxed border border-slate-800 shadow-inner">
+                    {generateDailyLotteryBulletin().formattedWhatsAppMessage}
+                  </div>
+                )}
               </div>
 
               {/* Switch 2: Resguardo 20:35h */}
@@ -988,67 +1023,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* SECTION 5: CALCULATOR */}
-      {activeSection === 'CALCULATOR' && (
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
-          <div>
-            <h3 className="font-bold text-base text-[#0d253f] flex items-center gap-2">
-              <Calculator className="w-5 h-5 text-blue-900" />
-              Calculadora de Apuestas Múltiples Adaptables
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Simula la apuesta óptima de SELAE según el número de participantes que han pagado la cuota de 1€.
-            </p>
-          </div>
-
-          <div className="max-w-xs">
-            <label className="font-bold text-xs text-slate-700 block mb-1">
-              Número de Jugadores con Pago Completado:
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={calcPlayers}
-              onChange={e => setCalcPlayers(parseInt(e.target.value, 10) || 1)}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-base font-bold text-blue-900"
-            />
-          </div>
-
-          {/* Recommended Option */}
-          <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-blue-950 text-sm">
-                Apuesta Óptima Recomendada: {recommended.label}
-              </span>
-              <span className="font-extrabold text-blue-900 text-sm">
-                Coste: {recommended.totalCost.toFixed(2)} €
-              </span>
-            </div>
-            <p className="text-blue-800">{recommended.description}</p>
-            <div className="text-[11px] text-blue-700">
-              Presupuesto recaudado: {calcPlayers * settings.weeklyFee} € (Cuota: 1€/semana por socio).
-            </div>
-          </div>
-
-          {/* Table of SELAE Official Multiples */}
-          <div className="pt-2">
-            <h4 className="font-bold text-xs text-slate-700 mb-2">Tabla Oficial de Apuestas Múltiples de La Primitiva:</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {OFFICIAL_MULTIPLE_BETS.map(b => (
-                <div
-                  key={b.type}
-                  className={`p-3 rounded-xl border text-xs ${
-                    b.totalCost === calcPlayers
-                      ? 'border-blue-800 bg-blue-50/50 ring-2 ring-blue-300'
-                      : 'border-slate-200 bg-white'
-                  }`}
-                >
-                  <div className="font-bold text-slate-900">{b.label}</div>
-                  <div className="text-slate-500 mt-0.5">{b.betsGenerated} apuestas ({b.totalCost} €)</div>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* SECTION 5: MULTIPLE BETS GUIDE */}
+      {activeSection === 'MULTIPLE_BETS' && (
+        <div className="space-y-4">
+          <MultipleBetsGuide />
         </div>
       )}
 
