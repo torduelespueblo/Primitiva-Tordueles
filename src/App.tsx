@@ -168,6 +168,7 @@ export default function App() {
         isOpen={showAdminLogin}
         onClose={() => setShowAdminLogin(false)}
         correctPin={storageService.getAdminPin()}
+        googleAppsScriptUrl={settings.googleAppsScriptUrl}
         onSuccess={() => {
           setIsAdminAuthenticated(true);
           setCurrentTab('admin');

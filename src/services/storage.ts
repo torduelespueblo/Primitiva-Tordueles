@@ -359,7 +359,12 @@ export const storageService = {
   },
 
   getAdminPin(): string {
-    return localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || '1234';
+    const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_PIN);
+    if (!saved || saved === '1234') {
+      localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, '230696');
+      return '230696';
+    }
+    return saved;
   },
 
   setAdminPin(pin: string): void {

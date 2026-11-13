@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { Lock, X, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, X, AlertCircle, Loader2 } from 'lucide-react';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   correctPin: string;
+  googleAppsScriptUrl?: string;
 }
 
 export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
@@ -13,21 +14,62 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   onClose,
   onSuccess,
   correctPin,
+  googleAppsScriptUrl,
 }) => {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPin('');
+      setError(false);
+      setIsVerifying(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === correctPin || pin === '1234') {
+    const enteredPin = pin.trim();
+    if (!enteredPin) {
+      setError(true);
+      return;
+    }
+
+    if (enteredPin === correctPin) {
       setError(false);
       onSuccess();
       onClose();
-    } else {
-      setError(true);
+      return;
     }
+
+    // Si hay WebApp de Apps Script configurada, validar también contra ADMIN_PASSWORD en Propiedades del Script
+    if (googleAppsScriptUrl && googleAppsScriptUrl.trim().length > 0) {
+      try {
+        setIsVerifying(true);
+        const res = await fetch(googleAppsScriptUrl.trim(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'validarAdmin', password: enteredPin }),
+        });
+        const data = await res.json();
+        if (data && data.success === true) {
+          setError(false);
+          setIsVerifying(false);
+          onSuccess();
+          onClose();
+          return;
+        }
+      } catch {
+        // Si la red falla o la versión desplegada aún no expone validarAdmin, mostrar error normal
+      } finally {
+        setIsVerifying(false);
+      }
+    }
+
+    setError(true);
   };
 
   return (
@@ -52,7 +94,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <p className="text-base text-slate-600 leading-relaxed">
-            Introduce el código PIN de gestión de la peña para acceder a los ajustes y edición de socios.
+            Introduce el código PIN de administración configurado en la peña para acceder a los ajustes y edición de socios.
           </p>
 
           <div>
@@ -61,25 +103,22 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             </label>
             <input
               type="password"
-              maxLength={8}
+              inputMode="numeric"
+              maxLength={24}
               value={pin}
               autoFocus
               onChange={e => {
                 setPin(e.target.value);
                 setError(false);
               }}
-              placeholder="••••"
+              placeholder="••••••"
               className="w-full rounded-xl border-2 border-slate-300 px-3 min-h-[52px] text-center text-2xl font-mono tracking-widest focus:border-[#0A2540] outline-hidden"
             />
             {error && (
               <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 shrink-0" /> PIN incorrecto.
+                <AlertCircle className="w-4 h-4 shrink-0" /> PIN de administrador incorrecto.
               </p>
             )}
-          </div>
-
-          <div className="rounded-xl bg-[#F4F6F9] border border-slate-200 p-3 text-sm text-slate-600 text-center">
-            PIN por defecto: <strong className="text-[#0A2540]">1234</strong>
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -92,9 +131,17 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             </button>
             <button
               type="submit"
-              className="flex-1 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-base font-bold text-white shadow-xs cursor-pointer"
+              disabled={isVerifying}
+              className="flex-1 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] disabled:opacity-60 text-base font-bold text-white shadow-xs cursor-pointer inline-flex items-center justify-center gap-2"
             >
-              Desbloquear
+              {isVerifying ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verificando...</span>
+                </>
+              ) : (
+                'Desbloquear'
+              )}
             </button>
           </div>
         </form>

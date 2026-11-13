@@ -20,7 +20,7 @@
 
 var WEBAPP_ADMIN_CONFIG = {
   // Se recomienda configurar 'ADMIN_PASSWORD' en Propiedades del Script de Apps Script
-  DEFAULT_ADMIN_PASSWORD: 'TorduelesAdmin2026!',
+  DEFAULT_ADMIN_PASSWORD: '230696',
   DEFAULT_SPREADSHEET_ID: '18R_F67pOt4pYBD5VqzBln12H-VMxUx-qmoeCewwz8qw',
   JORNADAS_POR_CICLO: 10
 };
@@ -99,6 +99,12 @@ function doPost(e) {
     if (action === 'registro') {
       var res = registrarNuevoJugadorDesdeWeb(contents.datos);
       return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'validarAdmin') {
+      var valido = validarPasswordAdmin(contents.password);
+      return ContentService.createTextOutput(JSON.stringify({ success: valido }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
