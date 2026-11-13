@@ -102,6 +102,18 @@ export const AppsScriptDeployModal: React.FC<AppsScriptDeployModalProps> = ({
           </div>
 
           {/* Code preview & copy button */}
+          <div className={`rounded-xl border px-3.5 py-2.5 text-xs font-semibold flex items-center justify-between gap-2 ${
+            selectedFile.endsWith('.gs')
+              ? 'bg-amber-50 border-amber-200 text-amber-950'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-950'
+          }`}>
+            <span>
+              {selectedFile.endsWith('.gs')
+                ? `Archivo de script (.gs): En Apps Script créalo con "+ > Secuencia de comandos" y nómbralo "${selectedFile.replace('.gs', '')}". No pegues HTML aquí.`
+                : `Archivo HTML (.html): En Apps Script créalo con "+ > HTML" (NO en .gs) y nómbralo "${selectedFile.replace('.html', '')}".`}
+            </span>
+          </div>
+
           <div className="relative rounded-xl bg-slate-900 p-4 text-slate-200 font-mono text-xs">
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
               <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5">
