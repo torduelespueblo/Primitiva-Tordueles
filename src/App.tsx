@@ -20,6 +20,7 @@ import { OfficialRules } from './components/OfficialRules';
 import { AdminPanel } from './components/AdminPanel';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { ConformityModal } from './components/ConformityModal';
+import { PostConformityModal } from './components/PostConformityModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Footer } from './components/Footer';
 import { DualAccessRegistration } from './components/DualAccessRegistration';
@@ -47,6 +48,8 @@ export default function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
   const [showConformityReview, setShowConformityReview] = useState<boolean>(false);
+  const [showPostConformityPrompt, setShowPostConformityPrompt] = useState<boolean>(false);
+  const [registrationInitialMode, setRegistrationInitialMode] = useState<'ACCESS' | 'REGISTER'>('REGISTER');
   const [showStandaloneRegistration, setShowStandaloneRegistration] = useState<boolean>(() =>
     hasRegistrationUrlFlag()
   );
@@ -79,9 +82,14 @@ export default function App() {
   };
 
   const handleAcceptConformity = () => {
+    const isFirstTimeAcceptance = !isConformityAccepted;
     setIsConformityAccepted(true);
     storageService.setConformityAccepted(true);
     setShowConformityReview(false);
+
+    if (isFirstTimeAcceptance && !showStandaloneRegistration) {
+      setShowPostConformityPrompt(true);
+    }
 
     // Solicitar permiso de notificaciones push de inmediato tras el gesto del usuario
     if (pushNotificationService.isSupported()) {
@@ -170,6 +178,20 @@ export default function App() {
         onAccept={handleAcceptConformity}
       />
 
+      {/* Ventana posterior a la primera aceptación del reglamento */}
+      <PostConformityModal
+        isOpen={showPostConformityPrompt}
+        onGoToRegistration={() => {
+          setShowPostConformityPrompt(false);
+          setRegistrationInitialMode('ACCESS');
+          setShowStandaloneRegistration(true);
+        }}
+        onLater={() => {
+          setShowPostConformityPrompt(false);
+          setCurrentTab('dashboard');
+        }}
+      />
+
       {/* Admin Login Modal */}
       <AdminLoginModal
         isOpen={showAdminLogin}
@@ -201,9 +223,13 @@ export default function App() {
         {showStandaloneRegistration ? (
           <div className="py-2 sm:py-4">
             <DualAccessRegistration
-              initialMode="REGISTER"
+              initialMode={registrationInitialMode}
               googleAppsScriptUrl={settings.googleAppsScriptUrl}
               existingPlayers={players}
+              onAuthenticatedPlayer={() => {
+                handleCloseStandaloneRegistration();
+                setCurrentTab('dashboard');
+              }}
               onRegisteredNewPlayer={newReg => {
                 const newEntry: WaitingListEntry = {
                   id: `w-${Date.now()}`,
@@ -280,7 +306,10 @@ export default function App() {
                 players={players}
                 waitingList={waitingList}
                 settings={settings}
-                onOpenRegistration={() => setShowStandaloneRegistration(true)}
+                onOpenRegistration={() => {
+                  setRegistrationInitialMode('REGISTER');
+                  setShowStandaloneRegistration(true);
+                }}
               />
             )}
 
@@ -317,7 +346,10 @@ export default function App() {
           setCurrentTab('rules');
         }}
         onOpenConformity={() => setShowConformityReview(true)}
-        onOpenRegistration={() => setShowStandaloneRegistration(true)}
+        onOpenRegistration={() => {
+          setRegistrationInitialMode('REGISTER');
+          setShowStandaloneRegistration(true);
+        }}
         googleFormUrl={settings.googleFormUrl}
       />
     </div>

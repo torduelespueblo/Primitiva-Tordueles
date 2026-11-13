@@ -121,7 +121,7 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({ isOpen, onAcce
                 )}
               </div>
               <span className="text-base font-semibold text-[#0A2540] leading-snug">
-                He leído y <strong>acepto íntegramente el Reglamento Oficial</strong> de la Peña La Primitiva Tordueles.
+                He leído o descargado y <strong>acepto íntegramente el Reglamento Oficial</strong> de la Peña La Primitiva Tordueles.
               </span>
             </label>
 

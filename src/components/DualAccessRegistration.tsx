@@ -155,6 +155,17 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
           </div>
 
           <div className="p-6 sm:p-8 space-y-6">
+            {onBackToApp && (
+              <button
+                type="button"
+                onClick={onBackToApp}
+                className="inline-flex items-center gap-2 text-base font-bold text-[#0A2540] hover:text-[#FF6B00] min-h-[44px] cursor-pointer"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>Volver a la WebApp</span>
+              </button>
+            )}
+
             <div className="text-center">
               <h3 className="text-xl font-extrabold text-[#0A2540]">
                 Acceso al Área de Socios
@@ -206,7 +217,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
 
             <div className="bg-[#F4F6F9] border border-slate-200 rounded-2xl p-4 text-center space-y-3">
               <p className="text-base text-slate-700 leading-relaxed">
-                <strong>¿Quieres apuntarte a la peña?</strong> No necesitas instalar la app ni facilitar DNI en el alta inicial.
+                <strong>¿Quieres apuntarte a la peña?</strong> Registrarte no te obliga a participar hasta que se decida la lista definitiva, pero ya te da antigüedad en la lista de espera.
               </p>
               <button
                 type="button"
@@ -214,7 +225,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 className="w-full min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-sm transition inline-flex items-center justify-center gap-2 cursor-pointer"
               >
                 <UserPlus className="w-5 h-5" />
-                <span>Abrir Formulario de Inscripción</span>
+                <span>Registrarse en Lista de Espera</span>
               </button>
             </div>
           </div>
@@ -398,15 +409,13 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 )}
               </button>
 
-              {!onBackToApp && (
-                <button
-                  type="button"
-                  onClick={() => setScreenMode('ACCESS')}
-                  className="w-full min-h-[44px] text-center text-base font-semibold text-slate-600 hover:text-[#0A2540] underline transition cursor-pointer"
-                >
-                  ← Volver a comprobar otro DNI
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setScreenMode('ACCESS')}
+                className="w-full min-h-[44px] text-center text-base font-semibold text-slate-600 hover:text-[#0A2540] underline transition cursor-pointer"
+              >
+                ← Ya soy socio / Acceder con DNI
+              </button>
             </form>
           </div>
         </div>
