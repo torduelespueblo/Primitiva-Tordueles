@@ -28,8 +28,11 @@ export const OfflineIndicator: React.FC = () => {
   if (isOnline) return null;
 
   return (
-    <aside aria-label="Aviso de conectividad" className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xl animate-bounce">
-      <WifiOff className="w-4 h-4 text-amber-200" />
+    <aside
+      aria-label="Aviso de conectividad"
+      className="fixed bottom-20 lg:bottom-5 left-4 right-4 sm:right-auto z-50 flex items-center gap-2.5 rounded-2xl bg-[#FF6B00] px-4 py-3 text-sm sm:text-base font-bold text-white shadow-xl"
+    >
+      <WifiOff className="w-5 h-5 shrink-0" />
       <span>Modo sin conexión — Mostrando datos en caché</span>
     </aside>
   );

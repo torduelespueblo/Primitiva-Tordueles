@@ -6,9 +6,6 @@ import {
   Clock,
   Trophy,
   ArrowRight,
-  Send,
-  Sparkles,
-  ShieldAlert,
   Info,
   MessageCircle,
   CheckCircle2,
@@ -29,8 +26,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onNavigateTab,
 }) => {
   const [showYesterdayTest, setShowYesterdayTest] = useState(false);
-  const activePlayers = players.filter(p => p.status === 'TITULAR');
-  const paidCount = activePlayers.filter(p => p.currentCyclePaid).length;
 
   // Boleto de la jornada en curso (primero de la lista)
   const currentTicket = tickets[0];
@@ -42,129 +37,114 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   // Enlace a WhatsApp para comunicar el pago del nuevo bloque de 10 jornadas
   const whatsappNotificationText = encodeURIComponent(
-    `🌲 *COMUNICACIÓN DE PAGO - PEÑA PRIMITIVA TORDUELES* 🌲\n\nHola Administrador, confirmo que he realizado el pago de la cuota de 10 € para la renovación del próximo Ciclo de 10 jornadas.\n\n*Fecha:* ${new Date().toLocaleDateString('es-ES')}`
+    `COMUNICACIÓN DE PAGO - PEÑA PRIMITIVA TORDUELES\n\nHola Administrador, confirmo que he realizado el pago de la cuota de 10 € para la renovación del próximo Ciclo de 10 jornadas.\n\nFecha: ${new Date().toLocaleDateString('es-ES')}`
   );
   const whatsappUrl = `https://api.whatsapp.com/send?text=${whatsappNotificationText}`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* 1. LO PRIMERO: LA APUESTA QUE SE VA A JUGAR */}
-      <section className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
-                Prioridad Nº 1
-              </span>
-              <span className="text-xs text-slate-500 font-medium">
-                Jornada {currentTicket?.jornadaNumber || settings.currentJornada} de 10
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black font-serif text-[#0d253f] flex items-center gap-2 mt-1">
-              <Sparkles className="w-5 h-5 text-amber-500" />
+            <p className="text-sm font-extrabold uppercase tracking-wider text-[#FF6B00] tabular-nums">
+              Sorteo en Curso · Jornada {currentTicket?.jornadaNumber || settings.currentJornada} de {settings.cycleLength}
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-black font-serif text-[#0A2540] mt-1">
               Apuesta Oficial de la Peña
             </h1>
-            <p className="text-xs text-slate-500">
-              Combinación múltiple validada por terminal oficial y publicada automáticamente para los miembros activos.
+            <p className="text-base text-slate-600 mt-1 max-w-2xl leading-relaxed">
+              Combinación múltiple sellada por terminal oficial de SELAE para todos los socios activos.
             </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <Send className="w-3 h-3 text-emerald-600" />
-              Resguardo Oficial SELAE
-            </span>
           </div>
         </div>
 
         {currentTicket ? (
-          <div className="max-w-xl">
+          <div className="max-w-2xl">
             <TicketCard ticket={currentTicket} />
           </div>
         ) : (
-          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 space-y-2">
-            <Receipt className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="text-sm font-semibold text-slate-700">
+          <div className="p-8 text-center bg-white rounded-3xl border border-slate-200 text-slate-600 space-y-3">
+            <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
+            <p className="text-lg font-bold text-[#0A2540]">
               Boleto de la Jornada {settings.currentJornada} en proceso de sellado
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-base text-slate-600">
               El administrador validará la combinación en el terminal oficial y se publicará a las 20:35 h.
             </p>
           </div>
         )}
       </section>
 
-      {/* 2. DEBAJO: SECCIÓN DEL CICLO DE JUEGO */}
-      <section className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
+      {/* 2. SECCIÓN DEL CICLO DE JUEGO */}
+      <section className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-800 flex items-center justify-center font-bold">
-              <Clock className="w-5 h-5 text-blue-700" />
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-[#0A2540] text-white flex items-center justify-center shrink-0">
+              <Clock className="w-6 h-6 text-[#FF6B00]" />
             </div>
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              <span className="text-sm font-bold uppercase tracking-wider text-slate-500 block">
                 Ciclo de Juego Actual
               </span>
-              <h2 className="text-lg font-bold text-[#0d253f]">
+              <h2 className="text-2xl font-black font-serif text-[#0A2540] tabular-nums">
                 Ciclo #{settings.currentCycle}
               </h2>
             </div>
           </div>
 
           <span
-            className={`self-start sm:self-auto text-xs font-bold px-3 py-1 rounded-full border ${
-              isRenewalWindow
-                ? 'bg-amber-50 text-amber-800 border-amber-300 animate-pulse'
-                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            className={`text-sm sm:text-base font-extrabold uppercase tracking-wide ${
+              isRenewalWindow ? 'text-[#FF6B00]' : 'text-emerald-700'
             }`}
           >
             {isRenewalWindow
               ? isFinalDeadline
-                ? '¡ÚLTIMO DÍA RENOVACIÓN (J9)!'
-                : `VENTANA DE RENOVACIÓN (J${settings.currentJornada}/10)`
-              : 'CICLO EN CURSO'}
+                ? 'Último día de renovación (J9)'
+                : `Ventana de renovación (J${settings.currentJornada}/10)`
+              : 'Ciclo en curso'}
           </span>
         </div>
 
         {/* Progreso del Ciclo de 10 Jornadas */}
-        <div className="space-y-2">
-          <div className="flex items-baseline justify-between text-xs">
-            <span className="text-slate-600 font-medium">
-              Evolución del ciclo (1€/semana = 10€ por bloque)
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 text-base">
+            <span className="text-slate-700 font-semibold">
+              Progreso (1 €/semana · 10 € por ciclo)
             </span>
-            <span className="font-extrabold text-[#0d253f]">
+            <span className="font-black text-[#0A2540] tabular-nums">
               Jornada {settings.currentJornada} de {settings.cycleLength}
             </span>
           </div>
 
-          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+          <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden">
             <div
-              className={`h-3 rounded-full transition-all duration-500 ${
-                isRenewalWindow ? 'bg-amber-500' : 'bg-[#0d253f]'
+              className={`h-4 rounded-full transition-all duration-500 ${
+                isRenewalWindow ? 'bg-[#FF6B00]' : 'bg-[#0A2540]'
               }`}
               style={{ width: `${(settings.currentJornada / settings.cycleLength) * 100}%` }}
             />
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-            <span>Inicio del Ciclo (J1)</span>
-            <span className={isRenewalWindow ? 'font-bold text-amber-700' : ''}>
-              Plazo Renovación (J7 - J9)
+          <div className="flex items-center justify-between text-sm text-slate-600 font-medium pt-0.5">
+            <span>Inicio (J1)</span>
+            <span className={isRenewalWindow ? 'font-extrabold text-[#FF6B00]' : ''}>
+              Renovación (J7 – J9)
             </span>
-            <span>Cierre Ciclo (J10)</span>
+            <span>Cierre (J10)</span>
           </div>
         </div>
 
-        {/* Aviso de renovación & BOTÓN PARA COMUNICAR PAGO AL ADMIN POR WHATSAPP */}
-        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-xs text-slate-600 max-w-md">
+        {/* Aviso de renovación & WhatsApp */}
+        <div className="pt-4 border-t border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <p className="text-base text-slate-700 max-w-xl leading-relaxed">
             {isRenewalWindow ? (
-              <span className="text-amber-900 font-semibold">
-                ⚠️ Recuerda que el pago de la cuota del nuevo bloque debe realizarse entre las jornadas 7 y 9 para no causar baja y conservar la antigüedad.
+              <span className="text-[#0A2540] font-semibold">
+                El pago del nuevo bloque debe realizarse entre las jornadas 7 y 9 para conservar tu plaza y antigüedad.
               </span>
             ) : (
               <span>
-                Cada ciclo cubre 10 semanas de apuestas indivisibles. La renovación se abona obligatoriamente entre la jornada 7 y 9.
+                Cada ciclo cubre 10 semanas indivisibles. La renovación se abona entre la jornada 7 y la 9.
               </span>
             )}
           </p>
@@ -173,163 +153,162 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             href={whatsappUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition text-center sm:text-left"
+            className="inline-flex items-center justify-center gap-2.5 px-5 min-h-[52px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base shadow-sm transition text-center shrink-0"
             title="Avisar al administrador tras realizar el ingreso o Bizum"
           >
-            <MessageCircle className="w-4 h-4 text-emerald-100 shrink-0" />
-            <span>Enviar WhatsApp al admin una vez hecho el pago de las siguientes 10 jornadas</span>
+            <MessageCircle className="w-5 h-5 text-white shrink-0" />
+            <span>Comunicar pago por WhatsApp</span>
           </a>
         </div>
       </section>
 
-      {/* 3. COMBINACIÓN PENDIENTE DE JUGARSE Y ÚLTIMO ESCRUTINIO CON POSIBLE PREMIO */}
+      {/* 3. ÚLTIMO ESCRUTINIO OFICIAL */}
       {lastScrutinized && (
-        <section className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                <Trophy className="w-4 h-4" />
+        <section className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-orange-50 text-[#FF6B00] flex items-center justify-center shrink-0">
+                <Trophy className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-base text-slate-900">
+                <h2 className="font-serif font-black text-xl text-[#0A2540]">
                   Último Escrutinio Oficial SELAE
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Jornada {lastScrutinized.jornadaNumber} • {lastScrutinized.drawDate}
+                </h2>
+                <p className="text-sm sm:text-base text-slate-600 font-medium tabular-nums">
+                  Jornada {lastScrutinized.jornadaNumber} · {lastScrutinized.drawDate}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowYesterdayTest(!showYesterdayTest)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold transition cursor-pointer"
+                className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-[#0A2540] text-sm sm:text-base font-bold transition cursor-pointer"
               >
-                <span>{showYesterdayTest ? 'Ocultar prueba' : '🔍 Probar sorteo de ayer (9 Nov)'}</span>
+                <span>{showYesterdayTest ? 'Ocultar cotejo' : 'Ver cotejo de ejemplo'}</span>
               </button>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <div className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-base font-extrabold tabular-nums">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                 <span>Premio: {lastScrutinized.totalPrize.toFixed(2)} €</span>
               </div>
             </div>
           </div>
 
-          {/* Tarjeta de simulación y prueba del sorteo de ayer */}
           {showYesterdayTest && (
-            <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 space-y-3 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-1 border-b border-amber-200 pb-2">
-                <span className="font-bold text-amber-950 flex items-center gap-1.5">
-                  <Trophy className="w-4 h-4 text-amber-600" />
-                  Prueba de Escrutinio: Sorteo Oficial de Ayer (Lunes 9 de Noviembre de 2026)
+            <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 sm:p-5 space-y-4 text-base">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <span className="font-bold text-[#0A2540]">
+                  Prueba de Escrutinio: Lunes 9 de Noviembre de 2026
                 </span>
-                <span className="text-[11px] bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-md font-semibold">
-                  Modo Verificación
+                <span className="text-sm font-bold text-[#FF6B00] uppercase">
+                  Verificación
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-white/80 p-3 rounded-lg border border-amber-100">
-                  <span className="text-slate-500 text-[11px] block mb-1">Combinación Ganadora Oficial:</span>
-                  <div className="flex flex-wrap gap-1 items-center font-mono font-bold text-slate-800">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
+                  <span className="text-slate-600 text-sm font-semibold block">
+                    Combinación Ganadora Oficial:
+                  </span>
+                  <div className="flex flex-wrap gap-2 items-center font-mono font-bold text-[#0A2540]">
                     {['01', '06', '14', '23', '30', '39'].map(n => (
-                      <span key={n} className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs">
+                      <span
+                        key={n}
+                        className="w-9 h-9 rounded-full bg-[#0A2540] text-white flex items-center justify-center text-sm font-extrabold tabular-nums"
+                      >
                         {n}
                       </span>
                     ))}
-                    <span className="text-[11px] text-slate-600 ml-2 font-sans font-semibold">
-                      C: 36 | R: 2 | Joker: 2369520
-                    </span>
                   </div>
+                  <p className="text-sm text-slate-700 font-semibold pt-1 tabular-nums">
+                    C: 36 · R: 2 · Joker: 2369520
+                  </p>
                 </div>
-                <div className="bg-white/80 p-3 rounded-lg border border-amber-100">
-                  <span className="text-slate-500 text-[11px] block mb-1">Cotejo con la Apuesta de la Peña:</span>
-                  <div className="font-mono text-xs space-y-1">
-                    <p className="text-slate-700">
-                      Números jugados: <strong>[07, 13, 22, 34, 49]</strong> (R: 4)
-                    </p>
-                    <p className="text-slate-600">
-                      Resultado: <span className="font-bold text-amber-800">0 aciertos</span> en combinación | Reintegro <span className="text-slate-500">no acertado (4 vs 2)</span>
-                    </p>
-                    <p className="text-emerald-700 font-sans font-bold text-[11px]">
-                      ✓ Algoritmo de escrutinio verificado correctamente según el Art. 5.
-                    </p>
-                  </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1.5 text-base">
+                  <span className="text-slate-600 text-sm font-semibold block">
+                    Cotejo con la Peña:
+                  </span>
+                  <p className="text-slate-800 font-mono font-bold tabular-nums">
+                    Jugados: 07 · 13 · 22 · 34 · 49 (R: 4)
+                  </p>
+                  <p className="text-slate-700">
+                    Resultado: <strong className="text-[#FF6B00]">0 aciertos</strong> · Reintegro no acertado
+                  </p>
+                  <p className="text-emerald-700 font-bold text-sm pt-1">
+                    Algoritmo verificado según el Art. 5.
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[11px] text-slate-500 block">Combinación Ganadora</span>
-              <span className="text-xs sm:text-sm font-bold text-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="p-4 rounded-2xl bg-[#F4F6F9] border border-slate-200">
+              <span className="text-sm font-semibold text-slate-500 block">Combinación Ganadora</span>
+              <span className="text-base sm:text-lg font-extrabold text-[#0A2540] tabular-nums mt-1 block">
                 {lastScrutinized.winningNumbers?.join(' · ') || 'En revisión'}
               </span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[11px] text-slate-500 block">Comp. / Reintegro</span>
-              <span className="text-xs sm:text-sm font-bold text-slate-800">
-                C: {lastScrutinized.complementario ?? '-'} | R: {lastScrutinized.reintegro ?? '-'}
+            <div className="p-4 rounded-2xl bg-[#F4F6F9] border border-slate-200">
+              <span className="text-sm font-semibold text-slate-500 block">Comp. / Reintegro</span>
+              <span className="text-base sm:text-lg font-extrabold text-[#0A2540] tabular-nums mt-1 block">
+                C: {lastScrutinized.complementario ?? '-'} · R: {lastScrutinized.reintegro ?? '-'}
               </span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <span className="text-[11px] text-slate-500 block">Aciertos Peña</span>
-              <span className="text-xs sm:text-sm font-bold text-blue-900">
+            <div className="p-4 rounded-2xl bg-[#F4F6F9] border border-slate-200">
+              <span className="text-sm font-semibold text-slate-500 block">Aciertos Peña</span>
+              <span className="text-base sm:text-lg font-extrabold text-[#0A2540] tabular-nums mt-1 block">
                 {lastScrutinized.hitsCount ?? 0} aciertos
               </span>
             </div>
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-              <span className="text-[11px] text-emerald-700 block">Destino del Premio</span>
-              <span className="text-xs sm:text-sm font-extrabold text-emerald-800">
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+              <span className="text-sm font-semibold text-emerald-800 block">Destino del Premio</span>
+              <span className="text-base sm:text-lg font-extrabold text-emerald-900 mt-1 block">
                 {lastScrutinized.totalPrize > 2000 ? 'Reparto Bancario' : 'Bolsa Común'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-1 text-xs text-slate-500">
-            <span>Resultados certificados contra los escrutinios oficiales de SELAE.</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 text-base text-slate-600">
+            <span>Resultados certificados contra escrutinios oficiales de SELAE.</span>
             <button
+              type="button"
               onClick={() => onNavigateTab('tickets')}
-              className="font-bold text-blue-900 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+              className="font-extrabold text-[#0A2540] hover:text-[#FF6B00] inline-flex items-center gap-2 min-h-[44px] cursor-pointer transition"
             >
               <span>Ver histórico completo</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-5 h-5" />
             </button>
           </div>
         </section>
       )}
 
-      {/* 4. DE MOMENTO LO ÚLTIMO: LA BOLSA DE PREMIOS MENORES */}
-      <section className="rounded-2xl bg-gradient-to-br from-[#0d253f] to-[#173e67] p-5 sm:p-6 text-white shadow-md relative overflow-hidden">
-        <div className="absolute -right-4 -bottom-4 w-36 h-36 bg-white/5 rounded-full blur-xl pointer-events-none" />
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* 4. BOLSA DE PREMIOS MENORES */}
+      <section className="rounded-3xl bg-[#0A2540] p-6 sm:p-8 text-white shadow-md relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-sky-300 flex items-center gap-1.5">
-                <Wallet className="w-4 h-4 text-sky-400" />
-                Bolsa de Premios Menores
-              </span>
-              <span className="text-[10px] bg-sky-950/60 border border-sky-400/30 px-2 py-0.5 rounded-full text-sky-200">
-                Fondo Común Acumulado
-              </span>
-            </div>
-            <div className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight font-serif text-white">
+            <span className="text-sm font-extrabold uppercase tracking-wider text-[#FF6B00] flex items-center gap-2">
+              <Wallet className="w-5 h-5" />
+              Bolsa de Premios Menores · Fondo Común
+            </span>
+            <div className="mt-2 text-4xl sm:text-5xl font-black tracking-tight font-serif text-white tabular-nums">
               {settings.prizeFundBalance.toFixed(2)} €
             </div>
-            <p className="mt-1 text-xs text-slate-300 max-w-xl">
-              Fondo acumulado de todos los premios menores o iguales a 2.000 € obtenidos por la peña. Separado estrictamente de las cuotas de apuestas periódicas.
+            <p className="mt-2.5 text-base text-slate-200 max-w-2xl leading-relaxed">
+              Fondo acumulado de todos los premios menores o iguales a 2.000 € obtenidos por la peña. Separado estrictamente de las cuotas semanales.
             </p>
           </div>
 
-          <div className="sm:text-right shrink-0">
+          <div className="sm:text-right shrink-0 space-y-2">
             <button
+              type="button"
               onClick={() => onNavigateTab('rules')}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-white transition"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white transition cursor-pointer"
             >
               <span>Reglamento Art. 5</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-5 h-5" />
             </button>
-            <p className="text-[10px] text-sky-200/80 mt-1.5">
+            <p className="text-sm text-slate-300">
               Sin derecho a devolución en caso de baja
             </p>
           </div>
@@ -337,11 +316,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       </section>
 
       {/* Nota de Transparencia de la Peña */}
-      <div className="rounded-2xl bg-slate-100 border border-slate-200 p-4 text-xs text-slate-600 flex items-start gap-3">
-        <Info className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
-        <div>
-          <strong>Transparencia Primitiva Tordueles:</strong> Todos los resguardos se sellan por terminal aleatorio y se publican automáticamente antes de cada sorteo.
-        </div>
+      <div className="rounded-2xl bg-white border border-slate-200 p-5 text-base text-slate-700 flex items-start gap-3.5">
+        <Info className="w-6 h-6 text-[#0A2540] shrink-0 mt-0.5" />
+        <p className="leading-relaxed">
+          <strong className="text-[#0A2540]">Transparencia Primitiva Tordueles:</strong> Todos los resguardos se sellan por terminal aleatorio y se publican automáticamente antes de cada sorteo.
+        </p>
       </div>
     </div>
   );

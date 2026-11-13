@@ -1,6 +1,6 @@
 import React from 'react';
 import { Logo } from './Logo';
-import { ExternalLink, ShieldCheck, Heart } from 'lucide-react';
+import { ExternalLink, ShieldCheck } from 'lucide-react';
 
 interface FooterProps {
   onOpenRules: () => void;
@@ -14,55 +14,60 @@ export const Footer: React.FC<FooterProps> = ({
   googleFormUrl,
 }) => {
   return (
-    <footer className="mt-16 bg-[#091829] text-slate-400 text-xs border-t border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3 text-center md:text-left">
-            <div className="bg-white/10 p-1.5 rounded-xl shrink-0">
-              <Logo size={42} variant="full" />
-            </div>
+    <footer className="mt-16 bg-[#071A2E] text-slate-300 text-base border-t border-slate-800 pb-24 lg:pb-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            <Logo
+              size={88}
+              variant="full"
+              theme="dark"
+              className="w-22 h-22 sm:w-24 sm:h-24 shrink-0"
+            />
             <div>
-              <span className="font-serif font-bold text-white text-sm block">
-                Peña La Primitiva • Tordueles
+              <span className="font-serif font-black text-white text-xl sm:text-2xl block">
+                Peña La Primitiva · Tordueles
               </span>
-              <p className="text-[11px] text-slate-400">
-                Provincia de Burgos • 1€ Semanal • Bloques Indivisibles de 10 Jornadas
+              <p className="text-base text-slate-300 mt-1">
+                Provincia de Burgos · 1 € Semanal · Bloques de 10 Jornadas
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
+          <div className="flex flex-wrap items-center justify-center gap-5 text-base font-semibold">
             <button
+              type="button"
               onClick={onOpenRules}
-              className="text-slate-300 hover:text-white underline cursor-pointer"
+              className="text-white hover:text-[#FF6B00] underline underline-offset-4 min-h-[44px] px-2 cursor-pointer transition"
             >
               Reglamento Oficial
             </button>
             <button
+              type="button"
               onClick={onOpenConformity}
-              className="text-slate-300 hover:text-white underline cursor-pointer flex items-center gap-1"
+              className="text-white hover:text-[#FF6B00] underline underline-offset-4 min-h-[44px] px-2 cursor-pointer flex items-center gap-2 transition"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
               <span>Declaración de Conformidad</span>
             </button>
             <a
               href={googleFormUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-slate-300 hover:text-white underline inline-flex items-center gap-1"
+              className="text-white hover:text-[#FF6B00] underline underline-offset-4 min-h-[44px] px-2 inline-flex items-center gap-2 transition"
             >
               <span>Formulario de Inscripción</span>
-              <ExternalLink className="w-3 h-3 text-sky-400" />
+              <ExternalLink className="w-4 h-4 text-[#FF6B00] shrink-0" />
             </a>
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
+        <div className="mt-8 pt-6 border-t border-slate-800/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm sm:text-base text-slate-400 text-center sm:text-left">
           <p>
-            WebApp PWA gratuita y escalable desarrollada para la Peña de Lotería de Tordueles.
+            WebApp PWA oficial desarrollada para la Peña de Lotería de Tordueles.
           </p>
-          <p className="flex items-center gap-1">
-            Imparcialidad garantizada por terminal SELAE & Google Workspace
+          <p>
+            Imparcialidad garantizada por terminal SELAE &amp; Google Workspace
           </p>
         </div>
       </div>

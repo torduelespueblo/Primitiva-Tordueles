@@ -1,13 +1,11 @@
 import React from 'react';
 import { Logo } from './Logo';
 import {
-  FileText,
   DollarSign,
   Shuffle,
   Clock,
   UserX,
   Trophy,
-  Scale,
   Printer
 } from 'lucide-react';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
@@ -18,146 +16,152 @@ export const OfficialRules: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="rounded-2xl bg-[#0d253f] p-6 sm:p-8 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-4 text-center sm:text-left">
-          <div className="bg-white p-2 rounded-2xl shadow-sm shrink-0">
-            <Logo size={64} variant="full" />
-          </div>
+    <div className="space-y-8 max-w-4xl mx-auto">
+      {/* Header with large borderless Logo */}
+      <div className="rounded-3xl bg-[#0A2540] p-6 sm:p-8 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+          <Logo
+            size={92}
+            variant="full"
+            theme="dark"
+            className="w-22 h-22 sm:w-24 sm:h-24 shrink-0"
+          />
           <div>
-            <span className="text-xs uppercase font-bold tracking-widest text-sky-300 block">
+            <span className="text-sm uppercase font-extrabold tracking-widest text-[#FF6B00] block">
               Documento Oficial Vinculante
             </span>
-            <h1 className="text-xl sm:text-2xl font-black font-serif text-white">
+            <h1 className="text-2xl sm:text-3xl font-black font-serif text-white mt-1">
               Reglamento Interno Oficial
             </h1>
-            <p className="text-xs text-slate-300 mt-1">
-              Peña de Lotería La Primitiva • Tordueles (Burgos)
+            <p className="text-base text-slate-300 mt-1">
+              Peña de Lotería La Primitiva · Tordueles (Burgos)
             </p>
           </div>
         </div>
 
         <button
+          type="button"
           onClick={handlePrint}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-white transition cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white transition cursor-pointer shrink-0"
         >
-          <Printer className="w-4 h-4" />
+          <Printer className="w-5 h-5" />
           <span>Imprimir / Guardar PDF</span>
         </button>
       </div>
 
       {/* Rules Content */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-8 text-slate-700 leading-relaxed text-sm">
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-8 text-slate-800 leading-relaxed text-base">
         {/* Art 1 */}
-        <section className="space-y-2 border-b border-slate-100 pb-6">
-          <div className="flex items-center gap-2.5 text-[#0d253f]">
-            <DollarSign className="w-5 h-5 text-blue-900" />
-            <h2 className="text-base sm:text-lg font-bold font-serif">
+        <section className="space-y-3 border-b border-slate-200 pb-6">
+          <div className="flex items-center gap-3 text-[#0A2540]">
+            <DollarSign className="w-6 h-6 text-[#FF6B00] shrink-0" />
+            <h2 className="text-xl sm:text-2xl font-black font-serif">
               Artículo 1. Financiación, Cuotas y Ciclos de Juego
             </h2>
           </div>
-          <div className="pl-7 space-y-2 text-xs sm:text-sm text-slate-600">
+          <div className="space-y-3 text-base sm:text-lg text-slate-700 leading-relaxed">
             <p>
-              <strong>1.1. Cuota Unitaria:</strong> La participación en la peña tiene una cuota fija de <strong>1,00 € semanal por jugador</strong>.
+              <strong className="text-[#0A2540]">1.1. Cuota Unitaria:</strong> La participación en la peña tiene una cuota fija de <strong>1,00 € semanal por jugador</strong>.
             </p>
             <p>
-              <strong>1.2. Bloques Indivisibles:</strong> Los pagos se realizarán por adelantado en bloques cerrados e indivisibles de <strong>10 jornadas (10,00 € por jugador y ciclo)</strong>. No se admiten pagos fraccionados ni semanas sueltas.
+              <strong className="text-[#0A2540]">1.2. Bloques Indivisibles:</strong> Los pagos se realizarán por adelantado en bloques cerrados e indivisibles de <strong>10 jornadas (10,00 € por jugador y ciclo)</strong>. No se admiten pagos fraccionados ni semanas sueltas.
             </p>
             <p>
-              <strong>1.3. Plazo Obligatorio de Renovación:</strong> La renovación de la cuota para el siguiente ciclo debe abonarse obligatoriamente entre la <strong>jornada 7 y la jornada 9</strong> del ciclo vigente.
+              <strong className="text-[#0A2540]">1.3. Plazo Obligatorio de Renovación:</strong> La renovación de la cuota para el siguiente ciclo debe abonarse obligatoriamente entre la <strong>jornada 7 y la jornada 9</strong> del ciclo vigente.
             </p>
           </div>
         </section>
 
         {/* Art 2 */}
-        <section className="space-y-2 border-b border-slate-100 pb-6">
-          <div className="flex items-center gap-2.5 text-[#0d253f]">
-            <Shuffle className="w-5 h-5 text-blue-900" />
-            <h2 className="text-base sm:text-lg font-bold font-serif">
+        <section className="space-y-3 border-b border-slate-200 pb-6">
+          <div className="flex items-center gap-3 text-[#0A2540]">
+            <Shuffle className="w-6 h-6 text-[#FF6B00] shrink-0" />
+            <h2 className="text-xl sm:text-2xl font-black font-serif">
               Artículo 2. Apuestas Múltiples Adaptables e Imparcialidad
             </h2>
           </div>
-          <div className="pl-7 space-y-2 text-xs sm:text-sm text-slate-600">
+          <div className="space-y-3 text-base sm:text-lg text-slate-700 leading-relaxed">
             <p>
-              <strong>2.1. Ajuste Automático al Presupuesto y Escalado de Jugadores:</strong> El importe y tamaño de la apuesta múltiple oficial se adaptará automáticamente al número exacto de jugadores que hayan completado el pago en cada ciclo. Dado que cada jugador aporta 1,00 € por sorteo, para aumentar el tamaño de la peña y jugar una combinación mayor, el número total de participantes deberá coincidir siempre con el número exacto de apuestas directas que exige cada bloque múltiple oficial. No se admitirán cifras intermedias de jugadores.
+              <strong className="text-[#0A2540]">2.1. Ajuste Automático al Presupuesto:</strong> El importe y tamaño de la apuesta múltiple oficial se adaptará automáticamente al número exacto de jugadores con pago completado en cada ciclo. Para escalar de categoría, el total de socios deberá coincidir exactamente con las apuestas del bloque oficial.
             </p>
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-              <strong className="text-slate-900">Las opciones de apuestas múltiples de La Primitiva y los cupos exactos requeridos son:</strong>
-              <ul className="list-disc pl-4 mt-1.5 space-y-1">
-                <li>Múltiple de 7 números: 7 apuestas (requiere 7 jugadores por 7,00 €).</li>
-                <li>Múltiple de 8 números: 28 apuestas (requiere 28 jugadores por 28,00 €).</li>
-                <li>Múltiple de 5 números (fijo): 44 apuestas (requiere 44 jugadores por 44,00 €).</li>
-                <li>Múltiple de 9 números: 84 apuestas (requiere 84 jugadores por 84,00 €).</li>
-                <li>Múltiple de 10 números: 210 apuestas (requiere 210 jugadores por 210,00 €).</li>
-                <li>Múltiple de 11 números: 462 apuestas (requiere 462 jugadores por 462,00 €).</li>
+            <div className="bg-[#F4F6F9] p-4 sm:p-5 rounded-2xl border border-slate-200 text-base">
+              <strong className="text-[#0A2540] block mb-2">
+                Opciones oficiales y cupos exactos requeridos:
+              </strong>
+              <ul className="list-disc pl-5 space-y-1.5">
+                <li>Múltiple de 7 números: 7 apuestas (7 jugadores · 7,00 €).</li>
+                <li>Múltiple de 8 números: 28 apuestas (28 jugadores · 28,00 €).</li>
+                <li>Múltiple de 5 números (fijo): 44 apuestas (44 jugadores · 44,00 €).</li>
+                <li>Múltiple de 9 números: 84 apuestas (84 jugadores · 84,00 €).</li>
+                <li>Múltiple de 10 números: 210 apuestas (210 jugadores · 210,00 €).</li>
+                <li>Múltiple de 11 números: 462 apuestas (462 jugadores · 462,00 €).</li>
               </ul>
             </div>
             <p>
-              <strong>2.2. Combinaciones Aleatorias de Terminal:</strong> Las combinaciones jugadas <strong>nunca serán fijas</strong>. Se generarán de forma automática y aleatoria mediante el terminal oficial de Loterías y Apuestas del Estado en cada sorteo para garantizar total neutralidad y juego limpio.
+              <strong className="text-[#0A2540]">2.2. Combinaciones Aleatorias de Terminal:</strong> Las combinaciones jugadas <strong>nunca serán fijas</strong>. Se generarán de forma automática y aleatoria mediante el terminal oficial de Loterías y Apuestas del Estado en cada sorteo.
             </p>
           </div>
         </section>
 
         {/* Art 3 */}
-        <section className="space-y-2 border-b border-slate-100 pb-6">
-          <div className="flex items-center gap-2.5 text-[#0d253f]">
-            <Clock className="w-5 h-5 text-blue-900" />
-            <h2 className="text-base sm:text-lg font-bold font-serif">
+        <section className="space-y-3 border-b border-slate-200 pb-6">
+          <div className="flex items-center gap-3 text-[#0A2540]">
+            <Clock className="w-6 h-6 text-[#FF6B00] shrink-0" />
+            <h2 className="text-xl sm:text-2xl font-black font-serif">
               Artículo 3. Control de Lista de Espera, Inscripción y Plazos
             </h2>
           </div>
-          <div className="pl-7 space-y-2 text-xs sm:text-sm text-slate-600">
+          <div className="space-y-3 text-base sm:text-lg text-slate-700 leading-relaxed">
             <p>
-              <strong>3.1. Requisitos de Inscripción y Aceptación de Bases:</strong> Para formalizar la inscripción en la peña, es obligatoria la recopilación de Nombre, Apellidos, Teléfono Móvil y marcar la casilla de Aceptación del Reglamento. Por motivos de privacidad, no se exigirá el DNI ni el IBAN en el alta inicial. No obstante, todo socio acepta expresamente que, en caso de resultar agraciado con un premio que requiera dichos datos, estará obligado a facilitar su DNI/NIF y su número de cuenta (IBAN).
+              <strong className="text-[#0A2540]">3.1. Requisitos y Privacidad:</strong> Para inscribirse es obligatorio indicar Nombre, Apellidos, Teléfono Móvil y aceptar el Reglamento. Por privacidad no se pide DNI ni IBAN inicialmente, aunque será obligatorio facilitarlos ante premios mayores a 2.000 €.
             </p>
             <p>
-              <strong>3.2. Orden Cronológico Inalterable:</strong> Las vacantes se asignarán por estricto orden de antigüedad basado en el sello de tiempo registrado al completar la inscripción.
+              <strong className="text-[#0A2540]">3.2. Orden Cronológico Inalterable:</strong> Las vacantes se asignan por orden estricto del sello de tiempo con milisegundos registrado en el alta.
             </p>
             <p>
-              <strong>3.3. Exclusión por Falta de Pago:</strong> Si un integrante titular no abona la cuota antes de finalizar la jornada 9, será excluido de la peña.
+              <strong className="text-[#0A2540]">3.3. Exclusión por Falta de Pago:</strong> Si un titular no abona la renovación antes de finalizar la jornada 9, causará baja definitiva tras la jornada 10.
             </p>
             <p>
-              <strong>3.4. Plazo Estricto de 24 Horas para Suplentes:</strong> El aspirante notificado dispondrá de <strong>24 horas exactas</strong> para abonar los 10,00 € correspondientes al nuevo ciclo.
+              <strong className="text-[#0A2540]">3.4. Plazo Estricto de 24 Horas para Suplentes:</strong> El aspirante notificado dispondrá de <strong>24 horas exactas</strong> para abonar los 10,00 € del ciclo.
             </p>
             <p>
-              <strong>3.5. Ampliación de la Peña y Salto de Nivel:</strong> Si la lista de espera ("Suplentes") crece lo suficiente como para alcanzar el siguiente bloque oficial, el ascenso de categoría no se realizará de forma automática. El Administrador deberá evaluar y aprobar manualmente este salto de nivel antes de finalizar el ciclo vigente. Tras la confirmación de los pagos, la peña al completo pasará a jugar el nuevo bloque en el siguiente ciclo.
+              <strong className="text-[#0A2540]">3.5. Ampliación y Salto de Nivel:</strong> Si los suplentes alcanzan el siguiente cupo oficial, el Administrador evaluará y aprobará manualmente el salto de nivel antes de finalizar el ciclo vigente.
             </p>
           </div>
         </section>
 
         {/* Art 4 */}
-        <section className="space-y-2 border-b border-slate-100 pb-6">
-          <div className="flex items-center gap-2.5 text-[#0d253f]">
-            <UserX className="w-5 h-5 text-blue-900" />
-            <h2 className="text-base sm:text-lg font-bold font-serif">
-              Artículo 4. Bajas, Pérdida de Antigüedad y Régimen de Fallecimiento
+        <section className="space-y-3 border-b border-slate-200 pb-6">
+          <div className="flex items-center gap-3 text-[#0A2540]">
+            <UserX className="w-6 h-6 text-[#FF6B00] shrink-0" />
+            <h2 className="text-xl sm:text-2xl font-black font-serif">
+              Artículo 4. Bajas, Antigüedad y Régimen de Fallecimiento
             </h2>
           </div>
-          <div className="pl-7 space-y-2 text-xs sm:text-sm text-slate-600">
+          <div className="space-y-3 text-base sm:text-lg text-slate-700 leading-relaxed">
             <p>
-              <strong>4.1. Pérdida de Derechos por Baja:</strong> Toda persona que cause baja perderá su condición de socio. Si desea reingresar, deberá situarse al final de la cola.
+              <strong className="text-[#0A2540]">4.1. Pérdida de Derechos por Baja:</strong> Toda baja extingue la condición de socio y la antigüedad acumulada. Para reingresar habrá que situarse al final de la cola.
             </p>
             <p>
-              <strong>4.2. No Heredabilidad de la Plaza:</strong> En caso de fallecimiento, <strong>la plaza no se hereda</strong>.
+              <strong className="text-[#0A2540]">4.2. No Heredabilidad de la Plaza:</strong> En caso de fallecimiento, <strong>la plaza no se hereda</strong>.
             </p>
             <p>
-              <strong>4.3. Liquidación a Herederos Legales:</strong> La plaza vacante pasará al primer suplente tras finalizar el ciclo abonado. La parte neta de cualquier premio obtenido en dicho ciclo se entregará a sus herederos legales.
+              <strong className="text-[#0A2540]">4.3. Liquidación a Herederos Legales:</strong> La plaza pasará al primer suplente al terminar el ciclo abonado y la parte neta de cualquier premio obtenido en dicho ciclo se entregará a sus herederos legales.
             </p>
           </div>
         </section>
 
         {/* Art 5 */}
-        <section className="space-y-2">
-          <div className="flex items-center gap-2.5 text-[#0d253f]">
-            <Trophy className="w-5 h-5 text-blue-900" />
-            <h2 className="text-base sm:text-lg font-bold font-serif">
+        <section className="space-y-3">
+          <div className="flex items-center gap-3 text-[#0A2540]">
+            <Trophy className="w-6 h-6 text-[#FF6B00] shrink-0" />
+            <h2 className="text-xl sm:text-2xl font-black font-serif">
               Artículo 5. Reparto de Premios Menores vs Mayores
             </h2>
           </div>
-          <div className="pl-7 space-y-3 text-xs sm:text-sm text-slate-600">
-            <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl space-y-1.5">
-              <strong className="text-blue-950 font-bold block">
+          <div className="space-y-4 text-base sm:text-lg text-slate-700 leading-relaxed">
+            <div className="p-4 sm:p-5 bg-[#F4F6F9] border border-slate-200 rounded-2xl space-y-1.5">
+              <strong className="text-[#0A2540] font-extrabold block">
                 5.1. Premios Menores (hasta 2.000,00 €):
               </strong>
               <p>
@@ -165,19 +169,19 @@ export const OfficialRules: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5">
-              <strong className="text-amber-950 font-bold block">
+            <div className="p-4 sm:p-5 bg-orange-50 border border-orange-200 rounded-2xl space-y-1.5">
+              <strong className="text-[#0A2540] font-extrabold block">
                 5.2. Premios Mayores (superiores a 2.000,00 €):
               </strong>
               <p>
-                Obligan legalmente a la tramitación presentando el DNI de la totalidad de los miembros. La entidad bancaria retendrá automáticamente el 20% en concepto de gravamen especial sobre el importe que exceda de 40.000,00 €. Posteriormente, se transferirá la parte líquida neta al IBAN individual. Al tratarse de transferencias bancarias para el reparto de estas cantidades (mayores de 2.000,00 € y de 40.000,00 €), cada jugador asumirá de forma individual los posibles gastos o comisiones por transferencia que aplique la entidad bancaria, descontándose dichas comisiones directamente del importe a percibir.
+                Se tramitan en entidad bancaria presentando el DNI de todos los socios activos. La entidad retendrá el 20 % sobre el exceso de 40.000,00 € y transferirá la parte neta al IBAN individual, asumiendo cada socio los posibles gastos bancarios de su transferencia.
               </p>
             </div>
           </div>
         </section>
 
-        {/* ANEXO OFICIAL: OPCIONES DE APUESTAS MÚLTIPLES */}
-        <section className="pt-4 border-t border-slate-100">
+        {/* ANEXO OFICIAL */}
+        <section className="pt-6 border-t border-slate-200">
           <MultipleBetsGuide />
         </section>
       </div>

@@ -325,59 +325,62 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Bar */}
-      <div className="rounded-2xl bg-amber-600 p-5 sm:p-6 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="rounded-3xl bg-[#0A2540] p-6 sm:p-7 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs uppercase font-bold tracking-wider text-amber-200 block">
+          <span className="text-sm uppercase font-extrabold tracking-wider text-[#FF6B00] block">
             Acceso Autorizado
           </span>
-          <h2 className="text-xl sm:text-2xl font-bold font-serif text-white">
+          <h1 className="text-2xl sm:text-3xl font-black font-serif text-white mt-0.5">
             Panel de Control del Administrador
-          </h2>
-          <p className="text-xs text-amber-100 mt-0.5">
-            Gestión de usuarios, resguardos sellados, interruptores WhatsApp Green API y Google Sheets.
+          </h1>
+          <p className="text-base text-slate-300 mt-1">
+            Gestión de usuarios, resguardos sellados, WhatsApp Green API y Google Sheets.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           <button
+            type="button"
             onClick={() => setShowAppsScriptModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-amber-900 font-bold text-xs hover:bg-amber-50 shadow-xs transition cursor-pointer"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 min-h-[48px] rounded-xl bg-white text-[#0A2540] font-bold text-base hover:bg-slate-100 shadow-xs transition cursor-pointer"
           >
-            <FileCode className="w-4 h-4 text-amber-700" />
+            <FileCode className="w-5 h-5 text-[#FF6B00]" />
             <span>Código Apps Script</span>
           </button>
           <button
+            type="button"
             onClick={onLogoutAdmin}
-            className="px-3.5 py-2 rounded-xl bg-amber-800/80 hover:bg-amber-900 text-xs font-semibold text-white transition cursor-pointer"
+            className="flex-1 sm:flex-none px-4 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white transition cursor-pointer"
           >
             Cerrar Sesión
           </button>
         </div>
       </div>
 
-      {/* Admin Navigation Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      {/* Admin Navigation Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2">
         {[
           { id: 'CONFIG', label: 'Interruptores & WhatsApp', icon: Settings },
-          { id: 'USERS', label: 'Gestión de Estados Socios', icon: Users },
-          { id: 'TICKET_UPLOAD', label: 'Subir Resguardo Sellado', icon: Upload },
-          { id: 'WORKSPACE', label: 'Google Sheets & Drive', icon: HardDrive },
-          { id: 'SCRUTINY', label: 'Escrutinio Oficial SELAE', icon: Trophy },
-          { id: 'MULTIPLE_BETS', label: 'Opciones Apuestas Múltiples', icon: Layers },
+          { id: 'USERS', label: 'Gestión Socios', icon: Users },
+          { id: 'TICKET_UPLOAD', label: 'Subir Resguardo', icon: Upload },
+          { id: 'WORKSPACE', label: 'Sheets & Drive', icon: HardDrive },
+          { id: 'SCRUTINY', label: 'Escrutinio SELAE', icon: Trophy },
+          { id: 'MULTIPLE_BETS', label: 'Apuestas Múltiples', icon: Layers },
         ].map(item => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
           return (
             <button
+              type="button"
               key={item.id}
               onClick={() => setActiveSection(item.id as typeof activeSection)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition shrink-0 ${
+              className={`flex items-center gap-2 px-4 min-h-[48px] rounded-xl text-base font-bold transition shrink-0 cursor-pointer ${
                 isActive
-                  ? 'bg-[#0d253f] text-white shadow-xs'
-                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  ? 'bg-[#0A2540] text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className={`w-5 h-5 ${isActive ? 'text-[#FF6B00]' : 'text-slate-500'}`} />
               <span>{item.label}</span>
             </button>
           );
@@ -387,107 +390,106 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {/* SECTION 1: CONFIG & WHATSAPP SWITCHES */}
       {activeSection === 'CONFIG' && (
         <div className="space-y-6">
-          {/* Switches Card */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs space-y-6">
+          <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
             <div>
-              <h3 className="font-bold text-base text-[#0d253f]">
+              <h2 className="font-extrabold text-xl text-[#0A2540]">
                 Interruptores de Automatización (WhatsApp Green API)
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Configura los envíos automáticos según la especificación del reglamento.
+              </h2>
+              <p className="text-base text-slate-600 mt-1">
+                Configura los envíos automáticos según el reglamento oficial.
               </p>
             </div>
 
-            <div className="space-y-4 divide-y divide-slate-100">
-              {/* Switch 1: Boletín Diario General */}
-              <div className="pt-2 space-y-3">
-                <div className="flex items-center justify-between gap-4">
+            <div className="space-y-5 divide-y divide-slate-200">
+              <div className="pt-2 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <strong className="text-sm text-slate-800 block flex items-center gap-1.5">
-                      <Newspaper className="w-4 h-4 text-blue-900" />
-                      Envío del Resumen Diario General ONLAE + ONCE (SÍ / NO)
+                    <strong className="text-base text-[#0A2540] flex items-center gap-2">
+                      <Newspaper className="w-5 h-5 text-[#FF6B00] shrink-0" />
+                      Envío del Resumen Diario General ONLAE + ONCE
                     </strong>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Si está <strong>ACTIVO (SÍ)</strong>, el sistema compila y envía cada noche el boletín con todos los sorteos del día (Bonoloto, Primitiva, Euromillones, Gordo, Lotería Nacional y todos los juegos de la ONCE). Si está en <strong>NO</strong>, solo procesa el sorteo de la peña.
+                    <p className="text-base text-slate-600 mt-1 leading-relaxed">
+                      Si está <strong>ACTIVO</strong>, compila y envía cada noche el boletín con todos los sorteos del día (SELAE + ONCE).
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold ${settings.sendDailyGeneralSummary ? 'text-blue-900' : 'text-slate-400'}`}>
-                      {settings.sendDailyGeneralSummary ? 'SÍ (ACTIVO)' : 'NO (DESACTIVADO)'}
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={`text-sm font-extrabold ${settings.sendDailyGeneralSummary ? 'text-[#0A2540]' : 'text-slate-500'}`}>
+                      {settings.sendDailyGeneralSummary ? 'SÍ (ACTIVO)' : 'NO'}
                     </span>
                     <button
+                      type="button"
                       onClick={() => handleToggleDailySummary(!settings.sendDailyGeneralSummary)}
-                      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                        settings.sendDailyGeneralSummary ? 'bg-blue-900' : 'bg-slate-300'
+                      className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                        settings.sendDailyGeneralSummary ? 'bg-[#0A2540]' : 'bg-slate-300'
                       }`}
+                      aria-label="Alternar resumen diario"
                     >
                       <span
-                        className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                          settings.sendDailyGeneralSummary ? 'translate-x-5' : 'translate-x-0'
+                        className={`inline-block h-7 w-7 transform rounded-full bg-white shadow-sm transition duration-200 ${
+                          settings.sendDailyGeneralSummary ? 'translate-x-6' : 'translate-x-0'
                         }`}
                       />
                     </button>
                   </div>
                 </div>
 
-                {/* Acciones de prueba del Boletín Diario */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                <div className="flex flex-wrap items-center gap-3 pt-1">
                   <button
                     type="button"
                     onClick={() => setShowBulletinPreview(!showBulletinPreview)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                    className="inline-flex items-center gap-2 px-4 min-h-[46px] rounded-xl bg-slate-100 hover:bg-slate-200 text-[#0A2540] text-base font-bold transition cursor-pointer"
                   >
-                    <Eye className="w-3.5 h-3.5 text-slate-600" />
-                    <span>{showBulletinPreview ? 'Ocultar Previsualización' : 'Previsualizar Boletín de Hoy'}</span>
+                    <Eye className="w-4 h-4" />
+                    <span>{showBulletinPreview ? 'Ocultar Previsualización' : 'Previsualizar Boletín'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleSendDailyBulletin}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
+                    className="inline-flex items-center gap-2 px-4 min-h-[46px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-base font-bold transition shadow-xs cursor-pointer"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Enviar Boletín a WhatsApp Ahora</span>
+                    <Send className="w-4 h-4" />
+                    <span>Enviar Boletín Ahora</span>
                   </button>
 
                   {bulletinSendStatus && (
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <span className="text-sm sm:text-base font-bold px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200">
                       {bulletinSendStatus}
                     </span>
                   )}
                 </div>
 
-                {/* Previsualización del mensaje formateado */}
                 {showBulletinPreview && (
-                  <div className="rounded-xl bg-slate-900 text-slate-200 p-4 text-xs font-mono whitespace-pre-wrap max-h-72 overflow-y-auto leading-relaxed border border-slate-800 shadow-inner">
+                  <div className="rounded-2xl bg-[#0A2540] text-slate-100 p-4 text-sm sm:text-base font-mono whitespace-pre-wrap max-h-80 overflow-y-auto leading-relaxed">
                     {generateDailyLotteryBulletin().formattedWhatsAppMessage}
                   </div>
                 )}
               </div>
 
-              {/* Switch 2: Resguardo 20:35h */}
-              <div className="pt-4 flex items-center justify-between gap-4">
+              <div className="pt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <strong className="text-sm text-slate-800 block">
-                    Publicación & Envío del Resguardo Oficial a las 20:35 h
+                  <strong className="text-base text-[#0A2540] block">
+                    Publicación &amp; Envío del Resguardo Oficial a las 20:35 h
                   </strong>
-                  <p className="text-xs text-slate-500">
-                    Envía el resguardo validado por terminal SELAE automáticamente al grupo de WhatsApp a las 20:35 horas del sorteo.
+                  <p className="text-base text-slate-600 mt-1">
+                    Envía el resguardo validado por terminal SELAE automáticamente al grupo de WhatsApp a las 20:35 h.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-bold ${settings.sendDrawDayTicketAt2035 ? 'text-blue-900' : 'text-slate-400'}`}>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-sm font-extrabold ${settings.sendDrawDayTicketAt2035 ? 'text-[#0A2540]' : 'text-slate-500'}`}>
                     {settings.sendDrawDayTicketAt2035 ? 'SÍ' : 'NO'}
                   </span>
                   <button
+                    type="button"
                     onClick={() => handleToggle2035(!settings.sendDrawDayTicketAt2035)}
-                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                      settings.sendDrawDayTicketAt2035 ? 'bg-blue-900' : 'bg-slate-300'
+                    className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                      settings.sendDrawDayTicketAt2035 ? 'bg-[#0A2540]' : 'bg-slate-300'
                     }`}
+                    aria-label="Alternar envío 20:35"
                   >
                     <span
-                      className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                        settings.sendDrawDayTicketAt2035 ? 'translate-x-5' : 'translate-x-0'
+                      className={`inline-block h-7 w-7 transform rounded-full bg-white shadow-sm transition duration-200 ${
+                        settings.sendDrawDayTicketAt2035 ? 'translate-x-6' : 'translate-x-0'
                       }`}
                     />
                   </button>
@@ -496,56 +498,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
-          {/* Green API Credentials Card */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
-            <h3 className="font-bold text-base text-[#0d253f] flex items-center gap-2">
-              <Smartphone className="w-5 h-5 text-emerald-600" />
+          <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-5">
+            <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
+              <Smartphone className="w-6 h-6 text-emerald-600" />
               Credenciales de Green API (WhatsApp)
-            </h3>
+            </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-base">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">ID de Instancia (Instance ID):</label>
+                <label className="font-bold text-[#0A2540] block mb-1.5">ID de Instancia:</label>
                 <input
                   type="text"
                   value={settings.greenApiInstanceId}
                   onChange={e => onUpdateSettings({ ...settings, greenApiInstanceId: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-900 outline-hidden font-mono"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] focus:ring-2 focus:ring-[#0A2540] outline-hidden font-mono"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">API Token Instance:</label>
+                <label className="font-bold text-[#0A2540] block mb-1.5">API Token Instance:</label>
                 <input
                   type="password"
                   value={settings.greenApiToken}
                   onChange={e => onUpdateSettings({ ...settings, greenApiToken: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-900 outline-hidden font-mono"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] focus:ring-2 focus:ring-[#0A2540] outline-hidden font-mono"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Chat ID del Grupo WhatsApp:</label>
+                <label className="font-bold text-[#0A2540] block mb-1.5">Chat ID del Grupo:</label>
                 <input
                   type="text"
                   value={settings.greenApiChatId}
                   onChange={e => onUpdateSettings({ ...settings, greenApiChatId: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-900 outline-hidden font-mono"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] focus:ring-2 focus:ring-[#0A2540] outline-hidden font-mono"
                 />
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-between">
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
               <button
+                type="button"
                 onClick={handleTestWhatsApp}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition"
+                className="inline-flex items-center gap-2 px-5 min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base shadow-xs transition cursor-pointer"
               >
-                <Send className="w-3.5 h-3.5" />
-                <span>Enviar Mensaje de Prueba al Grupo</span>
+                <Send className="w-4 h-4" />
+                <span>Enviar Mensaje de Prueba</span>
               </button>
 
               {testMsgStatus && (
-                <span className="text-xs text-slate-600 font-medium">{testMsgStatus}</span>
+                <span className="text-base text-slate-700 font-semibold">{testMsgStatus}</span>
               )}
             </div>
           </div>
@@ -554,56 +556,57 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* SECTION 2: USERS & STATUS MANAGEMENT */}
       {activeSection === 'USERS' && (
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className="font-bold text-base text-[#0d253f]">
-                Gestión de Estados de Usuarios (Titular, Suplente, Baja)
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Modifica el estado de los socios y los pagos del ciclo vigente.
+              <h2 className="font-extrabold text-xl text-[#0A2540]">
+                Gestión de Estados de Socios
+              </h2>
+              <p className="text-base text-slate-600 mt-0.5">
+                Modifica el estado (Titular, Suplente, Baja) y los pagos del ciclo vigente.
               </p>
             </div>
-            <span className="text-xs font-bold text-slate-500">
-              Total: {players.length} registros
+            <span className="text-base font-bold text-[#0A2540] tabular-nums">
+              Total: {players.length}
             </span>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-[#0d253f] text-white uppercase text-[10px] tracking-wider">
+            <table className="w-full text-left text-base text-slate-800">
+              <thead className="bg-[#0A2540] text-white uppercase text-sm tracking-wider">
                 <tr>
-                  <th className="py-2.5 px-3">Socio</th>
-                  <th className="py-2.5 px-3">Nombre</th>
-                  <th className="py-2.5 px-3">Estado</th>
-                  <th className="py-2.5 px-3">Ciclo Pagado</th>
-                  <th className="py-2.5 px-3">Renovación</th>
-                  <th className="py-2.5 px-3">Acciones Rápidas</th>
+                  <th className="py-3.5 px-4">Socio</th>
+                  <th className="py-3.5 px-4">Nombre</th>
+                  <th className="py-3.5 px-4">Estado</th>
+                  <th className="py-3.5 px-4">Ciclo Pagado</th>
+                  <th className="py-3.5 px-4">Renovación</th>
+                  <th className="py-3.5 px-4">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {players.map(p => (
                   <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-mono font-bold">#{p.memberNumber}</td>
-                    <td className="py-2.5 px-3 font-semibold">{p.name}</td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-3.5 px-4 font-mono font-extrabold tabular-nums">#{p.memberNumber}</td>
+                    <td className="py-3.5 px-4 font-bold text-[#0A2540]">{p.name}</td>
+                    <td className="py-3.5 px-4">
                       <select
                         value={p.status}
                         onChange={e => {
                           const updated = players.map(item =>
-                            item.id === p.id ? { ...item, status: e.target.value as any } : item
+                            item.id === p.id ? { ...item, status: e.target.value as Player['status'] } : item
                           );
                           onUpdatePlayers(updated);
                         }}
-                        className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold"
+                        className="rounded-xl border border-slate-300 px-3 min-h-[42px] text-sm sm:text-base font-bold bg-white"
                       >
                         <option value="TITULAR">TITULAR</option>
                         <option value="SUPLENTE">SUPLENTE</option>
                         <option value="BAJA">BAJA DEFINITIVA</option>
                       </select>
                     </td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-3.5 px-4">
                       <button
+                        type="button"
                         onClick={() => {
                           const updated = players.map(item =>
                             item.id === p.id
@@ -612,23 +615,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           );
                           onUpdatePlayers(updated);
                         }}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold ${
-                          p.currentCyclePaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        className={`px-3 min-h-[42px] rounded-xl text-sm sm:text-base font-bold cursor-pointer ${
+                          p.currentCyclePaid ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900'
                         }`}
                       >
-                        {p.currentCyclePaid ? 'SI (Pagado)' : 'NO (Pendiente)'}
+                        {p.currentCyclePaid ? 'SÍ (Pagado)' : 'NO (Pendiente)'}
                       </button>
                     </td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-3.5 px-4">
                       <select
                         value={p.renewalStatus}
                         onChange={e => {
                           const updated = players.map(item =>
-                            item.id === p.id ? { ...item, renewalStatus: e.target.value as any } : item
+                            item.id === p.id ? { ...item, renewalStatus: e.target.value as Player['renewalStatus'] } : item
                           );
                           onUpdatePlayers(updated);
                         }}
-                        className="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                        className="rounded-xl border border-slate-300 px-3 min-h-[42px] text-sm sm:text-base bg-white"
                       >
                         <option value="RENOVADO">RENOVADO (Cubierto)</option>
                         <option value="PENDIENTE">PENDIENTE (Avisado)</option>
@@ -636,8 +639,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <option value="EXCLUIDO">EXCLUIDO (Baja)</option>
                       </select>
                     </td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-3.5 px-4">
                       <button
+                        type="button"
                         onClick={() => {
                           const updated = players.map(item =>
                             item.id === p.id
@@ -651,9 +655,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           );
                           onUpdatePlayers(updated);
                         }}
-                        className="text-[11px] font-bold text-blue-900 hover:underline"
+                        className="text-sm sm:text-base font-bold text-[#FF6B00] hover:underline min-h-[42px] cursor-pointer"
                       >
-                        Marcar 10€ Abonado
+                        Marcar 10 € Abonado
                       </button>
                     </td>
                   </tr>
@@ -666,19 +670,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* SECTION 3: TICKET UPLOAD */}
       {activeSection === 'TICKET_UPLOAD' && (
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
+        <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
           <div>
-            <h3 className="font-bold text-base text-[#0d253f] flex items-center gap-2">
-              <Upload className="w-5 h-5 text-blue-900" />
+            <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
+              <Upload className="w-6 h-6 text-[#FF6B00]" />
               Subir y Publicar Resguardo Oficial Sellado
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Sube la imagen o PDF del boleto sellado y extrae automáticamente los números jugados mediante Inteligencia Artificial (Gemini).
+            </h2>
+            <p className="text-base text-slate-600 mt-1">
+              Sube la imagen o PDF del boleto sellado para extraer automáticamente los números jugados mediante IA.
             </p>
           </div>
 
-          {/* AI Scanner File Upload Box */}
-          <div className="rounded-2xl border-2 border-dashed border-sky-300 bg-sky-50/50 p-4 sm:p-5 text-center transition hover:border-sky-400">
+          <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-[#F4F6F9] p-5 sm:p-6 text-center transition hover:border-[#0A2540]">
             <input
               type="file"
               id="ticket-file-input"
@@ -693,117 +696,113 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             />
             <label
               htmlFor="ticket-file-input"
-              className="cursor-pointer flex flex-col items-center justify-center gap-2 select-none"
+              className="cursor-pointer flex flex-col items-center justify-center gap-3 select-none"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-800 shadow-xs">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0A2540] text-[#FF6B00] shadow-xs">
                 {isScanningAI ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-sky-600" />
+                  <Loader2 className="w-7 h-7 animate-spin" />
                 ) : (
-                  <Sparkles className="w-6 h-6 text-sky-600" />
+                  <Sparkles className="w-7 h-7" />
                 )}
               </div>
               <div>
-                <span className="text-xs sm:text-sm font-bold text-sky-950 block">
+                <span className="text-base sm:text-lg font-extrabold text-[#0A2540] block">
                   {isScanningAI
-                    ? 'Analizando resguardo con IA (Gemini 3.8)...'
+                    ? 'Analizando resguardo con IA...'
                     : selectedFileName
-                    ? `Archivo seleccionado: ${selectedFileName}`
+                    ? `Archivo: ${selectedFileName}`
                     : 'Subir Imagen o PDF del Boleto'}
                 </span>
-                <span className="text-[11px] text-sky-700/80 block mt-0.5">
-                  Formatos admitidos: JPG, PNG, WEBP o PDF • Extracción automática de números y reintegro
+                <span className="text-sm sm:text-base text-slate-600 block mt-1">
+                  JPG, PNG, WEBP o PDF · Extracción automática de números y reintegro
                 </span>
               </div>
-              <div className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0d253f] hover:bg-[#153a61] text-white text-xs font-bold transition shadow-xs">
-                <FileUp className="w-3.5 h-3.5 text-sky-300" />
-                <span>{selectedFileName ? 'Cambiar Imagen o PDF' : 'Seleccionar Archivo'}</span>
+              <div className="mt-1 inline-flex items-center gap-2 px-5 min-h-[46px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white text-base font-bold transition shadow-xs">
+                <FileUp className="w-5 h-5 text-[#FF6B00]" />
+                <span>{selectedFileName ? 'Cambiar Archivo' : 'Seleccionar Archivo'}</span>
               </div>
             </label>
 
-            {/* AI Scan Feedback Messages */}
             {isScanningAI && (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white text-xs font-semibold text-sky-900 border border-sky-200 animate-pulse">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600" />
-                <span>Escaneando números de la apuesta con IA...</span>
+              <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-base font-bold text-[#0A2540] border border-slate-200 animate-pulse">
+                <Loader2 className="w-5 h-5 animate-spin text-[#FF6B00]" />
+                <span>Escaneando números del boleto...</span>
               </div>
             )}
 
             {scanSuccessMessage && (
-              <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2 text-left">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-base text-emerald-950 flex items-start gap-2.5 text-left">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold block text-emerald-950">¡Extracción completada con éxito!</span>
+                  <span className="font-bold block">Extracción completada</span>
                   <span>{scanSuccessMessage}</span>
-                  <span className="block text-[10px] text-emerald-700 mt-0.5">
-                    Revisa los datos rellenados abajo antes de publicar el resguardo oficial.
-                  </span>
                 </div>
               </div>
             )}
 
             {scanError && (
-              <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2 text-left">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="mt-4 p-4 rounded-xl bg-orange-50 border border-orange-200 text-base text-[#0A2540] flex items-start gap-2.5 text-left">
+                <AlertTriangle className="w-5 h-5 text-[#FF6B00] shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold block text-amber-950">Aviso del escáner:</span>
+                  <span className="font-bold block">Aviso del escáner:</span>
                   <span>{scanError}</span>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
-            <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-base">
+            <div className="space-y-4">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Jornada del Ciclo:</label>
+                <label className="font-bold text-[#0A2540] block mb-1.5">Jornada del Ciclo:</label>
                 <input
                   type="number"
                   min={1}
                   max={10}
                   value={newTicketJornada}
                   onChange={e => setNewTicketJornada(parseInt(e.target.value, 10))}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  Combinación Jugada (extraída por IA o editable):
+                <label className="font-bold text-[#0A2540] block mb-1.5">
+                  Combinación Jugada:
                 </label>
                 <input
                   type="text"
                   value={newTicketNumbers}
                   onChange={e => setNewTicketNumbers(e.target.value)}
                   placeholder="07, 13, 22, 34, 49"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold text-blue-900"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Reintegro (0-9):</label>
+                  <label className="font-bold text-[#0A2540] block mb-1.5">Reintegro (0-9):</label>
                   <input
                     type="number"
                     min={0}
                     max={9}
                     value={newTicketReintegro}
                     onChange={e => setNewTicketReintegro(parseInt(e.target.value, 10))}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Coste Total Apuesta (€):</label>
+                  <label className="font-bold text-[#0A2540] block mb-1.5">Coste Total (€):</label>
                   <input
                     type="number"
                     value={newTicketCost}
                     onChange={e => setNewTicketCost(parseFloat(e.target.value))}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold text-emerald-800"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-emerald-800"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">URL o Imagen del Resguardo:</label>
+                <label className="font-bold text-[#0A2540] block mb-1.5">URL o Imagen del Resguardo:</label>
                 <input
                   type="text"
                   value={newTicketImage.startsWith('data:') ? 'Imagen digital cargada (Base64)' : newTicketImage}
@@ -812,32 +811,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       setNewTicketImage(e.target.value);
                     }
                   }}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-[11px]"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono text-sm sm:text-base"
                 />
               </div>
 
               <button
+                type="button"
                 onClick={handleSaveTicket}
-                className="w-full py-2.5 rounded-xl bg-[#0d253f] hover:bg-[#153a61] text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                className="w-full min-h-[50px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-xs transition cursor-pointer"
               >
                 {ticketSaveSuccess ? '¡Resguardo Guardado y Notificado!' : 'Publicar Resguardo Sellado'}
               </button>
             </div>
 
-            {/* Live Preview Card */}
-            <div className="border rounded-2xl p-4 bg-slate-50 flex flex-col justify-between">
+            <div className="border border-slate-200 rounded-2xl p-5 bg-[#F4F6F9] flex flex-col justify-between">
               <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase block mb-2">
-                  Vista Previa del Resguardo:
+                <span className="text-sm font-bold text-slate-600 uppercase block mb-2.5">
+                  Vista Previa del Resguardo
                 </span>
-                <div className="relative rounded-xl overflow-hidden border border-slate-300 h-44 bg-slate-200 flex items-center justify-center">
+                <div className="relative rounded-xl overflow-hidden border border-slate-300 h-48 bg-slate-200 flex items-center justify-center">
                   {selectedFileName?.endsWith('.pdf') ? (
                     <div className="p-4 text-center">
                       <FileText className="w-12 h-12 text-rose-600 mx-auto mb-1" />
-                      <span className="text-xs font-bold text-slate-800 block truncate max-w-xs">
+                      <span className="text-base font-bold text-[#0A2540] block truncate max-w-xs">
                         {selectedFileName}
                       </span>
-                      <span className="text-[10px] text-slate-500">Documento PDF del resguardo</span>
+                      <span className="text-sm text-slate-600">Documento PDF del resguardo</span>
                     </div>
                   ) : (
                     <>
@@ -846,7 +845,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         alt="Boleto sellado"
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-black/25 flex items-center justify-center text-white font-bold text-xs">
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white font-bold text-base">
                         Sello Oficial SELAE 20:35 h
                       </div>
                     </>
@@ -854,10 +853,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
-              <div className="mt-4 p-3 bg-white rounded-xl border border-slate-200 text-[11px] space-y-1">
+              <div className="mt-4 p-4 bg-white rounded-xl border border-slate-200 text-base space-y-1.5">
                 <div><strong>Jornada:</strong> {newTicketJornada}/10</div>
-                <div><strong>Combinación detectada:</strong> {newTicketNumbers}</div>
-                <div><strong>Reintegro:</strong> [{newTicketReintegro}] • <strong>Coste:</strong> {newTicketCost.toFixed(2)} €</div>
+                <div><strong>Combinación:</strong> {newTicketNumbers}</div>
+                <div><strong>Reintegro:</strong> [{newTicketReintegro}] · <strong>Coste:</strong> {newTicketCost.toFixed(2)} €</div>
               </div>
             </div>
           </div>
@@ -878,23 +877,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* SECTION 4: SCRUTINY SIMULATOR */}
       {activeSection === 'SCRUTINY' && (
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
+        <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-5">
           <div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="font-bold text-base text-[#0d253f] flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-500" />
-                  Escrutinio Oficial SELAE & Cálculo de Aciertos
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Prueba o introduce la combinación ganadora oficial para calcular aciertos y aplicar el reparto según el Art. 5 (Menores a Bolsa, Mayores a Banco).
-                </p>
-              </div>
-            </div>
+            <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
+              <Trophy className="w-6 h-6 text-[#FF6B00]" />
+              Escrutinio Oficial SELAE &amp; Cálculo de Aciertos
+            </h2>
+            <p className="text-base text-slate-600 mt-1">
+              Introduce o prueba la combinación ganadora oficial para calcular aciertos y repartir según el Art. 5.
+            </p>
 
-            {/* Presets de sorteos reales para pruebas inmediatas */}
-            <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3">
-              <span className="block text-[11px] font-bold text-amber-900 mb-1.5">
+            <div className="mt-4 bg-orange-50 border border-orange-200 rounded-2xl p-4 space-y-2.5">
+              <span className="block text-sm sm:text-base font-extrabold text-[#0A2540]">
                 Probar con sorteos reales oficiales recientes:
               </span>
               <div className="flex flex-wrap gap-2">
@@ -905,9 +899,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     setScrutinyComp(36);
                     setScrutinyReintegro(2);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition cursor-pointer shadow-2xs"
+                  className="px-3.5 min-h-[42px] rounded-xl bg-white border border-orange-300 hover:bg-orange-100 text-sm font-bold text-[#0A2540] transition cursor-pointer"
                 >
-                  📅 Lunes 9 Nov (Ayer): 01-06-14-23-30-39 (C:36, R:2)
+                  Lunes 9 Nov: 01-06-14-23-30-39 (C:36, R:2)
                 </button>
                 <button
                   type="button"
@@ -916,9 +910,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     setScrutinyComp(34);
                     setScrutinyReintegro(4);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition cursor-pointer shadow-2xs"
+                  className="px-3.5 min-h-[42px] rounded-xl bg-white border border-orange-300 hover:bg-orange-100 text-sm font-bold text-[#0A2540] transition cursor-pointer"
                 >
-                  📅 Sábado 7 Nov: 09-13-19-25-26-30 (C:34, R:4)
+                  Sábado 7 Nov: 09-13-19-25-26-30 (C:34, R:4)
                 </button>
                 <button
                   type="button"
@@ -927,77 +921,76 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     setScrutinyComp(2);
                     setScrutinyReintegro(3);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition cursor-pointer shadow-2xs"
+                  className="px-3.5 min-h-[42px] rounded-xl bg-white border border-orange-300 hover:bg-orange-100 text-sm font-bold text-[#0A2540] transition cursor-pointer"
                 >
-                  📅 Jueves 5 Nov: 04-08-09-15-31-32 (C:2, R:3)
+                  Jueves 5 Nov: 04-08-09-15-31-32 (C:2, R:3)
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-base">
             <div>
-              <label className="font-bold text-slate-700 block mb-1">
-                6 Números Ganadores (separados por comas):
+              <label className="font-bold text-[#0A2540] block mb-1.5">
+                6 Números Ganadores:
               </label>
               <input
                 type="text"
                 value={scrutinyWinning}
                 onChange={e => setScrutinyWinning(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono"
+                className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono"
               />
             </div>
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Número Complementario:</label>
+              <label className="font-bold text-[#0A2540] block mb-1.5">Complementario:</label>
               <input
                 type="number"
                 value={scrutinyComp}
                 onChange={e => setScrutinyComp(parseInt(e.target.value, 10))}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono"
+                className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono"
               />
             </div>
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Reintegro:</label>
+              <label className="font-bold text-[#0A2540] block mb-1.5">Reintegro:</label>
               <input
                 type="number"
                 value={scrutinyReintegro}
                 onChange={e => setScrutinyReintegro(parseInt(e.target.value, 10))}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono"
+                className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono"
               />
             </div>
           </div>
 
-          {/* Comparativa visual en tiempo real contra la apuesta activa de la peña */}
           {tickets[0] && (
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-800">
-                  Comprobación en vivo contra la apuesta activa (Jornada {tickets[0].jornadaNumber}):
+            <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-2.5 text-base">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-[#0A2540]">
+                  Comprobación en vivo (Jornada {tickets[0].jornadaNumber}):
                 </span>
-                <span className="font-mono text-slate-500 text-[11px]">
-                  Apuesta: [{tickets[0].playedNumbers.join(', ')}] | Reintegro jugado: {tickets[0].playedReintegro}
+                <span className="font-mono text-slate-600 text-sm font-semibold tabular-nums">
+                  Apuesta: [{tickets[0].playedNumbers.join(', ')}] · R: {tickets[0].playedReintegro}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="text-slate-600">Aciertos detectados:</span>
+                <span className="text-slate-700 font-medium">Aciertos:</span>
                 {(() => {
                   const winNums = scrutinyWinning.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
                   const hits = tickets[0].playedNumbers.filter(n => winNums.includes(n));
                   const reintegroMatch = scrutinyReintegro === tickets[0].playedReintegro;
                   return (
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
                       {hits.length > 0 ? (
                         hits.map(h => (
-                          <span key={h} className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-mono font-bold text-xs">
-                            ✓ {h}
+                          <span key={h} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-mono font-bold text-sm">
+                            {h}
                           </span>
                         ))
                       ) : (
-                        <span className="text-slate-500 italic">0 aciertos en combinación</span>
+                        <span className="text-slate-600 font-semibold">0 aciertos en combinación</span>
                       )}
                       {reintegroMatch && (
-                        <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white font-bold text-xs">
-                          ★ Reintegro Acertado ({scrutinyReintegro})
+                        <span className="px-2.5 py-1 rounded-lg bg-[#0A2540] text-white font-bold text-sm">
+                          Reintegro Acertado ({scrutinyReintegro})
                         </span>
                       )}
                     </div>
@@ -1007,15 +1000,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           )}
 
-          <div className="pt-2 flex items-center gap-4">
+          <div className="pt-2 flex flex-wrap items-center gap-4">
             <button
+              type="button"
               onClick={handleRunScrutiny}
-              className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+              className="px-6 min-h-[50px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-xs transition cursor-pointer"
             >
               Ejecutar Escrutinio y Acreditar Bolsa
             </button>
             {scrutinyResult && (
-              <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+              <span className="text-base font-bold text-emerald-900 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200">
                 {scrutinyResult}
               </span>
             )}

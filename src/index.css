@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Playfair Display", Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-navy-950: #061626;
+  --color-navy-900: #0A2540;
+  --color-navy-800: #13375B;
+  --color-lucky-500: #FF6B00;
+  --color-lucky-600: #E55E00;
+  --color-canvas: #F4F6F9;
+}
+
+@layer base {
+  html {
+    font-size: 16px;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #F4F6F9;
+    color: #0F172A;
+    line-height: 1.55;
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}

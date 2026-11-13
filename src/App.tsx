@@ -118,7 +118,7 @@ export default function App() {
   }, [settings.googleAppsScriptUrl]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
+    <div className="min-h-screen flex flex-col bg-[#F4F6F9] text-slate-900">
       {/* Offline Status Toast */}
       <OfflineIndicator />
 
@@ -171,10 +171,11 @@ export default function App() {
               }}
               onOpenRulesModal={() => setShowConformityReview(true)}
             />
-            <div className="text-center mt-4">
+            <div className="text-center mt-5">
               <button
+                type="button"
                 onClick={() => setShowConformityReview(true)}
-                className="text-xs text-slate-500 hover:text-slate-800 underline transition cursor-pointer"
+                className="text-base font-semibold text-slate-600 hover:text-[#0A2540] underline min-h-[44px] px-3 transition cursor-pointer"
               >
                 ¿Acceso directo con Declaración de Conformidad rápida?
               </button>
