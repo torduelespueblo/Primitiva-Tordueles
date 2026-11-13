@@ -1,27 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Logo } from './Logo';
 import {
   ArrowRight,
   ShieldAlert,
   FileDown,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft,
+  UserPlus
 } from 'lucide-react';
 import { Player } from '../types/lottery';
+import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
+import { submitRegistrationToSheet } from '../services/registrationService';
 
 interface DualAccessRegistrationProps {
+  initialMode?: 'ACCESS' | 'REGISTER';
+  googleAppsScriptUrl?: string;
   onAuthenticatedPlayer?: (player: Player) => void;
   onRegisteredNewPlayer?: (newPlayer: { name: string; phone: string; timestamp: string }) => void;
   existingPlayers?: Player[];
   onOpenRulesModal?: () => void;
+  onBackToApp?: () => void;
 }
 
 export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
+  initialMode = 'ACCESS',
+  googleAppsScriptUrl,
   onAuthenticatedPlayer,
   onRegisteredNewPlayer,
   existingPlayers = [],
+  onBackToApp,
 }) => {
-  const [screenMode, setScreenMode] = useState<'ACCESS' | 'REGISTER' | 'SUCCESS'>('ACCESS');
+  const [screenMode, setScreenMode] = useState<'ACCESS' | 'REGISTER' | 'SUCCESS'>(initialMode);
+
+  useEffect(() => {
+    setScreenMode(initialMode);
+  }, [initialMode]);
 
   const [dniInput, setDniInput] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -32,10 +46,12 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
   const [regPhone, setRegPhone] = useState('');
   const [regRulesAccepted, setRegRulesAccepted] = useState(false);
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const [registrationData, setRegistrationData] = useState<{
     name: string;
     phone: string;
     timestamp: string;
+    syncedToSheet: boolean;
   } | null>(null);
 
   const handleCheckDni = (e: React.FormEvent) => {
@@ -63,35 +79,47 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
       } else {
         setScreenMode('REGISTER');
       }
-    }, 500);
+    }, 400);
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regRulesAccepted) return;
 
+    setRegisterError(null);
     setIsSubmittingRegister(true);
 
-    setTimeout(() => {
-      setIsSubmittingRegister(false);
+    const response = await submitRegistrationToSheet(googleAppsScriptUrl, {
+      nombre: regName,
+      apellidos: regSurname,
+      telefono: regPhone,
+      reglamentoAceptado: regRulesAccepted,
+    });
 
-      const now = new Date();
-      const pad = (n: number, len = 2) => String(n).padStart(len, '0');
-      const timestampMs = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
+    setIsSubmittingRegister(false);
 
-      const newRegistration = {
-        name: `${regName.trim()} ${regSurname.trim()}`,
-        phone: regPhone.trim(),
-        timestamp: timestampMs,
-      };
+    if (!response.success) {
+      setRegisterError(response.message || 'No se pudo registrar la solicitud.');
+      return;
+    }
 
-      setRegistrationData(newRegistration);
-      setScreenMode('SUCCESS');
+    const newRegistration = {
+      name: response.nombre,
+      phone: regPhone.trim(),
+      timestamp: response.timestamp,
+      syncedToSheet: response.syncedToSheet,
+    };
 
-      if (onRegisteredNewPlayer) {
-        onRegisteredNewPlayer(newRegistration);
-      }
-    }, 600);
+    setRegistrationData(newRegistration);
+    setScreenMode('SUCCESS');
+
+    if (onRegisteredNewPlayer) {
+      onRegisteredNewPlayer({
+        name: newRegistration.name,
+        phone: newRegistration.phone,
+        timestamp: newRegistration.timestamp,
+      });
+    }
   };
 
   const handleDownloadPdf = () => {
@@ -101,7 +129,9 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
       return;
     }
 
-    const win = window as unknown as { html2pdf?: () => { set: (o: unknown) => { from: (el: HTMLElement) => { save: () => Promise<void> } } } };
+    const win = window as unknown as {
+      html2pdf?: () => { set: (o: unknown) => { from: (el: HTMLElement) => { save: () => Promise<void> } } };
+    };
     if (typeof win.html2pdf === 'function') {
       printableElement.style.display = 'block';
       const opt = {
@@ -136,7 +166,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
     regRulesAccepted;
 
   return (
-    <div className="w-full max-w-lg mx-auto">
+    <div className="w-full max-w-xl mx-auto">
       {/* FASE 1: ACCESO */}
       {screenMode === 'ACCESS' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
@@ -158,7 +188,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 Acceso al Área de Socios
               </h3>
               <p className="text-base text-slate-600 mt-1.5 leading-relaxed">
-                Introduce tu DNI o NIE para consultar tu ficha, boleto activo y saldo en la bolsa.
+                Introduce tu DNI o NIE para acceder, o inscríbete directamente en la lista de espera.
               </p>
             </div>
 
@@ -189,60 +219,86 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
               <button
                 type="submit"
                 disabled={isSearching}
-                className="w-full min-h-[54px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] active:scale-[0.99] text-white font-bold text-base shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                className="w-full min-h-[54px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] active:scale-[0.99] text-white font-bold text-base shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {isSearching ? (
                   <span>Consultando base de datos...</span>
                 ) : (
                   <>
                     <span>Entrar a Mi Área</span>
-                    <ArrowRight className="w-5 h-5" />
+                    <ArrowRight className="w-5 h-5 text-[#FF6B00]" />
                   </>
                 )}
               </button>
             </form>
 
-            <div className="bg-[#F4F6F9] border border-slate-200 rounded-2xl p-4 text-center">
+            <div className="bg-[#F4F6F9] border border-slate-200 rounded-2xl p-4 text-center space-y-3">
               <p className="text-base text-slate-700 leading-relaxed">
-                <strong>¿Nuevo en la peña?</strong> Si tu DNI no está registrado, se abrirá el formulario de inscripción en lista de espera.
+                <strong>¿Quieres apuntarte a la peña?</strong> No necesitas instalar la app ni facilitar DNI en el alta inicial.
               </p>
+              <button
+                type="button"
+                onClick={() => setScreenMode('REGISTER')}
+                className="w-full min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-sm transition inline-flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <UserPlus className="w-5 h-5" />
+                <span>Abrir Formulario de Inscripción</span>
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* FASE 2: REGISTRO */}
+      {/* FASE 2: FORMULARIO DE INSCRIPCIÓN DIRECTO (SIN INSTALAR APP Y CONECTADO A SHEETS) */}
       {screenMode === 'REGISTER' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
-          <div className="bg-[#0A2540] p-6 text-white">
+          <div className="bg-[#0A2540] p-6 text-white flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Logo size={76} variant="full" theme="dark" className="w-18 h-18 shrink-0" />
               <div>
                 <span className="text-sm font-extrabold uppercase tracking-wider text-[#FF6B00] block">
-                  Nuevo Aspirante
+                  Inscripción Oficial · Lista de Espera
                 </span>
                 <h2 className="text-xl sm:text-2xl font-black font-serif text-white">
-                  Inscripción en la Peña
+                  Inscripción - Peña Primitiva Tordueles
                 </h2>
               </div>
             </div>
           </div>
 
           <div className="p-5 sm:p-7 space-y-5">
+            {onBackToApp && (
+              <button
+                type="button"
+                onClick={onBackToApp}
+                className="inline-flex items-center gap-2 text-base font-bold text-[#0A2540] hover:text-[#FF6B00] min-h-[44px] cursor-pointer"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>Volver a la WebApp</span>
+              </button>
+            )}
+
             <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 text-base text-slate-700 flex items-start gap-3">
               <ShieldAlert className="w-6 h-6 text-[#FF6B00] shrink-0 mt-0.5" />
               <div className="leading-relaxed">
                 <strong className="block text-[#0A2540] font-bold mb-0.5">
-                  Privacidad en el Alta Inicial:
+                  Privacidad en el Alta Inicial (Art. 3.1):
                 </strong>
-                En este registro <strong>NO solicitamos DNI ni IBAN</strong>. Solo se pedirán en caso de cobro de premios mayores a 2.000 € (Art. 5.2).
+                Por privacidad y seguridad, <strong>NO solicitamos DNI ni IBAN</strong> de entrada. Estos solo se pedirán en caso de cobro de premios mayores a 2.000 €. Tus datos quedarán guardados en el registro oficial con sello de tiempo exacto (milisegundos).
               </div>
             </div>
+
+            {registerError && (
+              <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-base flex items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <span>{registerError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
               <div>
                 <label className="block text-base font-bold text-[#0A2540] mb-1.5">
-                  Nombre de Pila <span className="text-red-500">*</span>
+                  Nombre <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -256,7 +312,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
 
               <div>
                 <label className="block text-base font-bold text-[#0A2540] mb-1.5">
-                  Apellidos Completos <span className="text-red-500">*</span>
+                  Apellidos <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -270,7 +326,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
 
               <div>
                 <label className="block text-base font-bold text-[#0A2540] mb-1.5">
-                  Teléfono Móvil (WhatsApp) <span className="text-red-500">*</span>
+                  Teléfono Móvil <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="tel"
@@ -281,79 +337,51 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                   required
                 />
                 <span className="text-sm text-slate-600 block mt-1.5">
-                  Necesario para envío de resguardos y avisos de vacante de 24 horas.
+                  Necesario para el grupo de WhatsApp y avisos de vacante con plazo de 24 horas.
                 </span>
               </div>
 
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-base font-bold text-[#0A2540]">
-                    Reglamento Oficial Vinculante:
+                    Reglamento Oficial Íntegro:
                   </span>
                   <span className="text-sm font-semibold text-slate-600">
                     Desliza para leer ↓
                   </span>
                 </div>
 
-                <div className="h-72 overflow-y-auto bg-[#F4F6F9] border-2 border-slate-300 rounded-2xl p-4 sm:p-5 text-base sm:text-lg leading-relaxed text-slate-800 space-y-5 shadow-inner">
+                <div className="h-80 overflow-y-auto bg-[#F4F6F9] border-2 border-slate-300 rounded-2xl p-4 sm:p-5 text-base leading-relaxed text-slate-800 space-y-5 shadow-inner">
                   <h3 className="text-lg font-black text-[#0A2540] border-b border-slate-300 pb-2">
-                    Reglamento Oficial de la Peña Primitiva Tordueles
+                    {OFFICIAL_RULES_TITLE}
                   </h3>
 
-                  <div>
-                    <h4 className="font-bold text-[#0A2540] mb-1">
-                      Artículo 1. Financiación, Cuotas y Ciclos de Juego
-                    </h4>
-                    <ul className="list-disc pl-5 space-y-1.5">
-                      <li><strong>1.1. Cuota:</strong> 1,00 € semanal por jugador.</li>
-                      <li><strong>1.2. Bloques:</strong> Pagos indivisibles de 10 jornadas (10,00 € por ciclo).</li>
-                      <li><strong>1.3. Renovación:</strong> Obligatoria entre la jornada 7 y la jornada 9.</li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="font-bold text-[#0A2540] mb-1">
-                      Artículo 2. Apuestas Múltiples e Imparcialidad
-                    </h4>
-                    <p className="mb-2">
-                      <strong>2.1. Escalado:</strong> El tamaño de la apuesta múltiple se ajusta al cupo exacto de socios (7→7€, 8→28€, 5→44€, 9→84€, 10→210€, 11→462€).
-                    </p>
-                    <p>
-                      <strong>2.2. Aleatoriedad:</strong> Combinaciones aleatorias emitidas por terminal oficial SELAE cada semana.
-                    </p>
-                  </div>
-
-                  <div>
-                    <h4 className="font-bold text-[#0A2540] mb-1">
-                      Artículo 3. Lista de Espera y Plazos
-                    </h4>
-                    <ul className="list-disc pl-5 space-y-1.5">
-                      <li><strong>3.1. Privacidad:</strong> Alta sin DNI ni IBAN; obligatorios solo en premios mayores a 2.000 €.</li>
-                      <li><strong>3.2. Antigüedad:</strong> Orden cronológico por sello temporal con milisegundos.</li>
-                      <li><strong>3.3. Bajas:</strong> Impago en J9 supone exclusión tras la jornada 10.</li>
-                      <li><strong>3.4. Plazo 24h:</strong> El primer suplente dispone de 24 horas exactas para ingresar los 10 €.</li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="font-bold text-[#0A2540] mb-1">
-                      Artículo 4. Bajas y Fallecimiento
-                    </h4>
-                    <ul className="list-disc pl-5 space-y-1.5">
-                      <li><strong>4.1.</strong> La baja extingue derechos y antigüedad.</li>
-                      <li><strong>4.2.</strong> La plaza no se hereda; los premios del ciclo vigente se liquidan a herederos legales.</li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="font-bold text-[#0A2540] mb-1">
-                      Artículo 5. Premios Menores vs Mayores
-                    </h4>
-                    <ul className="list-disc pl-5 space-y-1.5">
-                      <li><strong>5.1. Menores (&le; 2.000 €):</strong> Al Fondo Común de la peña.</li>
-                      <li><strong>5.2. Mayores (&gt; 2.000 €):</strong> Tramitación bancaria con DNI de todos los socios, retención legal del 20% sobre exceso de 40.000 € y abono al IBAN descontando posibles gastos bancarios individuales.</li>
-                    </ul>
-                  </div>
+                  {OFFICIAL_RULES_SECTIONS.map(section => (
+                    <div key={section.articleNumber} className="space-y-2.5">
+                      <h4 className="font-black text-[#0A2540] text-base sm:text-lg">
+                        {section.articleNumber}. {section.title}
+                      </h4>
+                      {section.paragraphs.map((p, idx) => (
+                        <div key={idx} className="space-y-1.5">
+                          <p>
+                            {p.code && (
+                              <strong className="text-[#0A2540]">
+                                {p.code} {p.heading}{' '}
+                              </strong>
+                            )}
+                            {p.text}
+                          </p>
+                          {p.bullets && (
+                            <ul className="list-disc pl-5 space-y-1">
+                              {p.bullets.map((b, bIdx) => (
+                                <li key={bIdx}>{b}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -385,22 +413,24 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 className="w-full min-h-[54px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmittingRegister ? (
-                  <span>Registrando en lista de espera...</span>
+                  <span>Guardando inscripción en Google Sheets...</span>
                 ) : (
                   <>
                     <CheckCircle2 className="w-5 h-5" />
-                    <span>Confirmar Inscripción</span>
+                    <span>Confirmar Inscripción en Lista de Espera</span>
                   </>
                 )}
               </button>
 
-              <button
-                type="button"
-                onClick={() => setScreenMode('ACCESS')}
-                className="w-full min-h-[44px] text-center text-base font-semibold text-slate-600 hover:text-[#0A2540] underline transition cursor-pointer"
-              >
-                ← Volver a comprobar otro DNI
-              </button>
+              {!onBackToApp && (
+                <button
+                  type="button"
+                  onClick={() => setScreenMode('ACCESS')}
+                  className="w-full min-h-[44px] text-center text-base font-semibold text-slate-600 hover:text-[#0A2540] underline transition cursor-pointer"
+                >
+                  ← Volver a comprobar otro DNI
+                </button>
+              )}
             </form>
           </div>
         </div>
@@ -421,7 +451,9 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
               ¡Bienvenido a la Peña, {registrationData.name}!
             </h3>
             <p className="text-base text-slate-600 mt-1.5">
-              Has quedado registrado en la lista de espera oficial.
+              {registrationData.syncedToSheet
+                ? 'Tus datos han sido enviados a la base de datos oficial en Google Sheets como Suplente.'
+                : 'Has quedado registrado en la lista de espera oficial.'}
             </p>
           </div>
 
@@ -452,33 +484,60 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
 
             <button
               type="button"
-              onClick={() => setScreenMode('ACCESS')}
+              onClick={() => {
+                if (onBackToApp) {
+                  onBackToApp();
+                } else {
+                  setScreenMode('ACCESS');
+                }
+              }}
               className="w-full min-h-[48px] px-4 rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white font-bold text-base transition cursor-pointer"
             >
-              Volver a la Pantalla de Acceso
+              {onBackToApp ? 'Volver al Portal de la Peña' : 'Volver a la Pantalla de Acceso'}
             </button>
           </div>
         </div>
       )}
 
-      {/* PLANTILLA OCULTA PDF */}
+      {/* PLANTILLA OCULTA PDF CON EL REGLAMENTO ÍNTEGRO */}
       <div id="pdf-rules-printable-container" className="hidden p-8 bg-white text-slate-900 font-sans">
         <div className="flex items-center gap-4 border-b-2 border-[#0A2540] pb-4 mb-4">
           <Logo size={72} variant="full" theme="light" />
           <div>
             <h1 className="text-xl font-bold text-[#0A2540]">Peña La Primitiva Tordueles</h1>
             <h2 className="text-sm uppercase tracking-wider text-[#FF6B00] font-bold">
-              Reglamento Oficial y Estatutos Vinculantes
+              {OFFICIAL_RULES_TITLE}
             </h2>
-            <p className="text-xs text-slate-500">Tordueles (Burgos) · Documento Certificado</p>
+            <p className="text-xs text-slate-500">Tordueles (Burgos) · Documento Oficial Vinculante</p>
           </div>
         </div>
-        <div className="space-y-3 text-sm leading-relaxed text-slate-700">
-          <p><strong>Artículo 1:</strong> Cuota fija de 1,00 €/semana en bloques indivisibles de 10 jornadas (10,00 €). Renovación entre J7 y J9.</p>
-          <p><strong>Artículo 2:</strong> Ajuste automático al presupuesto (7→7€, 8→28€, 5→44€, 9→84€, 10→210€, 11→462€) y combinaciones aleatorias SELAE.</p>
-          <p><strong>Artículo 3:</strong> Alta sin DNI ni IBAN; orden cronológico por sello de tiempo con milisegundos; 24h para abonar vacantes.</p>
-          <p><strong>Artículo 4:</strong> La baja extingue antigüedad. La plaza no se hereda; liquidación proporcional a herederos.</p>
-          <p><strong>Artículo 5:</strong> Premios &le; 2.000 € al Fondo Común; &gt; 2.000 € mediante entidad bancaria con DNI e IBAN.</p>
+        <div className="space-y-4 text-sm leading-relaxed text-slate-800">
+          {OFFICIAL_RULES_SECTIONS.map(section => (
+            <div key={section.articleNumber} className="space-y-1.5">
+              <h3 className="font-bold text-[#0A2540]">
+                {section.articleNumber}. {section.title}
+              </h3>
+              {section.paragraphs.map((p, idx) => (
+                <div key={idx} className="space-y-1">
+                  <p>
+                    {p.code && (
+                      <strong>
+                        {p.code} {p.heading}{' '}
+                      </strong>
+                    )}
+                    {p.text}
+                  </p>
+                  {p.bullets && (
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      {p.bullets.map((b, bIdx) => (
+                        <li key={bIdx}>{b}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </div>

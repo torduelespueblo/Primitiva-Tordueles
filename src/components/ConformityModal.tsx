@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Logo } from './Logo';
 import { ShieldCheck, AlertCircle, CheckSquare, Square, FileText, Lock } from 'lucide-react';
+import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
 
 interface ConformityModalProps {
   isOpen: boolean;
@@ -39,37 +40,48 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({ isOpen, onAcce
           </div>
         </div>
 
-        {/* Scrollable Rules Content */}
+        {/* Scrollable Full Verbatim Rules Content */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-base text-slate-700 leading-relaxed">
           <div className="rounded-2xl bg-orange-50 border border-orange-200 p-4 flex gap-3 text-[#0A2540]">
             <AlertCircle className="w-6 h-6 text-[#FF6B00] shrink-0 mt-0.5" />
             <p className="text-base font-medium leading-relaxed">
-              Para consultar las cuentas, boletos sellados y datos de los miembros es obligatorio aceptar previamente las bases de la peña.
+              Para consultar las cuentas, boletos sellados y datos de la peña es obligatorio leer y aceptar íntegramente el Reglamento Oficial.
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <h3 className="font-black text-[#0A2540] text-lg sm:text-xl flex items-center gap-2">
               <FileText className="w-5 h-5 text-[#FF6B00] shrink-0" />
-              Bases y Reglamento Interno:
+              {OFFICIAL_RULES_TITLE}
             </h3>
 
-            <div className="space-y-3 text-base text-slate-700 pl-2">
-              <div>
-                <strong className="text-[#0A2540]">1. Financiación y Ciclos:</strong> Cuota de 1 €/semana en bloques indivisibles de 10 jornadas (10 €). Renovación obligatoria entre las jornadas 7 y 9.
-              </div>
-              <div>
-                <strong className="text-[#0A2540]">2. Apuestas Múltiples:</strong> El tamaño de la apuesta se ajusta al número de socios pagados (ej. múltiple de 5 por 44 € para 44 socios). Combinaciones siempre aleatorias por terminal SELAE.
-              </div>
-              <div>
-                <strong className="text-[#0A2540]">3. Bajas y Lista de Espera:</strong> El impago en J9 supone exclusión tras la jornada 10. El primer suplente dispone de 24 horas exactas para ingresar.
-              </div>
-              <div>
-                <strong className="text-[#0A2540]">4. Fallecimiento:</strong> La plaza no se hereda; al finalizar el ciclo pasa al primer suplente y los premios pendientes se liquidan a herederos legales.
-              </div>
-              <div>
-                <strong className="text-[#0A2540]">5. Premios Menores vs Mayores:</strong> Premios &le; 2.000 € al Fondo Común. Premios &gt; 2.000 € en banco con DNI de todos los miembros, retención legal 20% sobre exceso de 40.000 € y transferencia a IBAN individual.
-              </div>
+            <div className="space-y-5 text-base text-slate-700 bg-[#F4F6F9] border border-slate-200 rounded-2xl p-4 sm:p-5">
+              {OFFICIAL_RULES_SECTIONS.map(section => (
+                <div key={section.articleNumber} className="space-y-2.5 border-b border-slate-200 last:border-b-0 pb-4 last:pb-0">
+                  <h4 className="font-black text-[#0A2540] text-base sm:text-lg">
+                    {section.articleNumber}. {section.title}
+                  </h4>
+                  {section.paragraphs.map((p, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <p>
+                        {p.code && (
+                          <strong className="text-[#0A2540]">
+                            {p.code} {p.heading}{' '}
+                          </strong>
+                        )}
+                        {p.text}
+                      </p>
+                      {p.bullets && (
+                        <ul className="list-disc pl-5 space-y-1 text-sm sm:text-base">
+                          {p.bullets.map((b, bIdx) => (
+                            <li key={bIdx}>{b}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
 

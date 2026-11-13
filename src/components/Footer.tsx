@@ -1,18 +1,22 @@
 import React from 'react';
 import { Logo } from './Logo';
-import { ExternalLink, ShieldCheck } from 'lucide-react';
+import { ExternalLink, ShieldCheck, UserPlus } from 'lucide-react';
 
 interface FooterProps {
   onOpenRules: () => void;
   onOpenConformity: () => void;
+  onOpenRegistration: () => void;
   googleFormUrl: string;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   onOpenRules,
   onOpenConformity,
+  onOpenRegistration,
   googleFormUrl,
 }) => {
+  const hasExternalForm = Boolean(googleFormUrl && googleFormUrl.startsWith('http'));
+
   return (
     <footer className="mt-16 bg-[#071A2E] text-slate-300 text-base border-t border-slate-800 pb-24 lg:pb-6">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
@@ -50,15 +54,26 @@ export const Footer: React.FC<FooterProps> = ({
               <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
               <span>Declaración de Conformidad</span>
             </button>
-            <a
-              href={googleFormUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white hover:text-[#FF6B00] underline underline-offset-4 min-h-[44px] px-2 inline-flex items-center gap-2 transition"
-            >
-              <span>Formulario de Inscripción</span>
-              <ExternalLink className="w-4 h-4 text-[#FF6B00] shrink-0" />
-            </a>
+            {hasExternalForm ? (
+              <a
+                href={googleFormUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white hover:text-[#FF6B00] underline underline-offset-4 min-h-[44px] px-2 inline-flex items-center gap-2 transition"
+              >
+                <span>Formulario de Inscripción</span>
+                <ExternalLink className="w-4 h-4 text-[#FF6B00] shrink-0" />
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenRegistration}
+                className="text-white hover:text-[#FF6B00] underline underline-offset-4 min-h-[44px] px-2 inline-flex items-center gap-2 cursor-pointer transition"
+              >
+                <UserPlus className="w-4 h-4 text-[#FF6B00] shrink-0" />
+                <span>Formulario de Inscripción</span>
+              </button>
+            )}
           </div>
         </div>
 

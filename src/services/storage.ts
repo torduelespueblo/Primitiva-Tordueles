@@ -8,28 +8,33 @@ const STORAGE_KEYS = {
   CONFORMITY: 'primitiva_tordueles_conformity_v1',
   ADMIN_PIN: 'primitiva_tordueles_admin_pin',
   PUSH_TOKEN: 'primitiva_tordueles_push_token',
+  CLEAN_VERSION: 'primitiva_tordueles_clean_v2',
 };
+
+export const MAX_STORED_TICKETS = 4;
+
+const DELETED_MOCK_TICKET_IDS = new Set(['t-08', 't-07', 't-06', 't-05']);
 
 const DEFAULT_SETTINGS: SyndicateSettings = {
   syndicateName: 'Peña Primitiva Tordueles',
   weeklyFee: 1.0,
   cycleLength: 10,
-  currentCycle: 3,
-  currentJornada: 8, // En pleno periodo de renovación (Jornadas 7 a 9)
-  prizeFundBalance: 384.50,
-  googleFormUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSc_TorduelesLoteriaRegistro/viewform',
+  currentCycle: 1,
+  currentJornada: 1,
+  prizeFundBalance: 0,
+  googleFormUrl: '',
   googleAppsScriptUrl: 'https://script.google.com/macros/s/AKfycbxFolqBPLovSHOHM0ST-bBtyzlCzTG64ZmzNvNSaDgawIT6MP1RXwg9BhE2ZKJt_weJCw/exec',
-  googleSheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+  googleSheetUrl: 'https://docs.google.com/spreadsheets/d/18R_F67pOt4pYBD5VqzBln12H-VMxUx-qmoeCewwz8qw/edit',
   greenApiInstanceId: '710722795241',
   greenApiToken: 'a1c3c85f04d34a21ae86403c9ebdbdb54854f9d5f94842a1b3',
-  greenApiChatId: '120363430888892480@g.us', // Grupo de WhatsApp de la Peña
-  sendDailyGeneralSummary: false, // Interruptor SÍ/NO resumen general
-  sendDrawDayTicketAt2035: true, // Envío automático a las 20:35
+  greenApiChatId: '120363430888892480@g.us',
+  sendDailyGeneralSummary: true,
+  sendDrawDayTicketAt2035: true,
   sendScrutinyAlert: true,
   pushEnabled: true,
 };
 
-// Generación de jugadores realistas de Tordueles
+// Base inicial de socios titulares (sin sorteos simulados ni premios acumulados ficticios)
 const INITIAL_PLAYERS: Player[] = [
   {
     id: 'p-01',
@@ -40,9 +45,8 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:14:22.18Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
-    notes: 'Socio fundador',
   },
   {
     id: 'p-02',
@@ -53,7 +57,7 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:15:04.45Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
   {
@@ -65,9 +69,8 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:16:30.73Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 3,
-    renewalStatus: 'PENDIENTE',
-    notes: 'Avisado por WhatsApp jornada 8',
+    paidUntilCycle: 1,
+    renewalStatus: 'RENOVADO',
   },
   {
     id: 'p-04',
@@ -78,7 +81,7 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:18:15.91Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
   {
@@ -90,8 +93,8 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:20:00Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 3,
-    renewalStatus: 'PENDIENTE',
+    paidUntilCycle: 1,
+    renewalStatus: 'RENOVADO',
   },
   {
     id: 'p-06',
@@ -102,7 +105,7 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:22:45Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
   {
@@ -114,9 +117,8 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:25:12Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 3,
-    renewalStatus: 'URGENTE_EXPIRA',
-    notes: 'Plazo límite fin de jornada 9',
+    paidUntilCycle: 1,
+    renewalStatus: 'RENOVADO',
   },
   {
     id: 'p-08',
@@ -127,7 +129,7 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:27:03Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
   {
@@ -139,7 +141,7 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:30:19Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
   {
@@ -151,7 +153,7 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:32:50Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
   {
@@ -163,7 +165,7 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:35:14Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
   {
@@ -175,8 +177,8 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:37:41Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 3,
-    renewalStatus: 'PENDIENTE',
+    paidUntilCycle: 1,
+    renewalStatus: 'RENOVADO',
   },
   {
     id: 'p-13',
@@ -187,7 +189,7 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:40:02Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
   {
@@ -199,160 +201,63 @@ const INITIAL_PLAYERS: Player[] = [
     registrationTimestamp: '2024-01-10T10:42:19Z',
     status: 'TITULAR',
     currentCyclePaid: true,
-    paidUntilCycle: 4,
+    paidUntilCycle: 1,
     renewalStatus: 'RENOVADO',
   },
-  // Jugador con baja definitiva por no pagar
-  {
-    id: 'p-99',
-    memberNumber: 0,
-    name: 'Ignacio Vega Delgado',
-    email: 'ignacio.vega@gmail.com',
-    phone: '+34 690 99 88 77',
-    registrationTimestamp: '2024-01-08T09:12:00Z',
-    status: 'BAJA',
-    currentCyclePaid: false,
-    paidUntilCycle: 2,
-    renewalStatus: 'EXCLUIDO',
-    notes: 'Excluido en Ciclo 2 tras finalizar jornada 10 sin abono. Pierde antigüedad.',
-  },
 ];
 
-// Lista de espera por estricto orden de timestamp de Google Form
-const INITIAL_WAITING_LIST: WaitingListEntry[] = [
-  {
-    id: 'w-01',
-    name: 'Ignacio Román Delgado',
-    email: 'ignacio.roman@gmail.com',
-    phone: '+34 671 22 33 44',
-    registrationTimestamp: '2024-02-14T11:22:15.34Z',
-    notifiedAt: '2026-11-10T08:00:00.00Z',
-    deadline24h: '2026-11-11T08:00:00.00Z',
-    status: 'NOTIFICADO_24H',
-  },
-  {
-    id: 'w-02',
-    name: 'Sonia Barbero Casado',
-    email: 'sonia.barbero@gmail.com',
-    phone: '+34 682 33 44 55',
-    registrationTimestamp: '2024-02-18T16:45:00.82Z',
-    status: 'ESPERANDO',
-  },
-  {
-    id: 'w-03',
-    name: 'Carlos Andrés Mahamud',
-    email: 'carlos.andres@gmail.com',
-    phone: '+34 693 44 55 66',
-    registrationTimestamp: '2024-03-01T09:10:33.19Z',
-    status: 'ESPERANDO',
-  },
-  {
-    id: 'w-04',
-    name: 'Teresa Santillán Moral',
-    email: 'teresa.smoral@gmail.com',
-    phone: '+34 614 55 66 77',
-    registrationTimestamp: '2024-03-12T19:05:42.67Z',
-    status: 'ESPERANDO',
-  },
-];
+const INITIAL_WAITING_LIST: WaitingListEntry[] = [];
 
-// Historial de resguardos sellados y escrutinios
-const INITIAL_TICKETS: TicketDraw[] = [
-  {
-    id: 't-08',
-    cycleNumber: 3,
-    jornadaNumber: 8,
-    drawDate: '2026-11-12',
-    receiptImageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
-    betType: 'MULTIPLE_5',
-    numbersPlayedCount: 5,
-    cost: 44.0, // 44 personas = 44€ apuesta múltiple de 5 números (44 apuestas)
-    activePlayersCount: 44,
-    costPerPlayer: 1.0,
-    playedNumbers: [7, 13, 22, 34, 49],
-    playedReintegro: 4,
-    jokerPlayed: true,
-    isScrutinized: false, // Jornada en juego pendiente de sorteo a las 21:40
-    totalPrize: 0,
-    prizeType: 'NINGUNO',
-  },
-  {
-    id: 't-07',
-    cycleNumber: 3,
-    jornadaNumber: 7,
-    drawDate: '2026-11-07',
-    receiptImageUrl: 'https://images.unsplash.com/photo-1588702547923-7093a6c3ba33?auto=format&fit=crop&w=800&q=80',
-    betType: 'MULTIPLE_5',
-    numbersPlayedCount: 5,
-    cost: 44.0,
-    activePlayersCount: 44,
-    costPerPlayer: 1.0,
-    playedNumbers: [3, 11, 24, 38, 41],
-    playedReintegro: 7,
-    jokerPlayed: true,
-    isScrutinized: true,
-    winningNumbers: [3, 11, 24, 33, 41, 48],
-    complementario: 19,
-    reintegro: 7,
-    jokerNumber: '7412890',
-    hitsCount: 4,
-    hasReintegro: true,
-    prizeCategory: '4 Aciertos + Reintegro',
-    totalPrize: 98.40,
-    prizeType: 'MENOR_BOLSA',
-  },
-  {
-    id: 't-06',
-    cycleNumber: 3,
-    jornadaNumber: 6,
-    drawDate: '2026-11-05',
-    receiptImageUrl: 'https://images.unsplash.com/photo-1588702547923-7093a6c3ba33?auto=format&fit=crop&w=800&q=80',
-    betType: 'MULTIPLE_5',
-    numbersPlayedCount: 5,
-    cost: 44.0,
-    activePlayersCount: 44,
-    costPerPlayer: 1.0,
-    playedNumbers: [5, 14, 23, 37, 44],
-    playedReintegro: 2,
-    jokerPlayed: true,
-    isScrutinized: true,
-    winningNumbers: [5, 14, 20, 29, 36, 47],
-    complementario: 44,
-    reintegro: 9,
-    hitsCount: 2,
-    hasReintegro: false,
-    prizeCategory: 'Sin premio oficial (2 aciertos)',
-    totalPrize: 0,
-    prizeType: 'NINGUNO',
-  },
-  {
-    id: 't-05',
-    cycleNumber: 3,
-    jornadaNumber: 5,
-    drawDate: '2026-10-31',
-    receiptImageUrl: 'https://images.unsplash.com/photo-1588702547923-7093a6c3ba33?auto=format&fit=crop&w=800&q=80',
-    betType: 'MULTIPLE_5',
-    numbersPlayedCount: 5,
-    cost: 44.0,
-    activePlayersCount: 44,
-    costPerPlayer: 1.0,
-    playedNumbers: [8, 17, 26, 35, 42],
-    playedReintegro: 5,
-    jokerPlayed: true,
-    isScrutinized: true,
-    winningNumbers: [8, 17, 26, 31, 39, 45],
-    complementario: 35,
-    reintegro: 5,
-    hitsCount: 3,
-    hasReintegro: true,
-    prizeCategory: '3 Aciertos + Reintegro (5ª Cat)',
-    totalPrize: 42.60,
-    prizeType: 'MENOR_BOLSA',
-  },
-];
+// Sin sorteos ni premios simulados; máximo 4 boletos guardados
+const INITIAL_TICKETS: TicketDraw[] = [];
+
+function runCleanMigrationIfNeeded() {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  if (localStorage.getItem(STORAGE_KEYS.CLEAN_VERSION) === 'true') return;
+
+  try {
+    const rawSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (rawSettings) {
+      const parsed = JSON.parse(rawSettings);
+      if (parsed.prizeFundBalance === 384.5) {
+        parsed.prizeFundBalance = 0;
+      }
+      if (
+        typeof parsed.googleFormUrl === 'string' &&
+        parsed.googleFormUrl.includes('1FAIpQLSc_TorduelesLoteriaRegistro')
+      ) {
+        parsed.googleFormUrl = '';
+      }
+      if (
+        typeof parsed.googleSheetUrl === 'string' &&
+        parsed.googleSheetUrl.includes('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms')
+      ) {
+        parsed.googleSheetUrl = DEFAULT_SETTINGS.googleSheetUrl;
+      }
+      parsed.sendDailyGeneralSummary = true;
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify({ ...DEFAULT_SETTINGS, ...parsed }));
+    }
+
+    const rawTickets = localStorage.getItem(STORAGE_KEYS.TICKETS);
+    if (rawTickets) {
+      const parsedTickets: TicketDraw[] = JSON.parse(rawTickets);
+      if (Array.isArray(parsedTickets)) {
+        const realOnly = parsedTickets
+          .filter(t => !DELETED_MOCK_TICKET_IDS.has(t.id))
+          .slice(0, MAX_STORED_TICKETS);
+        localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(realOnly));
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEYS.CLEAN_VERSION, 'true');
+  } catch {
+    // Ignorar error de parseo
+  }
+}
 
 export const storageService = {
   getSettings(): SyndicateSettings {
+    runCleanMigrationIfNeeded();
     const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
@@ -360,7 +265,6 @@ export const storageService = {
     }
     try {
       const parsed = JSON.parse(raw);
-      // Actualizar automáticamente a las credenciales oficiales de Green API proporcionadas por el usuario
       let needsUpdate = false;
       if (!parsed.greenApiInstanceId || parsed.greenApiInstanceId === '7103859201') {
         parsed.greenApiInstanceId = DEFAULT_SETTINGS.greenApiInstanceId;
@@ -370,6 +274,13 @@ export const storageService = {
       }
       if (!parsed.googleAppsScriptUrl || parsed.googleAppsScriptUrl.endsWith('/exe')) {
         parsed.googleAppsScriptUrl = DEFAULT_SETTINGS.googleAppsScriptUrl;
+        needsUpdate = true;
+      }
+      if (
+        typeof parsed.googleFormUrl === 'string' &&
+        parsed.googleFormUrl.includes('1FAIpQLSc_TorduelesLoteriaRegistro')
+      ) {
+        parsed.googleFormUrl = '';
         needsUpdate = true;
       }
       if (needsUpdate) {
@@ -420,20 +331,23 @@ export const storageService = {
   },
 
   getTickets(): TicketDraw[] {
+    runCleanMigrationIfNeeded();
     const raw = localStorage.getItem(STORAGE_KEYS.TICKETS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(INITIAL_TICKETS));
       return INITIAL_TICKETS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.slice(0, MAX_STORED_TICKETS) : INITIAL_TICKETS;
     } catch {
       return INITIAL_TICKETS;
     }
   },
 
   saveTickets(tickets: TicketDraw[]): void {
-    localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(tickets));
+    const capped = tickets.slice(0, MAX_STORED_TICKETS);
+    localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(capped));
   },
 
   isConformityAccepted(): boolean {

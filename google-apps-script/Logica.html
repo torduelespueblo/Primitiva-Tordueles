@@ -10,11 +10,7 @@
   const ESTADO_APP = {
     usuario: null,
     adminPassword: '',
-    fallbackPublico: [
-      { id: 1, nombre: 'Juan', apellidos: 'Pérez García', estado: 'Titular' },
-      { id: 2, nombre: 'María', apellidos: 'Rodríguez Santos', estado: 'Titular' },
-      { id: 3, nombre: 'Carlos', apellidos: 'Fernández Burgos', estado: 'Suplente' }
-    ]
+    fallbackPublico: []
   };
 
   function cambiarVista(viewId) {
@@ -211,8 +207,8 @@
       });
       mostrarToast('Registro formalizado en lista de espera como Suplente.', 'success');
       renderizarDashboard({
-        tesoreria: { bolsaPremios: 384.50 },
-        jornadaInfo: { jornadaActual: 8, jornadaEnCiclo: 8, cicloActual: 1, esPeriodoRenovacion: true },
+        tesoreria: { bolsaPremios: 0 },
+        jornadaInfo: { jornadaActual: 1, jornadaEnCiclo: 1, cicloActual: 1, esPeriodoRenovacion: false },
         ultimoSorteo: null
       });
       cambiarVista('viewDashboard');
@@ -371,8 +367,7 @@
       return;
     }
 
-    txt.innerText = 'Periodo de Renovación Activo: Jornada 8/10. Recuerda abonar la cuota de 10€ antes de finalizar la jornada 9.';
-    banner.classList.add('visible');
+    banner.classList.remove('visible');
   }
 
   function cargarListaPublicaJugadores() {

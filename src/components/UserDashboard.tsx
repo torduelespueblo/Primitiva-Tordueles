@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { SyndicateSettings, TicketDraw, Player } from '../types/lottery';
 import { TicketCard } from './TicketCard';
 import {
@@ -22,20 +22,14 @@ interface UserDashboardProps {
 export const UserDashboard: React.FC<UserDashboardProps> = ({
   settings,
   tickets,
-  players,
   onNavigateTab,
 }) => {
-  const [showYesterdayTest, setShowYesterdayTest] = useState(false);
-
-  // Boleto de la jornada en curso (primero de la lista)
   const currentTicket = tickets[0];
-  // Último sorteo escrutado
   const lastScrutinized = tickets.find(t => t.isScrutinized);
 
   const isRenewalWindow = settings.currentJornada >= 7 && settings.currentJornada <= 9;
   const isFinalDeadline = settings.currentJornada === 9;
 
-  // Enlace a WhatsApp para comunicar el pago del nuevo bloque de 10 jornadas
   const whatsappNotificationText = encodeURIComponent(
     `COMUNICACIÓN DE PAGO - PEÑA PRIMITIVA TORDUELES\n\nHola Administrador, confirmo que he realizado el pago de la cuota de 10 € para la renovación del próximo Ciclo de 10 jornadas.\n\nFecha: ${new Date().toLocaleDateString('es-ES')}`
   );
@@ -67,10 +61,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <div className="p-8 text-center bg-white rounded-3xl border border-slate-200 text-slate-600 space-y-3">
             <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
             <p className="text-lg font-bold text-[#0A2540]">
-              Boleto de la Jornada {settings.currentJornada} en proceso de sellado
+              Todavía no hay ningún boleto sellado publicado
             </p>
-            <p className="text-base text-slate-600">
-              El administrador validará la combinación en el terminal oficial y se publicará a las 20:35 h.
+            <p className="text-base text-slate-600 max-w-xl mx-auto">
+              Cuando el administrador valide la combinación en el terminal oficial de SELAE, el boleto aparecerá aquí automáticamente.
             </p>
           </div>
         )}
@@ -162,7 +156,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </div>
       </section>
 
-      {/* 3. ÚLTIMO ESCRUTINIO OFICIAL */}
+      {/* 3. ÚLTIMO ESCRUTINIO OFICIAL (SOLO SI EXISTE UN SORTEO REAL ESCRUTADO) */}
       {lastScrutinized && (
         <section className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-sm space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
@@ -180,67 +174,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowYesterdayTest(!showYesterdayTest)}
-                className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-[#0A2540] text-sm sm:text-base font-bold transition cursor-pointer"
-              >
-                <span>{showYesterdayTest ? 'Ocultar cotejo' : 'Ver cotejo de ejemplo'}</span>
-              </button>
-              <div className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-base font-extrabold tabular-nums">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>Premio: {lastScrutinized.totalPrize.toFixed(2)} €</span>
-              </div>
+            <div className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-base font-extrabold tabular-nums">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Premio: {lastScrutinized.totalPrize.toFixed(2)} €</span>
             </div>
           </div>
-
-          {showYesterdayTest && (
-            <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 sm:p-5 space-y-4 text-base">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-                <span className="font-bold text-[#0A2540]">
-                  Prueba de Escrutinio: Lunes 9 de Noviembre de 2026
-                </span>
-                <span className="text-sm font-bold text-[#FF6B00] uppercase">
-                  Verificación
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
-                  <span className="text-slate-600 text-sm font-semibold block">
-                    Combinación Ganadora Oficial:
-                  </span>
-                  <div className="flex flex-wrap gap-2 items-center font-mono font-bold text-[#0A2540]">
-                    {['01', '06', '14', '23', '30', '39'].map(n => (
-                      <span
-                        key={n}
-                        className="w-9 h-9 rounded-full bg-[#0A2540] text-white flex items-center justify-center text-sm font-extrabold tabular-nums"
-                      >
-                        {n}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="text-sm text-slate-700 font-semibold pt-1 tabular-nums">
-                    C: 36 · R: 2 · Joker: 2369520
-                  </p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1.5 text-base">
-                  <span className="text-slate-600 text-sm font-semibold block">
-                    Cotejo con la Peña:
-                  </span>
-                  <p className="text-slate-800 font-mono font-bold tabular-nums">
-                    Jugados: 07 · 13 · 22 · 34 · 49 (R: 4)
-                  </p>
-                  <p className="text-slate-700">
-                    Resultado: <strong className="text-[#FF6B00]">0 aciertos</strong> · Reintegro no acertado
-                  </p>
-                  <p className="text-emerald-700 font-bold text-sm pt-1">
-                    Algoritmo verificado según el Art. 5.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <div className="p-4 rounded-2xl bg-[#F4F6F9] border border-slate-200">
@@ -276,7 +214,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               onClick={() => onNavigateTab('tickets')}
               className="font-extrabold text-[#0A2540] hover:text-[#FF6B00] inline-flex items-center gap-2 min-h-[44px] cursor-pointer transition"
             >
-              <span>Ver histórico completo</span>
+              <span>Ver últimos 4 boletos</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>

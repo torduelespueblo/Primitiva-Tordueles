@@ -10,7 +10,7 @@ import {
   WaitingListEntry,
   TicketDraw
 } from './types/lottery';
-import { storageService } from './services/storage';
+import { MAX_STORED_TICKETS, storageService } from './services/storage';
 import { Navbar } from './components/Navbar';
 import { UserDashboard } from './components/UserDashboard';
 import { TicketsHistory } from './components/TicketsHistory';
@@ -24,6 +24,16 @@ import { Footer } from './components/Footer';
 import { DualAccessRegistration } from './components/DualAccessRegistration';
 import { pushNotificationService } from './services/pushNotifications';
 
+function hasRegistrationUrlFlag(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get('inscripcion') === '1' ||
+    params.get('registro') === '1' ||
+    window.location.hash.toLowerCase().includes('inscripcion')
+  );
+}
+
 export default function App() {
   const [settings, setSettings] = useState<SyndicateSettings>(() => storageService.getSettings());
   const [players, setPlayers] = useState<Player[]>(() => storageService.getPlayers());
@@ -35,6 +45,9 @@ export default function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
   const [showConformityReview, setShowConformityReview] = useState<boolean>(false);
+  const [showStandaloneRegistration, setShowStandaloneRegistration] = useState<boolean>(() =>
+    hasRegistrationUrlFlag()
+  );
 
   // Guardar en almacenamiento cada vez que cambien
   const handleUpdateSettings = (newSettings: SyndicateSettings) => {
@@ -53,8 +66,9 @@ export default function App() {
   };
 
   const handleUpdateTickets = (newTickets: TicketDraw[]) => {
-    setTickets(newTickets);
-    storageService.saveTickets(newTickets);
+    const capped = newTickets.slice(0, MAX_STORED_TICKETS);
+    setTickets(capped);
+    storageService.saveTickets(capped);
   };
 
   const handleAcceptConformity = () => {
@@ -69,6 +83,19 @@ export default function App() {
           storageService.savePushToken(result.token);
         }
       });
+    }
+  };
+
+  const handleCloseStandaloneRegistration = () => {
+    setShowStandaloneRegistration(false);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('inscripcion');
+      url.searchParams.delete('registro');
+      if (url.hash.toLowerCase().includes('inscripcion')) {
+        url.hash = '';
+      }
+      window.history.replaceState({}, '', url.toString());
     }
   };
 
@@ -89,7 +116,10 @@ export default function App() {
   // Sincronización en segundo plano con Google Apps Script si está configurado
   useEffect(() => {
     if (settings.googleAppsScriptUrl) {
-      const url = new URL(settings.googleAppsScriptUrl);
+      const cleanEndpoint = settings.googleAppsScriptUrl.endsWith('/exe')
+        ? `${settings.googleAppsScriptUrl}c`
+        : settings.googleAppsScriptUrl;
+      const url = new URL(cleanEndpoint);
       if (!url.searchParams.has('format')) {
         url.searchParams.set('format', 'json');
       }
@@ -104,8 +134,14 @@ export default function App() {
               ...prev,
               currentCycle: Number(data.ciclo) || prev.currentCycle,
               currentJornada: Number(data.jornada) || prev.currentJornada,
-              prizeFundBalance: Number(data.bolsaPremios) || prev.prizeFundBalance,
-              sendDailyGeneralSummary: Boolean(data.boletinDiarioActivo),
+              prizeFundBalance:
+                data.bolsaPremios !== undefined && !isNaN(Number(data.bolsaPremios))
+                  ? Number(data.bolsaPremios)
+                  : prev.prizeFundBalance,
+              sendDailyGeneralSummary:
+                data.boletinDiarioActivo !== undefined
+                  ? Boolean(data.boletinDiarioActivo)
+                  : prev.sendDailyGeneralSummary,
             }));
           }
         })
@@ -121,9 +157,9 @@ export default function App() {
       {/* Offline Status Toast */}
       <OfflineIndicator />
 
-      {/* Condición de Acceso Obligatoria (Modal Bloqueante si no se ha firmado) */}
+      {/* Condición de Acceso Obligatoria (Modal Bloqueante si no está abierto el enlace directo de inscripción) */}
       <ConformityModal
-        isOpen={!isConformityAccepted || showConformityReview}
+        isOpen={(!showStandaloneRegistration && !isConformityAccepted) || showConformityReview}
         onAccept={handleAcceptConformity}
       />
 
@@ -141,7 +177,12 @@ export default function App() {
       {/* Header & Navigation */}
       <Navbar
         currentTab={currentTab}
-        onTabChange={tab => setCurrentTab(tab)}
+        onTabChange={tab => {
+          if (showStandaloneRegistration) {
+            handleCloseStandaloneRegistration();
+          }
+          setCurrentTab(tab);
+        }}
         settings={settings}
         isAdminAuthenticated={isAdminAuthenticated}
         onOpenAdminLogin={() => setShowAdminLogin(true)}
@@ -149,21 +190,47 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {!isConformityAccepted ? (
-          <div className="py-4">
+        {showStandaloneRegistration ? (
+          <div className="py-2 sm:py-4">
             <DualAccessRegistration
+              initialMode="REGISTER"
+              googleAppsScriptUrl={settings.googleAppsScriptUrl}
               existingPlayers={players}
-              onAuthenticatedPlayer={(player) => {
-                handleAcceptConformity();
-              }}
-              onRegisteredNewPlayer={(newReg) => {
+              onRegisteredNewPlayer={newReg => {
                 const newEntry: WaitingListEntry = {
                   id: `w-${Date.now()}`,
                   name: newReg.name,
                   email: '',
                   phone: newReg.phone,
                   registrationTimestamp: newReg.timestamp,
-                  status: 'ESPERANDO'
+                  status: 'ESPERANDO',
+                };
+                handleUpdateWaitingList([...waitingList, newEntry]);
+                setIsConformityAccepted(true);
+                storageService.setConformityAccepted(true);
+              }}
+              onBackToApp={() => {
+                handleCloseStandaloneRegistration();
+                setCurrentTab('members');
+              }}
+            />
+          </div>
+        ) : !isConformityAccepted ? (
+          <div className="py-4">
+            <DualAccessRegistration
+              googleAppsScriptUrl={settings.googleAppsScriptUrl}
+              existingPlayers={players}
+              onAuthenticatedPlayer={() => {
+                handleAcceptConformity();
+              }}
+              onRegisteredNewPlayer={newReg => {
+                const newEntry: WaitingListEntry = {
+                  id: `w-${Date.now()}`,
+                  name: newReg.name,
+                  email: '',
+                  phone: newReg.phone,
+                  registrationTimestamp: newReg.timestamp,
+                  status: 'ESPERANDO',
                 };
                 handleUpdateWaitingList([...waitingList, newEntry]);
                 handleAcceptConformity();
@@ -203,6 +270,7 @@ export default function App() {
                 players={players}
                 waitingList={waitingList}
                 settings={settings}
+                onOpenRegistration={() => setShowStandaloneRegistration(true)}
               />
             )}
 
@@ -230,8 +298,14 @@ export default function App() {
 
       {/* Footer */}
       <Footer
-        onOpenRules={() => setCurrentTab('rules')}
+        onOpenRules={() => {
+          if (showStandaloneRegistration) {
+            handleCloseStandaloneRegistration();
+          }
+          setCurrentTab('rules');
+        }}
         onOpenConformity={() => setShowConformityReview(true)}
+        onOpenRegistration={() => setShowStandaloneRegistration(true)}
         googleFormUrl={settings.googleFormUrl}
       />
     </div>

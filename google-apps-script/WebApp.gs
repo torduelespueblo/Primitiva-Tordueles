@@ -21,11 +21,12 @@
 var WEBAPP_ADMIN_CONFIG = {
   // Se recomienda configurar 'ADMIN_PASSWORD' en Propiedades del Script de Apps Script
   DEFAULT_ADMIN_PASSWORD: 'TorduelesAdmin2026!',
+  DEFAULT_SPREADSHEET_ID: '18R_F67pOt4pYBD5VqzBln12H-VMxUx-qmoeCewwz8qw',
   JORNADAS_POR_CICLO: 10
 };
 
 // ============================================================================
-// 1. CONTROLADOR DE VISTAS Y ENDPOINT WEB (HtmlService)
+// 1. CONTROLADOR DE VISTAS Y ENDPOINT WEB (HtmlService & API REST)
 // ============================================================================
 
 function doGet(e) {
@@ -38,15 +39,22 @@ function doGet(e) {
         payload = obtenerListaJugadoresPublica();
       } else if (accion === 'jornadaActual') {
         payload = obtenerJornadaActual();
+      } else if (accion === 'boletinDiario') {
+        payload = obtenerBoletinDiarioLive(new Date(), null, null);
+      } else if (accion === 'enviarBoletin') {
+        payload = enviarBoletinDiarioWhatsApp(true);
+      } else if (accion === 'escrutinioConsenso') {
+        payload = ejecutarMotorPuenteRSSConsenso();
       } else {
         var ss = obtenerSpreadsheetPeña();
         var sheetTesoreria = ss.getSheetByName('Tesorería');
         var sheetConfig = ss.getSheetByName('Configuracion');
         var jornadaInfo = obtenerJornadaActual();
-        var bolsa = 384.50;
+        var bolsa = 0;
 
         if (sheetTesoreria && sheetTesoreria.getLastRow() >= 2) {
-          bolsa = parseFloat(sheetTesoreria.getRange(2, 4).getValue()) || bolsa;
+          var rawBolsa = parseFloat(sheetTesoreria.getRange(2, 4).getValue());
+          bolsa = isNaN(rawBolsa) ? 0 : rawBolsa;
         }
 
         payload = {
@@ -57,7 +65,7 @@ function doGet(e) {
           jornadaEnCiclo: jornadaInfo.jornadaEnCiclo,
           esPeriodoRenovacion: jornadaInfo.esPeriodoRenovacion,
           bolsaPremios: bolsa,
-          boletinDiarioActivo: sheetConfig ? (String(sheetConfig.getRange('A2').getValue()).trim().toUpperCase() === 'SÍ') : false,
+          boletinDiarioActivo: sheetConfig ? (String(sheetConfig.getRange('A2').getValue()).trim().toUpperCase() === 'SÍ') : true,
           timestamp: new Date().toISOString()
         };
       }
@@ -67,6 +75,7 @@ function doGet(e) {
     } catch (err) {
       return ContentService.createTextOutput(JSON.stringify({
         status: 'ERROR',
+        success: false,
         message: err.message
       })).setMimeType(ContentService.MimeType.JSON);
     }
@@ -80,6 +89,28 @@ function doGet(e) {
     .addMetaTag('apple-mobile-web-app-capable', 'yes')
     .addMetaTag('apple-mobile-web-app-status-bar-style', 'black-translucent')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function doPost(e) {
+  try {
+    var contents = (e && e.postData && e.postData.contents) ? JSON.parse(e.postData.contents) : {};
+    var action = contents.action;
+
+    if (action === 'registro') {
+      var res = registrarNuevoJugadorDesdeWeb(contents.datos);
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ status: 'OK', received: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'ERROR',
+      success: false,
+      message: err.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 /**
@@ -510,7 +541,7 @@ function obtenerJornadaActual() {
   try {
     var ss = obtenerSpreadsheetPeña();
     var sheetSorteos = ss.getSheetByName('Sorteos');
-    var jornadaActual = 8;
+    var jornadaActual = 1;
 
     if (sheetSorteos && sheetSorteos.getLastRow() >= 2) {
       var val = sheetSorteos.getRange(sheetSorteos.getLastRow(), 1).getValue();
@@ -535,18 +566,18 @@ function obtenerJornadaActual() {
     };
   } catch (err) {
     return {
-      jornadaActual: 8,
-      jornadaEnCiclo: 8,
+      jornadaActual: 1,
+      jornadaEnCiclo: 1,
       cicloActual: 1,
-      esPeriodoRenovacion: true,
+      esPeriodoRenovacion: false,
       esUltimaJornadaPlazo: false,
-      textoBanner: 'Periodo de Renovación Activo: Jornada 8/10. Recuerda abonar la cuota de 10€ antes de finalizar la jornada 9.'
+      textoBanner: ''
     };
   }
 }
 
 // ============================================================================
-// 6. CARGA CONSOLIDADA DEL DASHBOARD DEL JUGADOR
+// 6. CARGA CONSOLIDADA DEL DASHBOARD DEL JUGADOR (MÁXIMO ÚLTIMOS 4 BOLETOS)
 // ============================================================================
 
 function obtenerDatosDashboard(dniInput) {
@@ -554,7 +585,7 @@ function obtenerDatosDashboard(dniInput) {
     var ss = obtenerSpreadsheetPeña();
     var sheetTesoreria = ss.getSheetByName('Tesorería');
     var fondoApuestas = 0;
-    var bolsaPremios = 384.50;
+    var bolsaPremios = 0;
     var cicloTesoreria = 'Ciclo 1';
 
     if (sheetTesoreria && sheetTesoreria.getLastRow() >= 2) {
@@ -569,10 +600,11 @@ function obtenerDatosDashboard(dniInput) {
     if (sheetSorteos && sheetSorteos.getLastRow() >= 2) {
       var lastRowS = sheetSorteos.getLastRow();
       var datosS = sheetSorteos.getRange(2, 1, lastRowS - 1, 10).getValues();
-      for (var s = datosS.length - 1; s >= 0; s--) {
+      var limiteInicio = Math.max(0, datosS.length - 4);
+      for (var s = datosS.length - 1; s >= limiteInicio; s--) {
         var filaS = datosS[s];
         var fechaStr = (filaS[1] instanceof Date)
-          ? Utilities.formatDate(filaS[1], 'GMT+1', 'dd/MM/yyyy')
+          ? Utilities.formatDate(filaS[1], 'Europe/Madrid', 'dd/MM/yyyy')
           : (filaS[1] || '').toString();
 
         listaSorteos.push({
@@ -634,10 +666,16 @@ function obtenerSpreadsheetPeña() {
     if (ssActivo) return ssActivo;
   } catch (e) {}
 
+  if (WEBAPP_ADMIN_CONFIG.DEFAULT_SPREADSHEET_ID) {
+    try {
+      return SpreadsheetApp.openById(WEBAPP_ADMIN_CONFIG.DEFAULT_SPREADSHEET_ID);
+    } catch (e2) {}
+  }
+
   var files = DriveApp.getFilesByName('Primitiva Tordueles - Base de Datos');
   if (files.hasNext()) {
     return SpreadsheetApp.openById(files.next().getId());
   }
 
-  throw new Error('No se encontró la hoja "Primitiva Tordueles - Base de Datos". Ejecuta inicializarProyectoCompleto() primero.');
+  throw new Error('No se encontró la hoja "Primitiva Tordueles - Base de Datos".');
 }

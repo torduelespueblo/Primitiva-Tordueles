@@ -9,11 +9,12 @@ import {
 import {
   calculateScrutiny
 } from '../services/lotteryRules';
-import { greenApiService } from '../services/greenApi';
 import { whatsappService } from '../services/whatsappService';
 import { pushNotificationService } from '../services/pushNotifications';
 import { processTicketWithAI } from '../services/aiService';
-import { generateDailyLotteryBulletin } from '../services/lotteryDailyService';
+import { fetchLiveDailyBulletinFromAppsScript } from '../services/lotteryDailyService';
+import { getPublicRegistrationShareUrl } from '../services/registrationService';
+import { MAX_STORED_TICKETS } from '../services/storage';
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
 import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
@@ -71,16 +72,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [testMsgStatus, setTestMsgStatus] = useState<string | null>(null);
   const [showBulletinPreview, setShowBulletinPreview] = useState(false);
+  const [liveBulletinText, setLiveBulletinText] = useState<string | null>(null);
+  const [isLoadingBulletin, setIsLoadingBulletin] = useState(false);
   const [bulletinSendStatus, setBulletinSendStatus] = useState<string | null>(null);
+  const [copiedRegLink, setCopiedRegLink] = useState(false);
 
   // Formulario nuevo boleto
   const [newTicketJornada, setNewTicketJornada] = useState(settings.currentJornada);
-  const [newTicketCost, setNewTicketCost] = useState(44);
-  const [newTicketNumbers, setNewTicketNumbers] = useState('07, 13, 22, 34, 49');
-  const [newTicketReintegro, setNewTicketReintegro] = useState(4);
-  const [newTicketImage, setNewTicketImage] = useState(
-    'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80'
-  );
+  const [newTicketCost, setNewTicketCost] = useState(14);
+  const [newTicketNumbers, setNewTicketNumbers] = useState('');
+  const [newTicketReintegro, setNewTicketReintegro] = useState(0);
+  const [newTicketImage, setNewTicketImage] = useState('');
   const [ticketSaveSuccess, setTicketSaveSuccess] = useState(false);
 
   // Estados para escaneo de boleto mediante IA
@@ -135,9 +137,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Formulario de escrutinio manual
-  const [scrutinyWinning, setScrutinyWinning] = useState('07, 13, 22, 30, 38, 45');
-  const [scrutinyComp, setScrutinyComp] = useState(19);
-  const [scrutinyReintegro, setScrutinyReintegro] = useState(4);
+  const [scrutinyWinning, setScrutinyWinning] = useState('');
+  const [scrutinyComp, setScrutinyComp] = useState(1);
+  const [scrutinyReintegro, setScrutinyReintegro] = useState(0);
   const [scrutinyResult, setScrutinyResult] = useState<string | null>(null);
 
   // Interruptores SÍ/NO
@@ -145,11 +147,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     onUpdateSettings({ ...settings, sendDailyGeneralSummary: val });
   };
 
+  const handleToggleBulletinPreview = async () => {
+    if (showBulletinPreview) {
+      setShowBulletinPreview(false);
+      return;
+    }
+    setShowBulletinPreview(true);
+    setIsLoadingBulletin(true);
+    const res = await fetchLiveDailyBulletinFromAppsScript(settings.googleAppsScriptUrl, false);
+    setIsLoadingBulletin(false);
+    if (res.success && res.formattedWhatsAppMessage) {
+      setLiveBulletinText(res.formattedWhatsAppMessage);
+    } else {
+      setLiveBulletinText(res.error || 'No hay resultados reales disponibles en este momento.');
+    }
+  };
+
   const handleSendDailyBulletin = async () => {
-    setBulletinSendStatus('Enviando boletín diario completo (ONLAE + ONCE) vía Green API...');
-    const bulletin = generateDailyLotteryBulletin();
+    setBulletinSendStatus('Consultando resultados reales en vivo (ONLAE + ONCE) desde Apps Script...');
+    const liveRes = await fetchLiveDailyBulletinFromAppsScript(settings.googleAppsScriptUrl, false);
+    if (!liveRes.success || !liveRes.formattedWhatsAppMessage) {
+      setBulletinSendStatus(
+        liveRes.error || 'No se pudieron obtener resultados reales en vivo todavía. No se enviará un mensaje vacío.'
+      );
+      return;
+    }
+
+    setLiveBulletinText(liveRes.formattedWhatsAppMessage);
     const result = await whatsappService.sendTextMessage(
-      bulletin.formattedWhatsAppMessage,
+      liveRes.formattedWhatsAppMessage,
       {
         instanceId: settings.greenApiInstanceId,
         token: settings.greenApiToken,
@@ -157,7 +183,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     );
     if (result.success) {
-      setBulletinSendStatus('¡Boletín diario oficial (ONLAE + ONCE) enviado con éxito al grupo!');
+      setBulletinSendStatus('¡Boletín diario real (ONLAE + ONCE) enviado con éxito al grupo!');
     } else {
       setBulletinSendStatus(`Error al enviar: ${result.error}`);
     }
@@ -211,7 +237,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       prizeType: 'NINGUNO',
     };
 
-    onUpdateTickets([newTicket, ...tickets]);
+    onUpdateTickets([newTicket, ...tickets].slice(0, MAX_STORED_TICKETS));
     setTicketSaveSuccess(true);
 
     // Enviar notificación push
@@ -436,11 +462,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="flex flex-wrap items-center gap-3 pt-1">
                   <button
                     type="button"
-                    onClick={() => setShowBulletinPreview(!showBulletinPreview)}
+                    onClick={handleToggleBulletinPreview}
                     className="inline-flex items-center gap-2 px-4 min-h-[46px] rounded-xl bg-slate-100 hover:bg-slate-200 text-[#0A2540] text-base font-bold transition cursor-pointer"
                   >
                     <Eye className="w-4 h-4" />
-                    <span>{showBulletinPreview ? 'Ocultar Previsualización' : 'Previsualizar Boletín'}</span>
+                    <span>{showBulletinPreview ? 'Ocultar Previsualización' : 'Previsualizar Boletín en Vivo'}</span>
                   </button>
 
                   <button
@@ -449,7 +475,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     className="inline-flex items-center gap-2 px-4 min-h-[46px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-base font-bold transition shadow-xs cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Enviar Boletín Ahora</span>
+                    <span>Enviar Boletín Real Ahora</span>
                   </button>
 
                   {bulletinSendStatus && (
@@ -461,7 +487,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 {showBulletinPreview && (
                   <div className="rounded-2xl bg-[#0A2540] text-slate-100 p-4 text-sm sm:text-base font-mono whitespace-pre-wrap max-h-80 overflow-y-auto leading-relaxed">
-                    {generateDailyLotteryBulletin().formattedWhatsAppMessage}
+                    {isLoadingBulletin
+                      ? 'Consultando resultados reales en vivo (SELAE + JuegosONCE)...'
+                      : liveBulletinText || 'Sin datos cargados.'}
                   </div>
                 )}
               </div>
@@ -549,6 +577,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               {testMsgStatus && (
                 <span className="text-base text-slate-700 font-semibold">{testMsgStatus}</span>
               )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-3">
+            <h2 className="font-extrabold text-xl text-[#0A2540]">
+              Enlace Público de Inscripción (Sin instalar App)
+            </h2>
+            <p className="text-base text-slate-600">
+              Comparte este enlace directo para que cualquier nuevo jugador se apunte a la lista de espera desde el navegador, conectado directamente con tu Google Sheets:
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                readOnly
+                value={getPublicRegistrationShareUrl()}
+                className="flex-1 rounded-xl border border-slate-300 bg-[#F4F6F9] px-3.5 min-h-[46px] font-mono text-sm sm:text-base text-[#0A2540]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(getPublicRegistrationShareUrl());
+                  setCopiedRegLink(true);
+                  setTimeout(() => setCopiedRegLink(false), 2500);
+                }}
+                className="px-5 min-h-[46px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base transition cursor-pointer shrink-0"
+              >
+                {copiedRegLink ? '¡Enlace Copiado!' : 'Copiar Enlace'}
+              </button>
             </div>
           </div>
         </div>
@@ -838,7 +894,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </span>
                       <span className="text-sm text-slate-600">Documento PDF del resguardo</span>
                     </div>
-                  ) : (
+                  ) : newTicketImage ? (
                     <>
                       <img
                         src={newTicketImage}
@@ -849,6 +905,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         Sello Oficial SELAE 20:35 h
                       </div>
                     </>
+                  ) : (
+                    <div className="p-4 text-center text-slate-600">
+                      <Upload className="w-10 h-10 text-slate-400 mx-auto mb-1.5" />
+                      <span className="text-sm font-semibold block">
+                        Sube la foto o PDF del boleto sellado
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -884,49 +947,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               Escrutinio Oficial SELAE &amp; Cálculo de Aciertos
             </h2>
             <p className="text-base text-slate-600 mt-1">
-              Introduce o prueba la combinación ganadora oficial para calcular aciertos y repartir según el Art. 5.
+              Introduce la combinación ganadora oficial para calcular aciertos y repartir según el Art. 5.
             </p>
-
-            <div className="mt-4 bg-orange-50 border border-orange-200 rounded-2xl p-4 space-y-2.5">
-              <span className="block text-sm sm:text-base font-extrabold text-[#0A2540]">
-                Probar con sorteos reales oficiales recientes:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScrutinyWinning('1, 6, 14, 23, 30, 39');
-                    setScrutinyComp(36);
-                    setScrutinyReintegro(2);
-                  }}
-                  className="px-3.5 min-h-[42px] rounded-xl bg-white border border-orange-300 hover:bg-orange-100 text-sm font-bold text-[#0A2540] transition cursor-pointer"
-                >
-                  Lunes 9 Nov: 01-06-14-23-30-39 (C:36, R:2)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScrutinyWinning('9, 13, 19, 25, 26, 30');
-                    setScrutinyComp(34);
-                    setScrutinyReintegro(4);
-                  }}
-                  className="px-3.5 min-h-[42px] rounded-xl bg-white border border-orange-300 hover:bg-orange-100 text-sm font-bold text-[#0A2540] transition cursor-pointer"
-                >
-                  Sábado 7 Nov: 09-13-19-25-26-30 (C:34, R:4)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScrutinyWinning('4, 8, 9, 15, 31, 32');
-                    setScrutinyComp(2);
-                    setScrutinyReintegro(3);
-                  }}
-                  className="px-3.5 min-h-[42px] rounded-xl bg-white border border-orange-300 hover:bg-orange-100 text-sm font-bold text-[#0A2540] transition cursor-pointer"
-                >
-                  Jueves 5 Nov: 04-08-09-15-31-32 (C:2, R:3)
-                </button>
-              </div>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-base">
