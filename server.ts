@@ -43,7 +43,7 @@ async function startServer() {
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: [
           {
             inlineData: {
@@ -52,16 +52,21 @@ async function startServer() {
             },
           },
           {
-            text: `Eres un experto clasificador y digitalizador de boletos oficiales de Loterías y Apuestas del Estado de España (SELAE - La Primitiva, Bonoloto).
-Analiza detenidamente la imagen o documento PDF adjunto del resguardo o boleto de lotería y extrae con máxima fidelidad la información de la apuesta:
-1. "numbers": Lista ordenada de números enteros únicos jugados en la combinación (entre 1 y 49). Si es una apuesta múltiple autorizada, extrae todos los números marcados en el bloque principal (por ejemplo, 5 números para múltiple de 5, 7 números para múltiple de 7, 8 números para múltiple de 8, 9 números para múltiple de 9, o 10 números).
-2. "jornada": Número de jornada o sorteo (entero, ej. 1 a 10), o null si no se especifica explícitamente.
-3. "reintegro": Número asignado de reintegro oficial (entero entre 0 y 9), o null si no aparece.
-4. "cost": Importe en euros pagado por la apuesta (número decimal, ej. 44.00, 84.00, 7.00), o null si no es visible.
-5. "drawDate": Fecha del sorteo en formato YYYY-MM-DD si es legible en el boleto, o null.
-6. "joker": Valor booleano indicando si incluye juego Joker (true/false).
-7. "betType": Tipo de apuesta detectada (ej. "MULTIPLE_5", "MULTIPLE_7", "MULTIPLE_8", "MULTIPLE_9", "MULTIPLE_10", "SIMPLE").
-8. "notes": Resumen conciso de lo detectado (ej. "Boleto múltiple de 5 números sellado por terminal oficial").`,
+            text: `Eres un experto digitalizador OCR de resguardos oficiales de Loterías y Apuestas del Estado (SELAE: La Primitiva, Bonoloto, Euromillones, El Gordo).
+Analiza detenidamente la imagen o documento PDF del resguardo (puede ser un resguardo impreso de terminal físico en formato horizontal O un resguardo digital vertical de la web/app de Loterías como: "1.\n06\n13\n14\n22\n44\n+\n01\n06").
+
+INSTRUCCIONES CRÍTICAS DE EXTRACCIÓN:
+1. "numbers": Extrae ÚNICAMENTE los números principales jugados de la combinación (enteros ordenados de menor a mayor, entre 1 y 49 o 1 y 54).
+   - En resguardos digitales verticales (ej. "1. 06 13 14 22 44 + 01 06"), los números principales son los que van justo debajo de "1." y ANTES del símbolo "+" o "R" (en ese ejemplo: [6, 13, 14, 22, 44]). NO incluyas el "1." de número de bloque ni los números posteriores al "+" (estrellas/reintegro).
+   - NO confundas NUNCA fechas (ej. "13 NOV 26" -> 13, 26), importes ("2,50 EUR"), ni el código de control/serie inferior ("13283-0702-...") con números jugados.
+   - Si hay varias apuestas o es una múltiple (5, 6, 7, 8, 9, 10 u 11 números), extrae la combinación principal completa.
+2. "reintegro": Si aparece "R", "REINTEGRO" o un número tras "+" único (0-9) en La Primitiva/Bonoloto, extráelo como entero. En Euromillones, si hay dos estrellas tras "+", pon null en reintegro y menciónalo en notes. Si no aparece, pon null.
+3. "jornada": Número de jornada (1 a 10) si aparece explícitamente; si no aparece, null.
+4. "cost": Importe total en euros (ej. "2,50 EUR" -> 2.5, "44,00 €" -> 44). Si no se ve, null.
+5. "drawDate": Fecha del sorteo en formato YYYY-MM-DD (por ejemplo "13 NOV 26" -> "2026-11-13"). Si no se ve, null.
+6. "joker": true si aparece juego JOKER o EL MILLÓN asociado, false en caso contrario.
+7. "betType": "MULTIPLE_5", "MULTIPLE_7", "MULTIPLE_8", "MULTIPLE_9", "MULTIPLE_10" o "SIMPLE".
+8. "notes": Breve resumen en español de lo leído (ej. "Resguardo digital Euromillones · Estrellas: 01, 06 · Código HKS66933" o "La Primitiva Múltiple 5 números").`,
           },
         ],
         config: {
@@ -72,27 +77,31 @@ Analiza detenidamente la imagen o documento PDF adjunto del resguardo o boleto d
               numbers: {
                 type: Type.ARRAY,
                 items: { type: Type.INTEGER },
-                description: 'Lista de números jugados en la combinación',
+                description: 'Lista ordenada de números principales jugados en la combinación',
               },
               jornada: {
                 type: Type.INTEGER,
-                description: 'Número de jornada o sorteo (ej. 1 a 10)',
+                nullable: true,
+                description: 'Número de jornada o sorteo (1 a 10) o null',
               },
               reintegro: {
                 type: Type.INTEGER,
-                description: 'Número de reintegro oficial (0 a 9)',
+                nullable: true,
+                description: 'Número de reintegro oficial (0 a 9) o null',
               },
               cost: {
                 type: Type.NUMBER,
-                description: 'Coste total de la apuesta en euros',
+                nullable: true,
+                description: 'Coste total de la apuesta en euros o null',
               },
               drawDate: {
                 type: Type.STRING,
-                description: 'Fecha del sorteo en formato YYYY-MM-DD',
+                nullable: true,
+                description: 'Fecha del sorteo en formato YYYY-MM-DD o null',
               },
               joker: {
                 type: Type.BOOLEAN,
-                description: 'Indica si se jugó el Joker',
+                description: 'Indica si incluye juego adicional',
               },
               betType: {
                 type: Type.STRING,

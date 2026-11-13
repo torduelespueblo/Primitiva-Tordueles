@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
 import { TicketDraw } from '../types/lottery';
-import { Trophy, Calendar, CheckCircle2, Eye, Sparkles, X } from 'lucide-react';
+import {
+  Trophy,
+  Calendar,
+  CheckCircle2,
+  Eye,
+  Sparkles,
+  X,
+  FileDown,
+  FileText,
+  ImageOff,
+  ZoomIn
+} from 'lucide-react';
 
 interface TicketCardProps {
   ticket: TicketDraw;
@@ -23,6 +34,22 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
     month: 'long',
     year: 'numeric',
   });
+
+  const hasReceipt = Boolean(ticket.receiptImageUrl && ticket.receiptImageUrl.trim().length > 0);
+  const isPdfReceipt = hasReceipt && ticket.receiptImageUrl.startsWith('data:application/pdf');
+
+  const betTypeLabel =
+    ticket.betType === 'MULTIPLE_5'
+      ? 'Múltiple 5 Números (44 apuestas)'
+      : ticket.betType === 'MULTIPLE_7'
+      ? 'Múltiple 7 Números (7 apuestas)'
+      : ticket.betType === 'MULTIPLE_8'
+      ? 'Múltiple 8 Números (28 apuestas)'
+      : ticket.betType === 'MULTIPLE_9'
+      ? 'Múltiple 9 Números (84 apuestas)'
+      : ticket.betType === 'MULTIPLE_10'
+      ? 'Múltiple 10 Números (210 apuestas)'
+      : `Combinación ${ticket.numbersPlayedCount} números`;
 
   return (
     <>
@@ -54,13 +81,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-4 border-b border-slate-200 text-base">
             <div>
               <span className="text-sm font-semibold text-slate-500 block">Tipo de Apuesta</span>
-              <span className="font-extrabold text-[#0A2540]">
-                {ticket.betType === 'MULTIPLE_5'
-                  ? 'Múltiple 5 Números (44 apuestas)'
-                  : ticket.betType === 'MULTIPLE_9'
-                  ? 'Múltiple 9 Números (84 apuestas)'
-                  : `Múltiple ${ticket.numbersPlayedCount} números`}
-              </span>
+              <span className="font-extrabold text-[#0A2540]">{betTypeLabel}</span>
             </div>
             <div className="sm:text-right">
               <span className="text-sm font-semibold text-slate-500 block">Socios Activos</span>
@@ -128,6 +149,57 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
             )}
           </div>
 
+          {/* Vista previa real del resguardo subido por el administrador */}
+          {hasReceipt && !isPdfReceipt && (
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="group relative w-full rounded-2xl border border-slate-200 bg-[#F4F6F9] p-3 text-left hover:border-[#0A2540] transition cursor-pointer"
+              title="Pulsa para ampliar el resguardo real"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-[#0A2540]">
+                  Resguardo Real Subido por Administración
+                </span>
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-[#FF6B00]">
+                  <ZoomIn className="w-3.5 h-3.5" />
+                  Ampliar
+                </span>
+              </div>
+              <div className="w-full max-h-56 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-2">
+                <img
+                  src={ticket.receiptImageUrl}
+                  alt={`Resguardo oficial Jornada ${ticket.jornadaNumber}`}
+                  className="max-h-52 w-auto max-w-full object-contain"
+                />
+              </div>
+            </button>
+          )}
+
+          {hasReceipt && isPdfReceipt && (
+            <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <FileText className="w-8 h-8 text-rose-600 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-sm font-extrabold text-[#0A2540] block">
+                    Resguardo PDF Oficial Adjunto
+                  </span>
+                  <span className="text-xs text-slate-600 block">
+                    Documento oficial validado por administración
+                  </span>
+                </div>
+              </div>
+              <a
+                href={ticket.receiptImageUrl}
+                download={`Resguardo_Ciclo${ticket.cycleNumber}_J${ticket.jornadaNumber}.pdf`}
+                className="inline-flex items-center gap-1.5 px-3.5 min-h-[42px] rounded-xl bg-[#0A2540] text-white text-sm font-bold shrink-0"
+              >
+                <FileDown className="w-4 h-4 text-[#FF6B00]" />
+                <span>PDF</span>
+              </a>
+            </div>
+          )}
+
           {/* Official Scrutiny Results if scrutinized */}
           {ticket.isScrutinized ? (
             <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-3">
@@ -184,20 +256,20 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
             className="w-full inline-flex items-center justify-center gap-2.5 min-h-[48px] px-4 rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-base font-bold text-white transition cursor-pointer shadow-xs"
           >
             <Eye className="w-5 h-5 text-[#FF6B00]" />
-            <span>Ver Resguardo Oficial Sellado</span>
+            <span>{hasReceipt ? 'Ver Resguardo Real Completo' : 'Ver Detalle del Resguardo'}</span>
           </button>
         </div>
       </article>
 
-      {/* Modal: Full Digital Receipt with SELAE Stamp */}
+      {/* Modal: Real Uploaded Official Receipt */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden">
+          <div className="relative w-full max-w-xl rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="bg-[#0A2540] px-5 py-4 text-white flex items-center justify-between">
+            <div className="bg-[#0A2540] px-5 py-4 text-white flex items-center justify-between shrink-0">
               <div>
                 <h3 className="font-serif font-black text-xl text-white">
-                  Resguardo Sellado Oficial
+                  Resguardo Oficial Sellado
                 </h3>
                 <p className="text-sm text-slate-300 font-medium tabular-nums">
                   Jornada {ticket.jornadaNumber}/10 · Ciclo {ticket.cycleNumber}
@@ -213,59 +285,67 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
               </button>
             </div>
 
-            {/* Receipt Digital Inspection Card */}
-            <div className="p-5 max-h-[75vh] overflow-y-auto space-y-4">
-              <div className="border-2 border-dashed border-slate-300 rounded-2xl p-5 bg-amber-50/40 font-mono text-sm sm:text-base text-slate-900 space-y-4 shadow-inner">
-                <div className="text-center pb-3 border-b border-slate-300 space-y-1">
-                  <div className="text-base sm:text-lg font-black tracking-wider text-[#0A2540]">
-                    LOTERÍAS Y APUESTAS DEL ESTADO
+            {/* Real Receipt Viewer */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              {hasReceipt ? (
+                isPdfReceipt ? (
+                  <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-6 text-center space-y-4">
+                    <FileText className="w-14 h-14 text-rose-600 mx-auto" />
+                    <div>
+                      <p className="text-lg font-extrabold text-[#0A2540]">
+                        Resguardo Oficial en PDF
+                      </p>
+                      <p className="text-sm text-slate-600 mt-1">
+                        Archivo oficial subido por la administración para la Jornada {ticket.jornadaNumber}.
+                      </p>
+                    </div>
+                    <a
+                      href={ticket.receiptImageUrl}
+                      download={`Resguardo_Ciclo${ticket.cycleNumber}_J${ticket.jornadaNumber}.pdf`}
+                      className="inline-flex items-center justify-center gap-2 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base"
+                    >
+                      <FileDown className="w-5 h-5" />
+                      <span>Descargar Resguardo PDF</span>
+                    </a>
                   </div>
-                  <div className="text-sm font-bold text-slate-700">
-                    LA PRIMITIVA · TERMINAL OFICIAL Nº 28.490
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-3 flex flex-col items-center">
+                    <img
+                      src={ticket.receiptImageUrl}
+                      alt={`Resguardo sellado Jornada ${ticket.jornadaNumber}`}
+                      className="w-full h-auto max-h-[60vh] object-contain rounded-xl bg-white shadow-xs"
+                    />
                   </div>
-                  <div className="text-sm text-slate-600">
-                    RECEPTOR MIXTO BURGOS / TORDUELES
-                  </div>
+                )
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-[#F4F6F9] p-6 text-center space-y-2">
+                  <ImageOff className="w-10 h-10 text-slate-400 mx-auto" />
+                  <p className="text-base font-bold text-[#0A2540]">
+                    Sin imagen adjunta del boleto todavía
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    Cuando el administrador suba la fotografía o captura del resguardo oficial, aparecerá aquí íntegramente para todos los socios.
+                  </p>
                 </div>
+              )}
 
-                <div className="flex flex-wrap justify-between gap-2 text-sm font-semibold tabular-nums">
-                  <span>SORTEO: {ticket.drawDate}</span>
-                  <span>HORA: 20:35:12</span>
-                </div>
-
-                <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2.5">
-                  <div className="flex justify-between font-bold text-[#0A2540] text-base">
-                    <span>APUESTA MÚLTIPLE</span>
-                    <span className="tabular-nums">{ticket.cost.toFixed(2)} €</span>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Combinación oficial jugada:
-                  </div>
-                  <div className="text-xl font-black text-[#0A2540] tracking-wider tabular-nums">
-                    {ticket.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join('  ')}
-                  </div>
-                  <div className="flex justify-between text-sm pt-2 border-t border-slate-100 font-semibold">
-                    <span>REINTEGRO: [{ticket.playedReintegro}]</span>
-                    <span>JOKER: SÍ (7 dígitos)</span>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex flex-col items-center gap-2">
-                  <div className="h-12 w-full bg-slate-900/10 rounded-lg flex items-center justify-center tracking-widest text-sm text-slate-700 font-bold overflow-hidden">
-                    |||||| | |||| |||||| |||| | |||||||| |||
-                  </div>
-                  <span className="text-xs sm:text-sm text-slate-600 font-semibold text-center">
-                    CONTROL CC-84920-SELAE-PRIMITIVA-TORDUELES
+              {/* Resumen verificado de la apuesta */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2 text-sm sm:text-base">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <span className="text-slate-600 font-semibold">Combinación jugada:</span>
+                  <span className="font-mono font-black text-[#0A2540] tabular-nums">
+                    {ticket.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(' · ')}
                   </span>
                 </div>
-
-                <div className="p-3.5 bg-[#0A2540]/5 border border-[#0A2540]/20 rounded-xl text-center text-[#0A2540]">
-                  <span className="text-sm font-extrabold uppercase tracking-wider block">
-                    Resguardo Custodiado y Validado
+                <div className="flex flex-wrap justify-between gap-2">
+                  <span className="text-slate-600 font-semibold">Reintegro / Importe:</span>
+                  <span className="font-bold text-[#0A2540] tabular-nums">
+                    [{ticket.playedReintegro}] · {ticket.cost.toFixed(2)} € ({ticket.activePlayersCount} socios)
                   </span>
-                  <span className="text-sm font-semibold text-slate-700">
-                    Peña La Primitiva Tordueles · {ticket.activePlayersCount} Socios Activos
-                  </span>
+                </div>
+                <div className="flex flex-wrap justify-between gap-2">
+                  <span className="text-slate-600 font-semibold">Fecha de sorteo:</span>
+                  <span className="font-bold text-[#0A2540] capitalize">{formattedDate}</span>
                 </div>
               </div>
 
@@ -282,11 +362,21 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
               )}
             </div>
 
-            <div className="bg-slate-50 px-5 py-4 border-t border-slate-200 flex justify-end">
+            <div className="bg-slate-50 px-5 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              {hasReceipt && !isPdfReceipt && (
+                <a
+                  href={ticket.receiptImageUrl}
+                  download={`Resguardo_Ciclo${ticket.cycleNumber}_J${ticket.jornadaNumber}.jpg`}
+                  className="inline-flex items-center justify-center gap-2 px-4 min-h-[48px] rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-[#0A2540] font-bold text-base transition"
+                >
+                  <FileDown className="w-5 h-5 text-[#FF6B00]" />
+                  <span>Guardar Imagen</span>
+                </a>
+              )}
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="w-full sm:w-auto px-6 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-base font-bold text-white transition cursor-pointer"
+                className="flex-1 sm:flex-none sm:ml-auto px-6 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-base font-bold text-white transition cursor-pointer"
               >
                 Cerrar Resguardo
               </button>

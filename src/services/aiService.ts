@@ -1,8 +1,8 @@
 /**
  * Servicio de Inteligencia Artificial para la Peña Primitiva Tordueles
- * Utiliza el capability MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API mediante el endpoint backend /api/extract-ticket
+ * Utiliza MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API mediante el endpoint backend /api/extract-ticket
  * para analizar imágenes o documentos PDF de boletos oficiales y extraer automáticamente
- * los números jugados y la jornada correspondiente.
+ * los números jugados, reintegro, coste y jornada correspondiente.
  */
 
 export interface ExtractedTicketData {
@@ -20,6 +20,54 @@ export interface TicketExtractionResponse {
   success: boolean;
   data?: ExtractedTicketData;
   error?: string;
+}
+
+/**
+ * Optimiza y redimensiona imágenes grandes del móvil para conservar nitidez OCR
+ * sin saturar el límite de almacenamiento local ni el envío al servidor.
+ */
+export async function optimizeTicketImageToDataUrl(
+  file: File,
+  maxDimension = 1400,
+  quality = 0.86
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada.'));
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (!file.type.startsWith('image/')) {
+        resolve(dataUrl);
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          const ratio = Math.min(maxDimension / width, maxDimension / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 /**
@@ -44,13 +92,7 @@ export async function fileToBase64(file: File | Blob): Promise<{ base64: string;
 
 /**
  * Procesa una imagen o PDF de un boleto mediante la API de Gemini
- * (vía endpoint backend seguro con MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API)
- * para extraer automáticamente los números jugados y la jornada, devolviendo un objeto JSON
- * para actualizar el estado de la aplicación.
- *
- * @param fileOrBase64 - Archivo File/Blob o string en base64 de la imagen/PDF del resguardo
- * @param customMimeType - Tipo MIME opcional si se pasa directamente un string base64
- * @returns Promesa con TicketExtractionResponse conteniendo { numbers, jornada, ... }
+ * (vía endpoint backend seguro /api/extract-ticket)
  */
 export async function processTicketWithAI(
   fileOrBase64: File | Blob | string,
@@ -91,8 +133,8 @@ export async function processTicketWithAI(
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
       const defaultMsg = response.status === 404
-        ? 'El endpoint backend de extracción con IA no está disponible en este servidor estático (GitHub Pages). Introduce los números manualmente o utiliza el servidor Node.js.'
-        : `Error en el servidor al procesar con IA (${response.status})`;
+        ? 'El servicio de lectura con IA no está disponible en alojamiento estático (como GitHub Pages). La imagen del resguardo sí se adjuntará para los jugadores; introduce la combinación manualmente abajo.'
+        : `Error en el servidor al analizar con IA (${response.status}).`;
       return {
         success: false,
         error: errJson.error || defaultMsg,
@@ -121,7 +163,4 @@ export async function processTicketWithAI(
   }
 }
 
-/**
- * Alias para compatibilidad de nomenclatura
- */
 export const extractTicketWithAI = processTicketWithAI;

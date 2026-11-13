@@ -40,7 +40,7 @@ export const pushNotificationService = {
       // Notificación de confirmación de suscripción exitosa
       this.sendNotification('🔔 Suscripción Activada - Peña Tordueles', {
         body: 'Has quedado suscrito a las alertas oficiales de los sorteos y resguardos sellados de La Primitiva.',
-        icon: '/pwa-192x192.png',
+        icon: './pwa-192x192.png',
       });
 
       return { success: true, token, permission };
@@ -56,9 +56,9 @@ export const pushNotificationService = {
 
     try {
       const defaultOptions: NotificationOptions = {
-        icon: '/pwa-192x192.png',
-        badge: '/icon.svg',
-        tag: 'primitiva-tordueles',
+        icon: './pwa-192x192.png',
+        badge: './pwa-192x192.png',
+        tag: `primitiva-tordueles-${Date.now()}`,
         ...options,
       };
 
@@ -75,12 +75,20 @@ export const pushNotificationService = {
     }
   },
 
+  sendCustomAlert(title: string, body: string): boolean {
+    return this.sendNotification(title, {
+      body,
+      icon: './pwa-192x192.png',
+      badge: './pwa-192x192.png',
+    });
+  },
+
   notifyTicketValidated(jornada: number, numbers: number[]): void {
     this.sendNotification(
       `🎟️ Boleto Sellado (Jornada ${jornada})`,
       {
         body: `El resguardo oficial ha sido validado a las 20:35h. Números jugados: ${numbers.join(', ')}. ¡Mucha suerte!`,
-        icon: '/pwa-192x192.png',
+        icon: './pwa-192x192.png',
       }
     );
   },
@@ -90,7 +98,7 @@ export const pushNotificationService = {
       `🏆 Escrutinio Finalizado (Jornada ${jornada})`,
       {
         body: `Aciertos: ${hits}. Premio obtenido: ${prize.toFixed(2)} €. Consulta el desglose completo en la app.`,
-        icon: '/pwa-192x192.png',
+        icon: './pwa-192x192.png',
       }
     );
   },
