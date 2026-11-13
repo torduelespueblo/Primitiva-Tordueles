@@ -1,7 +1,7 @@
 {
   "id": "./",
   "name": "Peña Primitiva Tordueles",
-  "short_name": "Tordueles",
+  "short_name": "Primitiva Tordueles",
   "description": "WebApp PWA oficial de la Peña de Lotería Primitiva Tordueles",
   "start_url": "./",
   "scope": "./",

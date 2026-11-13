@@ -59,15 +59,14 @@
     <!-- PWA Metaetiquetas e Iconos Oficiales -->
     <meta name="theme-color" content="#0A2540" />
     <meta name="msapplication-TileColor" content="#0A2540" />
-    <meta name="application-name" content="Peña Tordueles" />
+    <meta name="application-name" content="Primitiva Tordueles" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Tordueles" />
+    <meta name="apple-mobile-web-app-title" content="Primitiva Tordueles" />
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="./pwa-512x512.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
-    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="icon" href="./favicon.ico" />
 
     <meta property="og:title" content="Peña Primitiva Tordueles" />
@@ -152,21 +151,19 @@
         object-fit: contain;
         display: block;
         border: 0;
-        border-radius: 50%;
-        /* Difuminado radial sobre los bordes del logo para fusión invisible con #0A2540 */
+        filter: drop-shadow(0 0 28px rgba(10, 37, 64, 0.9));
+        /* Difuminado radial suave en el perímetro exterior para fusión invisible con #0A2540 */
         -webkit-mask-image: radial-gradient(
           circle at center,
-          rgba(0, 0, 0, 1) 54%,
-          rgba(0, 0, 0, 0.88) 68%,
-          rgba(0, 0, 0, 0.32) 84%,
-          rgba(0, 0, 0, 0) 98%
+          rgba(0, 0, 0, 1) 72%,
+          rgba(0, 0, 0, 0.94) 86%,
+          rgba(0, 0, 0, 0) 100%
         );
         mask-image: radial-gradient(
           circle at center,
-          rgba(0, 0, 0, 1) 54%,
-          rgba(0, 0, 0, 0.88) 68%,
-          rgba(0, 0, 0, 0.32) 84%,
-          rgba(0, 0, 0, 0) 98%
+          rgba(0, 0, 0, 1) 72%,
+          rgba(0, 0, 0, 0.94) 86%,
+          rgba(0, 0, 0, 0) 100%
         );
       }
 
@@ -187,7 +184,7 @@
     <div id="pwa-splash-screen" role="status" aria-live="polite" aria-label="Iniciando Peña Primitiva Tordueles">
       <div class="splash-logo-stage">
         <img
-          src="./pwa-maskable-512x512.png"
+          src="./splash-logo.png"
           alt="Logotipo oficial Peña Primitiva Tordueles"
           class="splash-logo-img"
           width="512"

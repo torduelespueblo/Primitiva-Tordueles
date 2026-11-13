@@ -14,11 +14,11 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         manifestFilename: 'manifest.json',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg', 'logo.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png', 'splash-logo.png', 'logo-navy.png'],
         manifest: {
           id: './',
           name: 'Peña Primitiva Tordueles',
-          short_name: 'Tordueles',
+          short_name: 'Primitiva Tordueles',
           description: 'WebApp PWA oficial de la Peña de Lotería Primitiva Tordueles',
           theme_color: '#0A2540',
           background_color: '#0A2540',
@@ -49,6 +49,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
           navigateFallback: 'index.html',
         },

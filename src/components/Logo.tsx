@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React from 'react';
 
 interface LogoProps {
   className?: string;
@@ -13,160 +13,17 @@ export const Logo: React.FC<LogoProps> = ({
   variant = 'full',
   theme = 'light',
 }) => {
-  const rawId = useId();
-  const arcId = `logoTopArc-${rawId.replace(/:/g, '')}`;
-
-  const isCompact = variant === 'icon-only';
   const effectiveTheme = variant === 'light' ? 'dark' : theme;
-  const outerColor = effectiveTheme === 'dark' ? '#FFFFFF' : '#0A2540';
-  const accentColor = '#FF6B00';
-
-  const viewBox = isCompact ? '134 144 332 332' : '68 58 464 422';
+  const src = effectiveTheme === 'dark' ? './splash-logo.png' : './logo-navy.png';
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox={viewBox}
+    <img
+      src={src}
+      alt="Logo Peña La Primitiva Tordueles"
       width={size}
       height={size}
-      className={`select-none shrink-0 bg-transparent ${className}`}
-      aria-label="Logo Peña La Primitiva Tordueles"
-    >
-      <defs>
-        <path id={arcId} d="M 95,280 A 205,205 0 0,1 505,280" fill="none" />
-      </defs>
-
-      <g id="official-emblem">
-        {!isCompact && (
-          <>
-            {/* Outer guide dashes */}
-            <path
-              d="M 100,240 A 208,208 0 0,1 110,210"
-              fill="none"
-              stroke={outerColor}
-              strokeWidth="4.5"
-              strokeLinecap="round"
-            />
-            <path
-              d="M 112,335 A 208,208 0 0,0 128,375"
-              fill="none"
-              stroke={outerColor}
-              strokeWidth="4.5"
-              strokeLinecap="round"
-            />
-            <path
-              d="M 490,210 A 208,208 0 0,1 500,240"
-              fill="none"
-              stroke={outerColor}
-              strokeWidth="4.5"
-              strokeLinecap="round"
-            />
-            <path
-              d="M 472,375 A 208,208 0 0,0 488,335"
-              fill="none"
-              stroke={outerColor}
-              strokeWidth="4.5"
-              strokeLinecap="round"
-            />
-
-            {/* Arched Text: PEÑA LA PRIMITIVA */}
-            <text
-              fill={outerColor}
-              fontFamily="'Playfair Display', 'Georgia', 'Times New Roman', serif"
-              fontWeight="900"
-              fontSize="35"
-              letterSpacing="8"
-            >
-              <textPath href={`#${arcId}`} startOffset="50%" textAnchor="middle">
-                PEÑA LA PRIMITIVA
-              </textPath>
-            </text>
-
-            {/* Left 4-Point Lucky Star */}
-            <g transform="translate(110, 298)">
-              <path
-                d="M 0,-18 Q 0,0 18,0 Q 0,0 0,18 Q 0,0 -18,0 Q 0,0 0,-18 Z"
-                fill={accentColor}
-              />
-              <line x1="-24" y1="0" x2="-19" y2="0" stroke={outerColor} strokeWidth="3" strokeLinecap="round" />
-              <line x1="19" y1="0" x2="24" y2="0" stroke={outerColor} strokeWidth="3" strokeLinecap="round" />
-              <line x1="0" y1="-24" x2="0" y2="-19" stroke={outerColor} strokeWidth="3" strokeLinecap="round" />
-              <line x1="0" y1="19" x2="0" y2="24" stroke={outerColor} strokeWidth="3" strokeLinecap="round" />
-            </g>
-
-            {/* Right Lottery Drum Sphere */}
-            <g transform="translate(490, 298)">
-              <circle cx="0" cy="0" r="18" fill="none" stroke={outerColor} strokeWidth="3.5" />
-              <circle cx="0" cy="0" r="6.5" fill="none" stroke={accentColor} strokeWidth="2.5" />
-              <circle cx="-10.5" cy="-7" r="3" fill={outerColor} />
-              <circle cx="10.5" cy="-7" r="3" fill={outerColor} />
-              <circle cx="-11" cy="7" r="3" fill={outerColor} />
-              <circle cx="11" cy="7" r="3" fill={outerColor} />
-              <circle cx="0" cy="12" r="3" fill={outerColor} />
-              <circle cx="0" cy="-12" r="3" fill={outerColor} />
-            </g>
-          </>
-        )}
-
-        {/* Main Solid Navy Circle */}
-        <circle
-          cx="300"
-          cy="310"
-          r="158"
-          fill="#0A2540"
-          stroke={effectiveTheme === 'dark' ? '#FFFFFF' : 'none'}
-          strokeWidth={effectiveTheme === 'dark' ? '3' : '0'}
-        />
-        {/* Inner Concentric White Ring */}
-        <circle cx="300" cy="310" r="145" fill="none" stroke="#ffffff" strokeWidth="5.5" />
-
-        {/* Ground Mound Silhouette */}
-        <path d="M 215,395 Q 300,370 385,395 Z" fill="#ffffff" opacity="0.16" />
-
-        <g fill="none" stroke="#ffffff" strokeWidth="9.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M 235,395 Q 275,390 286,345" />
-          <path d="M 365,395 Q 325,390 314,345" />
-
-          <path d="M 286,345 C 286,310 260,305 235,315 C 220,320 216,305 220,295 C 226,275 255,275 272,305 C 282,320 292,322 300,312" />
-          <path d="M 314,345 C 314,310 340,305 365,315 C 380,320 384,305 380,295 C 374,275 345,275 328,305 C 318,320 308,322 300,312" />
-
-          <path
-            d="M 230,295
-               C 215,285 210,250 228,230
-               C 238,218 255,212 272,216
-               C 285,195 320,192 342,208
-               C 358,210 375,222 376,238
-               C 390,252 388,276 375,295
-               C 365,310 355,322 342,322
-               C 328,322 320,315 315,310"
-          />
-
-          <path d="M 245,260 C 235,240 252,228 275,232" strokeWidth="6" />
-          <path d="M 355,260 C 365,240 348,228 328,232" strokeWidth="6" />
-          <path d="M 285,215 C 300,205 315,205 330,215" strokeWidth="6" />
-        </g>
-
-        {/* Backing Plate for Tordueles */}
-        <path
-          d="M 125,385 C 125,372 135,362 150,362 L 450,362 C 465,362 475,372 475,385 L 475,425 C 475,438 465,448 450,448 L 150,448 C 135,448 125,438 125,425 Z"
-          fill="#ffffff"
-          stroke={accentColor}
-          strokeWidth="4"
-        />
-
-        <text
-          x="300"
-          y="423"
-          fill="#0A2540"
-          fontFamily="'Playfair Display', 'Georgia', 'Times New Roman', serif"
-          fontWeight="900"
-          fontSize="62"
-          letterSpacing="-1"
-          textAnchor="middle"
-        >
-          Tordueles
-        </text>
-      </g>
-    </svg>
+      draggable={false}
+      className={`select-none shrink-0 object-contain bg-transparent ${className}`}
+    />
   );
 };
