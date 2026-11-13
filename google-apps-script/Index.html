@@ -362,7 +362,7 @@
             <div>
               <h2 class="section-title">Panel Maestro de Administración</h2>
               <p class="section-subtitle">
-                Gestión integral sin censura con DNI, Teléfono, IBAN, Estado de Pago y Saltos de Nivel.
+                Gestión integral desde la pestaña «Usuarios» dividida en Titulares, Suplentes (orden cronológico) y Bajas definitivas.
               </p>
             </div>
             <button type="button" class="btn-secondary" style="width: auto;" onclick="salirDeAdmin()">
@@ -380,6 +380,10 @@
               <span class="metric-value" id="adminSuplentesCount">0</span>
             </div>
             <div class="metric-cell">
+              <span class="metric-label">Bajas Definitivas</span>
+              <span class="metric-value" id="adminBajasCount">0</span>
+            </div>
+            <div class="metric-cell">
               <span class="metric-label">Pagos Confirmados</span>
               <span class="metric-value" id="adminPagadosCount">0</span>
             </div>
@@ -390,31 +394,154 @@
               Aprobar Salto de Nivel
             </button>
             <button type="button" class="btn-outline-navy" style="flex: 0 0 auto; width: auto; margin-top: 0;" onclick="recargarListaAdmin()">
-              Actualizar Tabla
+              Actualizar Listas
             </button>
           </div>
 
-          <div class="table-scroll-wrap" style="max-height: 440px;">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Fila</th>
-                  <th>Nombre y Apellidos</th>
-                  <th>DNI</th>
-                  <th>Teléfono</th>
-                  <th>IBAN</th>
-                  <th>Estado de Pago</th>
-                  <th>Condición</th>
-                </tr>
-              </thead>
-              <tbody id="adminPlayersBody">
-                <tr>
-                  <td colspan="7" style="text-align: center; padding: 22px; color: var(--text-muted);">
-                    Cargando datos administrativos...
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- TABLA 1: TITULARES -->
+          <div class="admin-table-section">
+            <div class="admin-group-header">
+              <h3 class="admin-group-title">1. Titulares</h3>
+              <span class="admin-group-badge tabular-nums" id="adminTitularesBadge">0</span>
+            </div>
+            <div class="table-scroll-wrap" style="max-height: 360px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Apellidos</th>
+                    <th>DNI</th>
+                    <th>Teléfono</th>
+                    <th>IBAN</th>
+                    <th>Estado de Pago</th>
+                  </tr>
+                </thead>
+                <tbody id="adminTitularesBody">
+                  <tr>
+                    <td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">
+                      Cargando titulares desde Usuarios...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TABLA 2: SUPLENTES (ORDENADOS ESTRICTAMENTE POR MARCA TEMPORAL) -->
+          <div class="admin-table-section">
+            <div class="admin-group-header">
+              <h3 class="admin-group-title">2. Suplentes (Orden Cronológico)</h3>
+              <span class="admin-group-badge suplente tabular-nums" id="adminSuplentesBadge">0</span>
+            </div>
+            <div class="table-scroll-wrap" style="max-height: 360px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Marca Temporal</th>
+                    <th>Nombre</th>
+                    <th>Apellidos</th>
+                    <th>DNI</th>
+                    <th>Teléfono</th>
+                    <th>IBAN</th>
+                    <th>Estado de Pago</th>
+                  </tr>
+                </thead>
+                <tbody id="adminSuplentesBody">
+                  <tr>
+                    <td colspan="7" style="text-align: center; padding: 20px; color: var(--text-muted);">
+                      Cargando suplentes desde Usuarios...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TABLA 3: BAJAS DEFINITIVAS -->
+          <div class="admin-table-section">
+            <div class="admin-group-header">
+              <h3 class="admin-group-title">3. Bajas definitivas</h3>
+              <span class="admin-group-badge baja tabular-nums" id="adminBajasBadge">0</span>
+            </div>
+            <div class="table-scroll-wrap" style="max-height: 300px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Apellidos</th>
+                    <th>DNI</th>
+                    <th>Teléfono</th>
+                    <th>IBAN</th>
+                    <th>Estado de Pago</th>
+                  </tr>
+                </thead>
+                <tbody id="adminBajasBody">
+                  <tr>
+                    <td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">
+                      No hay bajas definitivas registradas.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- BLOQUE VISUAL: ESCRUTINIO DEL CICLO Y REGISTRO MANUAL DE PREMIOS -->
+        <div class="card scrutiny-cycle-card">
+          <div class="scrutiny-header-row">
+            <div>
+              <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--navy-deep);">
+                Escrutinio del Ciclo
+              </h3>
+              <p style="font-size: 0.84rem; color: var(--text-muted); margin-top: 2px;" id="scrutinyMetaText">
+                Consultando sorteo actual, apuesta activa y combinación ganadora oficial...
+              </p>
+            </div>
+            <button type="button" class="btn-outline-navy" style="width: auto; margin-top: 0; min-height: 40px; padding: 8px 14px;" onclick="cargarEscrutinioDelCiclo()">
+              Actualizar Escrutinio
+            </button>
+          </div>
+
+          <div class="scrutiny-info-strip">
+            <div>
+              <span class="metric-label">Combinación Ganadora Oficial del Día</span>
+              <div class="balls-row" id="scrutinyWinningBalls" style="justify-content: flex-start; margin: 10px 0 4px 0;">
+                <span style="font-size: 0.86rem; color: var(--text-muted);">Cargando combinación ganadora...</span>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-muted);" id="scrutinyWinningExtra">-</p>
+            </div>
+
+            <div>
+              <span class="metric-label">Apuesta Activa de la Peña</span>
+              <div class="balls-row" id="scrutinyPenaBalls" style="justify-content: flex-start; margin: 10px 0 4px 0;">
+                <span style="font-size: 0.86rem; color: var(--text-muted);">Cargando apuesta activa...</span>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-muted);" id="scrutinyPenaExtra">-</p>
+            </div>
+          </div>
+
+          <div class="scrutiny-hits-banner" id="scrutinyHitsBanner">
+            <span id="scrutinyHitsText">Calculando aciertos del ciclo...</span>
+            <span id="scrutinySavedPrizeBadge" style="font-size: 0.84rem; color: var(--success-fg);"></span>
+          </div>
+
+          <div class="prize-manual-box">
+            <div style="flex: 1 1 220px;">
+              <label class="form-label" for="inputPremioManual">Importe Oficial del Premio (€)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                id="inputPremioManual"
+                class="input-control tabular-nums"
+                placeholder="0.00"
+                value=""
+              />
+            </div>
+            <button type="button" id="btnGuardarPremioManual" class="btn-primary" style="flex: 0 0 auto; width: auto; margin-top: 0; min-height: 48px;" onclick="guardarPremioManual()">
+              Guardar Premio
+            </button>
           </div>
         </div>
 

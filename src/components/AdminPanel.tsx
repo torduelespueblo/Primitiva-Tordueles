@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Player,
   WaitingListEntry,
   TicketDraw,
   SyndicateSettings,
   MultipleBetType,
-  PrizeHistoryEntry
+  PrizeHistoryEntry,
+  ScrutinyCycleResult
 } from '../types/lottery';
 import {
   calculateScrutiny
@@ -16,6 +17,12 @@ import { processTicketWithAI, optimizeTicketImageToDataUrl } from '../services/a
 import { fetchLiveDailyBulletinFromAppsScript } from '../services/lotteryDailyService';
 import { getPublicRegistrationShareUrl } from '../services/registrationService';
 import { capTicketsKeepingPlayed } from '../services/storage';
+import {
+  getNextPrimitivaDrawDate,
+  isTicketPublishedNow,
+  formatScheduledDateTimeLabel,
+  syncTicketWithAppsScript
+} from '../services/ticketPublishService';
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
 import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
@@ -42,7 +49,9 @@ import {
   Trash2,
   Megaphone,
   Wallet,
-  RotateCcw
+  RotateCcw,
+  CalendarClock,
+  Clock
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -56,6 +65,7 @@ interface AdminPanelProps {
   onUpdateTickets: (newTickets: TicketDraw[]) => void;
   prizeHistory: PrizeHistoryEntry[];
   onUpdatePrizeHistory: (entries: PrizeHistoryEntry[]) => void;
+  adminPassword?: string;
   onLogoutAdmin: () => void;
 }
 
@@ -70,6 +80,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateTickets,
   prizeHistory,
   onUpdatePrizeHistory,
+  adminPassword,
   onLogoutAdmin,
 }) => {
   const [activeSection, setActiveSection] = useState<
@@ -85,6 +96,137 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [copiedRegLink, setCopiedRegLink] = useState(false);
   const [confirmResetFund, setConfirmResetFund] = useState(false);
   const [resetFundFeedback, setResetFundFeedback] = useState<string | null>(null);
+
+  // Estados de gestión uncensored desde pestaña "Usuarios"
+  const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false);
+  const [adminUsersFeedback, setAdminUsersFeedback] = useState<string | null>(null);
+
+  // Estados de "Escrutinio del Ciclo" automático y premio manual
+  const [cycleScrutiny, setCycleScrutiny] = useState<ScrutinyCycleResult | null>(null);
+  const [isLoadingCycleScrutiny, setIsLoadingCycleScrutiny] = useState(false);
+  const [manualPrizeInput, setManualPrizeInput] = useState<string>('');
+  const [isSavingManualPrize, setIsSavingManualPrize] = useState(false);
+  const [manualPrizeFeedback, setManualPrizeFeedback] = useState<string | null>(null);
+
+  const getCleanGasUrl = useCallback(() => {
+    const raw = (settings.googleAppsScriptUrl || '').trim();
+    if (!raw) return '';
+    return raw.endsWith('/exe') ? `${raw}c` : raw;
+  }, [settings.googleAppsScriptUrl]);
+
+  const parseTimestampMs = (ts?: string, preMs?: number): number => {
+    if (typeof preMs === 'number' && !isNaN(preMs)) return preMs;
+    const str = String(ts || '').trim();
+    if (!str) return Number.MAX_SAFE_INTEGER;
+    const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/);
+    if (m) {
+      const ms = m[7] ? parseInt((m[7] + '000').slice(0, 3), 10) : 0;
+      return new Date(
+        parseInt(m[3], 10),
+        parseInt(m[2], 10) - 1,
+        parseInt(m[1], 10),
+        parseInt(m[4], 10),
+        parseInt(m[5], 10),
+        parseInt(m[6], 10),
+        ms
+      ).getTime();
+    }
+    const parsed = Date.parse(str);
+    return isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+  };
+
+  const fetchUncensoredAdminUsers = useCallback(async () => {
+    const endpoint = getCleanGasUrl();
+    const pass = (adminPassword || '').trim();
+    if (!endpoint || !pass) return;
+
+    setIsLoadingAdminUsers(true);
+    setAdminUsersFeedback(null);
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'adminJugadores', password: pass }),
+      });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.jugadores)) {
+        const mapped: Player[] = data.jugadores.map((j: Record<string, unknown>, idx: number) => {
+          const firstName = String(j.nombre || '').trim();
+          const lastName = String(j.apellidos || '').trim();
+          const rawEstado = String(j.estado || 'Suplente').trim().toUpperCase();
+          const status: Player['status'] =
+            rawEstado === 'TITULAR'
+              ? 'TITULAR'
+              : rawEstado.includes('BAJA')
+              ? 'BAJA'
+              : 'SUPLENTE';
+          const paid = String(j.pago || '').trim().toLowerCase() === 'pagado';
+          const ts = String(j.timestamp || '').trim();
+          const tsMs = typeof j.timestampMs === 'number' ? j.timestampMs : undefined;
+
+          return {
+            id: `sheet-row-${j.fila || idx + 2}`,
+            memberNumber: idx + 1,
+            name: `${firstName} ${lastName}`.trim(),
+            firstName,
+            lastName,
+            email: '',
+            phone: String(j.telefono || '').trim(),
+            dni: String(j.dni || '').trim(),
+            iban: String(j.iban || '').trim(),
+            sheetRow: typeof j.fila === 'number' ? j.fila : Number(j.fila) || undefined,
+            timestampMs: tsMs,
+            registrationTimestamp: ts,
+            status,
+            currentCyclePaid: paid,
+            paidUntilCycle: Number(j.ciclo) || settings.currentCycle,
+            renewalStatus: paid ? 'RENOVADO' : status === 'BAJA' ? 'EXCLUIDO' : 'PENDIENTE',
+          };
+        });
+        onUpdatePlayers(mapped);
+        setAdminUsersFeedback(`Sincronizado desde "Usuarios" (${mapped.length} registros).`);
+      } else {
+        setAdminUsersFeedback(data?.error || 'No se pudo autenticar la descarga de Usuarios.');
+      }
+    } catch {
+      setAdminUsersFeedback('No se pudo conectar con Google Apps Script para leer "Usuarios".');
+    } finally {
+      setIsLoadingAdminUsers(false);
+    }
+  }, [adminPassword, getCleanGasUrl, onUpdatePlayers, settings.currentCycle]);
+
+  const fetchCycleScrutiny = useCallback(async () => {
+    const endpoint = getCleanGasUrl();
+    if (!endpoint) return;
+    setIsLoadingCycleScrutiny(true);
+    try {
+      const url = new URL(endpoint);
+      url.searchParams.set('api', 'true');
+      url.searchParams.set('action', 'escrutinioCiclo');
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        setCycleScrutiny(data as ScrutinyCycleResult);
+      }
+    } catch {
+      setCycleScrutiny({
+        success: false,
+        consensoDisponible: false,
+        textoAciertos: 'No se pudo conectar con el motor de escrutinio automático.',
+      });
+    } finally {
+      setIsLoadingCycleScrutiny(false);
+    }
+  }, [getCleanGasUrl]);
+
+  useEffect(() => {
+    if (activeSection === 'USERS' && adminPassword) {
+      fetchUncensoredAdminUsers();
+    }
+    if (activeSection === 'SCRUTINY') {
+      fetchCycleScrutiny();
+    }
+  }, [activeSection, adminPassword, fetchUncensoredAdminUsers, fetchCycleScrutiny]);
 
   // Estados de Notificaciones Push Preprogramadas
   const [pushTitle, setPushTitle] = useState(
@@ -108,13 +250,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   });
 
-  // Formulario nuevo boleto
+  // Formulario nuevo boleto y programación para el día del sorteo
   const [newTicketJornada, setNewTicketJornada] = useState(settings.currentJornada);
   const [newTicketCost, setNewTicketCost] = useState(14);
   const [newTicketNumbers, setNewTicketNumbers] = useState('');
   const [newTicketReintegro, setNewTicketReintegro] = useState(0);
   const [newTicketImage, setNewTicketImage] = useState('');
+  const [newTicketDrawDate, setNewTicketDrawDate] = useState(() => getNextPrimitivaDrawDate());
+  const [newTicketPublishMode, setNewTicketPublishMode] = useState<'PROGRAMADO' | 'AHORA'>('PROGRAMADO');
+  const [newTicketPublishTime, setNewTicketPublishTime] = useState('20:35');
+  const [isSavingTicket, setIsSavingTicket] = useState(false);
   const [ticketSaveSuccess, setTicketSaveSuccess] = useState(false);
+  const [ticketSyncFeedback, setTicketSyncFeedback] = useState<string | null>(null);
 
   // Estados para escaneo de boleto mediante IA
   const [isScanningAI, setIsScanningAI] = useState(false);
@@ -243,16 +390,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleSaveTicket = () => {
+  const handleSaveTicket = async () => {
     const nums = newTicketNumbers
       .split(/[,;\s-]+/)
       .map(s => parseInt(s.trim(), 10))
       .filter(n => !isNaN(n) && n >= 1 && n <= 49);
 
     if (nums.length === 0) {
-      setScanError('Introduce al menos los números de la combinación jugada antes de publicar el resguardo.');
+      setScanError('Introduce al menos los números de la combinación jugada antes de guardar el resguardo.');
       return;
     }
+
+    const drawDateClean = newTicketDrawDate || getNextPrimitivaDrawDate();
+    const publishTimeClean = newTicketPublishTime || '20:35';
+    const publishAtIso = `${drawDateClean}T${publishTimeClean}`;
+    const publishAtDate = new Date(publishAtIso);
+    const shouldPublishImmediately =
+      newTicketPublishMode === 'AHORA' ||
+      isNaN(publishAtDate.getTime()) ||
+      publishAtDate.getTime() <= Date.now();
 
     const inferredBetType: MultipleBetType =
       nums.length === 5
@@ -267,16 +423,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         ? 'MULTIPLE_10'
         : 'COMBINADA';
 
+    const activePlayersCount = players.filter(p => p.status === 'TITULAR').length;
+
     const newTicket: TicketDraw = {
       id: `t-${Date.now()}`,
       cycleNumber: settings.currentCycle,
       jornadaNumber: newTicketJornada,
-      drawDate: new Date().toISOString().split('T')[0],
+      drawDate: drawDateClean,
       receiptImageUrl: newTicketImage,
       betType: inferredBetType,
       numbersPlayedCount: nums.length,
       cost: newTicketCost,
-      activePlayersCount: players.filter(p => p.status === 'TITULAR').length,
+      activePlayersCount,
       costPerPlayer: 1.0,
       playedNumbers: nums,
       playedReintegro: newTicketReintegro,
@@ -284,27 +442,103 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       isScrutinized: false,
       totalPrize: 0,
       prizeType: 'NINGUNO',
+      publishStatus: shouldPublishImmediately ? 'PUBLICADO' : 'PROGRAMADO',
+      publishAt: publishAtIso,
+      scheduledNotificationSent: shouldPublishImmediately,
     };
 
-    onUpdateTickets(capTicketsKeepingPlayed([newTicket, ...tickets]));
-    setTicketSaveSuccess(true);
+    setIsSavingTicket(true);
     setScanError(null);
+    setTicketSyncFeedback(null);
 
-    // Enviar notificación push
-    pushNotificationService.notifyTicketValidated(newTicketJornada, nums);
+    const syncRes = await syncTicketWithAppsScript(settings.googleAppsScriptUrl, {
+      id: newTicket.id,
+      ciclo: settings.currentCycle,
+      jornada: newTicketJornada,
+      fechaSorteo: drawDateClean,
+      horaPublicacion: publishTimeClean,
+      publicarAhora: shouldPublishImmediately,
+      combinacion: nums.map(n => (n < 10 ? `0${n}` : `${n}`)).join(', '),
+      reintegro: newTicketReintegro,
+      importe: newTicketCost,
+      jugadoresActivos: activePlayersCount,
+      imagenBase64: newTicketImage.startsWith('data:') ? newTicketImage : undefined,
+      imagenUrl: !newTicketImage.startsWith('data:') ? newTicketImage : undefined,
+      fileName: selectedFileName || `resguardo_j${newTicketJornada}_${drawDateClean}.jpg`,
+    });
 
-    // Enviar aviso y resguardo oficial sellado a WhatsApp mediante whatsappService
+    const ticketToStore: TicketDraw = {
+      ...newTicket,
+      receiptImageUrl: syncRes.driveImageUrl || newTicket.receiptImageUrl,
+    };
+
+    onUpdateTickets(capTicketsKeepingPlayed([ticketToStore, ...tickets]));
+    setIsSavingTicket(false);
+    setTicketSaveSuccess(true);
+
+    if (shouldPublishImmediately) {
+      pushNotificationService.notifyTicketValidated(newTicketJornada, nums);
+      if (settings.sendDrawDayTicketAt2035) {
+        whatsappService.sendTicketReceipt(
+          {
+            jornada: newTicketJornada,
+            cycle: settings.currentCycle,
+            numbers: nums,
+            reintegro: newTicketReintegro,
+            players: activePlayersCount,
+            cost: newTicketCost,
+            receiptImageUrl: ticketToStore.receiptImageUrl,
+            drawDate: drawDateClean,
+          },
+          {
+            instanceId: settings.greenApiInstanceId,
+            token: settings.greenApiToken,
+            chatId: settings.greenApiChatId,
+          }
+        );
+      }
+      setTicketSyncFeedback(
+        syncRes.synced
+          ? 'Resguardo publicado en la App, guardado en Drive/Sheets y notificado al grupo.'
+          : 'Resguardo publicado en este dispositivo y notificado (actualiza Apps Script si deseas respaldo automático en Sheets/Drive).'
+      );
+    } else {
+      const label = formatScheduledDateTimeLabel(publishAtIso, drawDateClean);
+      setTicketSyncFeedback(
+        syncRes.synced
+          ? `Programado para el ${label}. No se ha mostrado a los socios ni enviado avisos todavía; Apps Script lo publicará y enviará por WhatsApp ese día a las ${publishTimeClean} h.`
+          : `Programado localmente para el ${label} (oculto en «Mi Jugada» hasta esa hora). Nota: despliega la última versión de WebApp.gs / Code.gs en Apps Script para que el envío por WhatsApp a las ${publishTimeClean} h funcione aunque tengas la App cerrada.`
+      );
+    }
+
+    setTimeout(() => setTicketSaveSuccess(false), 4000);
+  };
+
+  const handlePublishScheduledNow = async (ticket: TicketDraw) => {
+    const updated = tickets.map(t =>
+      t.id === ticket.id
+        ? {
+            ...t,
+            publishStatus: 'PUBLICADO' as const,
+            publishAt: new Date().toISOString().slice(0, 16),
+            scheduledNotificationSent: true,
+          }
+        : t
+    );
+    onUpdateTickets(updated);
+
+    pushNotificationService.notifyTicketValidated(ticket.jornadaNumber, ticket.playedNumbers);
     if (settings.sendDrawDayTicketAt2035) {
-      whatsappService.sendTicketReceipt(
+      await whatsappService.sendTicketReceipt(
         {
-          jornada: newTicketJornada,
-          cycle: settings.currentCycle,
-          numbers: nums,
-          reintegro: newTicketReintegro,
-          players: newTicket.activePlayersCount,
-          cost: newTicket.cost,
-          receiptImageUrl: newTicket.receiptImageUrl,
-          drawDate: newTicket.drawDate,
+          jornada: ticket.jornadaNumber,
+          cycle: ticket.cycleNumber,
+          numbers: ticket.playedNumbers,
+          reintegro: ticket.playedReintegro,
+          players: ticket.activePlayersCount,
+          cost: ticket.cost,
+          receiptImageUrl: ticket.receiptImageUrl,
+          drawDate: ticket.drawDate,
         },
         {
           instanceId: settings.greenApiInstanceId,
@@ -313,8 +547,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         }
       );
     }
+    setTicketSyncFeedback(`Resguardo de la Jornada ${ticket.jornadaNumber} publicado y notificado ahora.`);
+  };
 
-    setTimeout(() => setTicketSaveSuccess(false), 3000);
+  const handleDeleteScheduledTicket = (ticketId: string) => {
+    onUpdateTickets(tickets.filter(t => t.id !== ticketId));
+    setTicketSyncFeedback('Boleto programado eliminado antes de su publicación.');
   };
 
   const handleResetPrizeFund = () => {
@@ -760,119 +998,223 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* SECTION 2: USERS & STATUS MANAGEMENT */}
-      {activeSection === 'USERS' && (
-        <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="font-extrabold text-xl text-[#0A2540]">
-                Gestión de Estados de Socios
-              </h2>
-              <p className="text-base text-slate-600 mt-0.5">
-                Modifica el estado (Titular, Suplente, Baja) y los pagos del ciclo vigente.
-              </p>
-            </div>
-            <span className="text-base font-bold text-[#0A2540] tabular-nums">
-              Total: {players.length}
-            </span>
-          </div>
+      {/* SECTION 2: USERS & STATUS MANAGEMENT (3 LISTAS SEPARADAS DESDE "USUARIOS") */}
+      {activeSection === 'USERS' && (() => {
+        const titulares = players.filter(p => p.status === 'TITULAR');
+        const suplentes = players
+          .filter(p => p.status === 'SUPLENTE')
+          .slice()
+          .sort((a, b) => parseTimestampMs(a.registrationTimestamp, a.timestampMs) - parseTimestampMs(b.registrationTimestamp, b.timestampMs));
+        const bajas = players.filter(p => p.status === 'BAJA');
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-base text-slate-800">
-              <thead className="bg-[#0A2540] text-white uppercase text-sm tracking-wider">
-                <tr>
-                  <th className="py-3.5 px-4">Socio</th>
-                  <th className="py-3.5 px-4">Nombre</th>
-                  <th className="py-3.5 px-4">Estado</th>
-                  <th className="py-3.5 px-4">Ciclo Pagado</th>
-                  <th className="py-3.5 px-4">Renovación</th>
-                  <th className="py-3.5 px-4">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {players.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="py-3.5 px-4 font-mono font-extrabold tabular-nums">#{p.memberNumber}</td>
-                    <td className="py-3.5 px-4 font-bold text-[#0A2540]">{p.name}</td>
-                    <td className="py-3.5 px-4">
-                      <select
-                        value={p.status}
-                        onChange={e => {
-                          const updated = players.map(item =>
-                            item.id === p.id ? { ...item, status: e.target.value as Player['status'] } : item
-                          );
-                          onUpdatePlayers(updated);
-                        }}
-                        className="rounded-xl border border-slate-300 px-3 min-h-[42px] text-sm sm:text-base font-bold bg-white"
-                      >
-                        <option value="TITULAR">TITULAR</option>
-                        <option value="SUPLENTE">SUPLENTE</option>
-                        <option value="BAJA">BAJA DEFINITIVA</option>
-                      </select>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = players.map(item =>
-                            item.id === p.id
-                              ? { ...item, currentCyclePaid: !item.currentCyclePaid }
-                              : item
-                          );
-                          onUpdatePlayers(updated);
-                        }}
-                        className={`px-3 min-h-[42px] rounded-xl text-sm sm:text-base font-bold cursor-pointer ${
-                          p.currentCyclePaid ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900'
-                        }`}
-                      >
-                        {p.currentCyclePaid ? 'SÍ (Pagado)' : 'NO (Pendiente)'}
-                      </button>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <select
-                        value={p.renewalStatus}
-                        onChange={e => {
-                          const updated = players.map(item =>
-                            item.id === p.id ? { ...item, renewalStatus: e.target.value as Player['renewalStatus'] } : item
-                          );
-                          onUpdatePlayers(updated);
-                        }}
-                        className="rounded-xl border border-slate-300 px-3 min-h-[42px] text-sm sm:text-base bg-white"
-                      >
-                        <option value="RENOVADO">RENOVADO (Cubierto)</option>
-                        <option value="PENDIENTE">PENDIENTE (Avisado)</option>
-                        <option value="URGENTE_EXPIRA">URGENTE EXPIRA (J9)</option>
-                        <option value="EXCLUIDO">EXCLUIDO (Baja)</option>
-                      </select>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = players.map(item =>
-                            item.id === p.id
-                              ? {
-                                  ...item,
-                                  renewalStatus: 'RENOVADO' as const,
-                                  currentCyclePaid: true,
-                                  paidUntilCycle: settings.currentCycle + 1,
-                                }
-                              : item
-                          );
-                          onUpdatePlayers(updated);
-                        }}
-                        className="text-sm sm:text-base font-bold text-[#FF6B00] hover:underline min-h-[42px] cursor-pointer"
-                      >
-                        Marcar 10 € Abonado
-                      </button>
-                    </td>
+        const handleTogglePayment = async (p: Player) => {
+          const nextPaid = !p.currentCyclePaid;
+          const updated = players.map(item =>
+            item.id === p.id
+              ? { ...item, currentCyclePaid: nextPaid, renewalStatus: nextPaid ? ('RENOVADO' as const) : ('PENDIENTE' as const) }
+              : item
+          );
+          onUpdatePlayers(updated);
+
+          const endpoint = getCleanGasUrl();
+          if (endpoint && adminPassword && p.sheetRow) {
+            try {
+              await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                  action: 'actualizarPagoAdmin',
+                  fila: p.sheetRow,
+                  nuevoEstado: nextPaid ? 'Pagado' : 'Pendiente',
+                  password: adminPassword,
+                }),
+              });
+            } catch {
+              // Silencioso; estado local ya actualizado
+            }
+          }
+        };
+
+        const handleChangeStatus = async (p: Player, newStatus: Player['status']) => {
+          const updated = players.map(item =>
+            item.id === p.id ? { ...item, status: newStatus } : item
+          );
+          onUpdatePlayers(updated);
+
+          const endpoint = getCleanGasUrl();
+          if (endpoint && adminPassword && p.sheetRow) {
+            try {
+              await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                  action: 'actualizarEstadoUsuarioAdmin',
+                  fila: p.sheetRow,
+                  nuevoEstado: newStatus === 'TITULAR' ? 'Titular' : newStatus === 'BAJA' ? 'Baja' : 'Suplente',
+                  password: adminPassword,
+                }),
+              });
+            } catch {
+              // Silencioso
+            }
+          }
+        };
+
+        const renderUserTable = (
+          title: string,
+          badgeClass: string,
+          list: Player[],
+          showTimestampCol: boolean,
+          emptyText: string
+        ) => (
+          <div className="space-y-3 pt-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-lg font-extrabold text-[#0A2540]">{title}</h3>
+              <span className={`px-3 py-1 rounded-full text-sm font-extrabold tabular-nums ${badgeClass}`}>
+                {list.length} {list.length === 1 ? 'registro' : 'registros'}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-sm sm:text-base text-slate-800">
+                <thead className="bg-[#0A2540] text-white uppercase text-xs sm:text-sm tracking-wider">
+                  <tr>
+                    {showTimestampCol && <th className="py-3.5 px-4">Marca Temporal</th>}
+                    <th className="py-3.5 px-4">Nombre</th>
+                    <th className="py-3.5 px-4">Apellidos</th>
+                    <th className="py-3.5 px-4">DNI</th>
+                    <th className="py-3.5 px-4">Teléfono</th>
+                    <th className="py-3.5 px-4">IBAN</th>
+                    <th className="py-3.5 px-4">Estado de Pago</th>
+                    <th className="py-3.5 px-4">Lista / Estado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {list.length === 0 ? (
+                    <tr>
+                      <td colSpan={showTimestampCol ? 8 : 7} className="py-6 px-4 text-center text-slate-500">
+                        {emptyText}
+                      </td>
+                    </tr>
+                  ) : (
+                    list.map(p => {
+                      const firstName = p.firstName || p.name.split(' ')[0] || p.name;
+                      const lastName = p.lastName ?? p.name.split(' ').slice(1).join(' ');
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50">
+                          {showTimestampCol && (
+                            <td className="py-3.5 px-4 font-mono text-xs sm:text-sm text-slate-600 tabular-nums whitespace-nowrap">
+                              {p.registrationTimestamp || '—'}
+                            </td>
+                          )}
+                          <td className="py-3.5 px-4 font-bold text-[#0A2540]">{firstName || '—'}</td>
+                          <td className="py-3.5 px-4 font-semibold text-slate-800">{lastName || '—'}</td>
+                          <td className="py-3.5 px-4 font-mono tabular-nums">{p.dni || '—'}</td>
+                          <td className="py-3.5 px-4 font-mono tabular-nums whitespace-nowrap">{p.phone || '—'}</td>
+                          <td className="py-3.5 px-4 font-mono text-xs sm:text-sm tabular-nums">{p.iban || '—'}</td>
+                          <td className="py-3.5 px-4">
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePayment(p)}
+                              className={`px-3 min-h-[40px] rounded-xl text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap ${
+                                p.currentCyclePaid ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900'
+                              }`}
+                            >
+                              {p.currentCyclePaid ? 'Pagado' : 'Pendiente'}
+                            </button>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <select
+                              value={p.status}
+                              onChange={e => handleChangeStatus(p, e.target.value as Player['status'])}
+                              className="rounded-xl border border-slate-300 px-2.5 min-h-[40px] text-xs sm:text-sm font-bold bg-white"
+                            >
+                              <option value="TITULAR">Titular</option>
+                              <option value="SUPLENTE">Suplente</option>
+                              <option value="BAJA">Baja definitiva</option>
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+
+        return (
+          <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="font-extrabold text-xl text-[#0A2540]">
+                  Gestión de Socios desde «Usuarios» (3 Listas Separadas)
+                </h2>
+                <p className="text-base text-slate-600 mt-0.5">
+                  Titulares, Suplentes (ordenados estrictamente por marca temporal) y Bajas definitivas con datos completos.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={fetchUncensoredAdminUsers}
+                  disabled={isLoadingAdminUsers}
+                  className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] disabled:opacity-60 text-white text-sm font-bold cursor-pointer"
+                >
+                  {isLoadingAdminUsers && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{isLoadingAdminUsers ? 'Sincronizando...' : 'Actualizar desde Usuarios'}</span>
+                </button>
+              </div>
+            </div>
+
+            {adminUsersFeedback && (
+              <div className="p-3 rounded-xl bg-[#F4F6F9] border border-slate-200 text-sm font-semibold text-[#0A2540]">
+                {adminUsersFeedback}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 tabular-nums">
+              <div className="p-4 rounded-2xl bg-[#F4F6F9] border border-slate-200">
+                <span className="text-xs font-bold uppercase text-slate-500 block">1. Titulares</span>
+                <span className="text-2xl font-black text-[#0A2540]">{titulares.length}</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-orange-50 border border-orange-200">
+                <span className="text-xs font-bold uppercase text-[#FF6B00] block">2. Suplentes (Cola)</span>
+                <span className="text-2xl font-black text-[#0A2540]">{suplentes.length}</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200">
+                <span className="text-xs font-bold uppercase text-rose-700 block">3. Bajas Definitivas</span>
+                <span className="text-2xl font-black text-rose-950">{bajas.length}</span>
+              </div>
+            </div>
+
+            {renderUserTable(
+              '1. Titulares',
+              'bg-blue-50 text-[#0A2540] border border-blue-200',
+              titulares,
+              false,
+              'No hay socios titulares registrados actualmente en la pestaña "Usuarios".'
+            )}
+
+            {renderUserTable(
+              '2. Suplentes (Ordenados por Marca Temporal)',
+              'bg-orange-50 text-[#FF6B00] border border-orange-200',
+              suplentes,
+              true,
+              'No hay suplentes en lista de espera actualmente en la pestaña "Usuarios".'
+            )}
+
+            {renderUserTable(
+              '3. Bajas definitivas',
+              'bg-rose-50 text-rose-800 border border-rose-200',
+              bajas,
+              false,
+              'No hay bajas definitivas registradas en la pestaña "Usuarios".'
+            )}
+          </div>
+        );
+      })()}
 
       {/* SECTION 3: TICKET UPLOAD */}
       {activeSection === 'TICKET_UPLOAD' && (
@@ -1007,6 +1349,71 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-[#0A2540] block mb-1.5">Fecha del Sorteo:</label>
+                  <input
+                    type="date"
+                    value={newTicketDrawDate}
+                    onChange={e => setNewTicketDrawDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-[#0A2540] block mb-1.5">Hora de Publicación:</label>
+                  <input
+                    type="time"
+                    value={newTicketPublishTime}
+                    disabled={newTicketPublishMode === 'AHORA'}
+                    onChange={e => setNewTicketPublishTime(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540] disabled:bg-slate-100 disabled:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-4 space-y-2.5">
+                <span className="font-bold text-[#0A2540] text-sm uppercase tracking-wider block">
+                  Momento de publicación y envío de avisos
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setNewTicketPublishMode('PROGRAMADO')}
+                    className={`p-3 rounded-xl border-2 text-left transition cursor-pointer ${
+                      newTicketPublishMode === 'PROGRAMADO'
+                        ? 'border-[#FF6B00] bg-orange-50 text-[#0A2540]'
+                        : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                  >
+                    <span className="font-extrabold text-sm flex items-center gap-1.5">
+                      <CalendarClock className="w-4 h-4 text-[#FF6B00] shrink-0" />
+                      Programar al día del sorteo
+                    </span>
+                    <span className="text-xs text-slate-600 block mt-1">
+                      Se guarda oculto y se publica + envía por WhatsApp el día elegido ({newTicketPublishTime} h).
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewTicketPublishMode('AHORA')}
+                    className={`p-3 rounded-xl border-2 text-left transition cursor-pointer ${
+                      newTicketPublishMode === 'AHORA'
+                        ? 'border-[#0A2540] bg-slate-100 text-[#0A2540]'
+                        : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                  >
+                    <span className="font-extrabold text-sm flex items-center gap-1.5">
+                      <Send className="w-4 h-4 text-[#0A2540] shrink-0" />
+                      Publicar y avisar ahora
+                    </span>
+                    <span className="text-xs text-slate-600 block mt-1">
+                      Visible al instante en «Mi Jugada» y envía WhatsApp + Push ahora mismo.
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="font-bold text-[#0A2540] block mb-1.5">URL o Imagen del Resguardo:</label>
                 <input
@@ -1023,18 +1430,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <button
                 type="button"
+                disabled={isSavingTicket}
                 onClick={handleSaveTicket}
-                className="w-full min-h-[50px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-xs transition cursor-pointer"
+                className="w-full min-h-[50px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] disabled:opacity-60 text-white font-bold text-base shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
               >
-                {ticketSaveSuccess ? '¡Resguardo Guardado y Notificado!' : 'Publicar Resguardo Sellado'}
+                {isSavingTicket ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Guardando y sincronizando...</span>
+                  </>
+                ) : ticketSaveSuccess ? (
+                  <span>
+                    {newTicketPublishMode === 'PROGRAMADO'
+                      ? '¡Resguardo Programado Correctamente!'
+                      : '¡Resguardo Publicado y Notificado!'}
+                  </span>
+                ) : (
+                  <span>
+                    {newTicketPublishMode === 'PROGRAMADO'
+                      ? `Programar Resguardo para el ${newTicketDrawDate} (${newTicketPublishTime} h)`
+                      : 'Publicar y Notificar Resguardo Ahora'}
+                  </span>
+                )}
               </button>
+
+              {ticketSyncFeedback && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-950 font-semibold leading-relaxed">
+                  {ticketSyncFeedback}
+                </div>
+              )}
             </div>
 
             <div className="border border-slate-200 rounded-2xl p-5 bg-[#F4F6F9] flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-2.5">
                   <span className="text-sm font-bold text-slate-600 uppercase">
-                    Vista Previa del Resguardo (Visible para Socios)
+                    Vista Previa del Resguardo (Visible al publicarse)
                   </span>
                   {newTicketImage && (
                     <button
@@ -1077,12 +1508,72 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
 
               <div className="mt-4 p-4 bg-white rounded-xl border border-slate-200 text-base space-y-1.5">
-                <div><strong>Jornada:</strong> {newTicketJornada}/10</div>
+                <div><strong>Jornada:</strong> {newTicketJornada}/10 · <strong>Sorteo:</strong> {newTicketDrawDate}</div>
                 <div><strong>Combinación:</strong> {newTicketNumbers || 'Pendiente de introducir'}</div>
                 <div><strong>Reintegro:</strong> [{newTicketReintegro}] · <strong>Coste:</strong> {newTicketCost.toFixed(2)} €</div>
+                <div className="text-sm text-[#FF6B00] font-bold flex items-center gap-1.5 pt-1">
+                  <Clock className="w-4 h-4 shrink-0" />
+                  <span>
+                    {newTicketPublishMode === 'PROGRAMADO'
+                      ? `Publicación programada: ${newTicketDrawDate} a las ${newTicketPublishTime} h`
+                      : 'Publicación inmediata al guardar'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Boletos Programados (solo visibles para el Administrador hasta el día del sorteo) */}
+          {(() => {
+            const scheduledTickets = tickets.filter(t => !t.isScrutinized && !isTicketPublishedNow(t));
+            if (scheduledTickets.length === 0) return null;
+            return (
+              <div className="rounded-2xl border-2 border-amber-300 bg-amber-50/70 p-4 sm:p-5 space-y-3">
+                <div className="flex items-center gap-2 text-[#0A2540]">
+                  <CalendarClock className="w-5 h-5 text-[#FF6B00] shrink-0" />
+                  <h3 className="font-extrabold text-base sm:text-lg">
+                    Resguardos Programados Pendientes de Publicar ({scheduledTickets.length})
+                  </h3>
+                </div>
+                <p className="text-sm text-slate-700">
+                  Los socios todavía no ven estos boletos ni han recibido avisos. Se publicarán automáticamente en la fecha y hora indicadas.
+                </p>
+                <div className="space-y-2.5">
+                  {scheduledTickets.map(st => (
+                    <div
+                      key={st.id}
+                      className="rounded-xl bg-white border border-amber-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-extrabold text-[#0A2540] text-sm sm:text-base">
+                          Jornada {st.jornadaNumber}/10 · {formatScheduledDateTimeLabel(st.publishAt, st.drawDate)}
+                        </div>
+                        <div className="text-sm font-mono text-slate-700">
+                          [{st.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(', ')}] · R: {st.playedReintegro} · {st.cost.toFixed(2)} €
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handlePublishScheduledNow(st)}
+                          className="px-3.5 min-h-[40px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white text-xs sm:text-sm font-bold cursor-pointer"
+                        >
+                          Publicar y Notificar Ahora
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteScheduledTicket(st.id)}
+                          className="px-3 min-h-[40px] rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs sm:text-sm font-bold cursor-pointer"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1399,14 +1890,225 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         />
       )}
 
-      {/* SECTION 4: SCRUTINY SIMULATOR */}
+      {/* SECTION 4: ESCRUTINIO DEL CICLO AUTOMÁTICO Y SCRUTINY */}
       {activeSection === 'SCRUTINY' && (
-        <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-5">
-          <div>
-            <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
-              <Trophy className="w-6 h-6 text-[#FF6B00]" />
-              Escrutinio Oficial SELAE &amp; Cálculo de Aciertos
-            </h2>
+        <div className="space-y-6">
+          {/* Bloque Visual: Escrutinio del Ciclo (Auto-poblado desde Apps Script + Guardar Premio manual) */}
+          <div className="rounded-3xl bg-white border-2 border-[#FF6B00]/30 p-5 sm:p-7 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="font-extrabold text-xl sm:text-2xl text-[#0A2540] flex items-center gap-2.5">
+                  <Trophy className="w-6 h-6 text-[#FF6B00]" />
+                  Escrutinio del Ciclo
+                </h2>
+                <p className="text-sm sm:text-base text-slate-600 mt-1">
+                  {cycleScrutiny
+                    ? `${cycleScrutiny.nombreSorteo || 'La Primitiva'} · Fecha: ${cycleScrutiny.fechaSorteo || '-'} · Ciclo ${cycleScrutiny.ciclo || settings.currentCycle} (Jornada ${cycleScrutiny.jornada || settings.currentJornada})`
+                    : 'Cruce automático entre la apuesta activa de la peña y la combinación oficial por consenso.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchCycleScrutiny}
+                disabled={isLoadingCycleScrutiny}
+                className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] disabled:opacity-60 text-white text-sm font-bold cursor-pointer shrink-0"
+              >
+                {isLoadingCycleScrutiny && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isLoadingCycleScrutiny ? 'Consultando...' : 'Actualizar Escrutinio'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-2.5">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
+                  Combinación Ganadora del Día
+                </span>
+                {cycleScrutiny?.consensoDisponible && cycleScrutiny.combinacionGanadora?.length === 6 ? (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {cycleScrutiny.combinacionGanadora.map(n => (
+                        <span
+                          key={n}
+                          className="w-10 h-10 rounded-full bg-[#0A2540] border-2 border-[#FF6B00] text-white font-mono font-extrabold text-base flex items-center justify-center tabular-nums"
+                        >
+                          {n < 10 ? `0${n}` : n}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-sm text-slate-600 font-semibold">
+                      Comp: {cycleScrutiny.complementario ?? '-'} · Reintegro: {cycleScrutiny.reintegroGanador ?? '-'}
+                      {cycleScrutiny.fuentesConsenso?.length ? ` (${cycleScrutiny.fuentesConsenso.join(' + ')})` : ''}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm sm:text-base font-semibold text-slate-600 py-2">
+                    {cycleScrutiny?.mensajeConsenso || 'Pendiente de combinación ganadora oficial por consenso.'}
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-2.5">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
+                  Apuesta Activa de la Peña
+                </span>
+                {cycleScrutiny?.apuestaPena && cycleScrutiny.apuestaPena.length > 0 ? (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {cycleScrutiny.apuestaPena.map(n => {
+                        const isHit = cycleScrutiny.aciertosNumeros?.includes(n);
+                        return (
+                          <span
+                            key={n}
+                            className={`w-10 h-10 rounded-full border-2 font-mono font-extrabold text-base flex items-center justify-center tabular-nums ${
+                              isHit
+                                ? 'bg-emerald-700 border-emerald-400 text-white'
+                                : 'bg-white border-slate-300 text-[#0A2540]'
+                            }`}
+                          >
+                            {n < 10 ? `0${n}` : n}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <p className="text-sm text-slate-600 font-semibold">
+                      Reintegro jugado: {cycleScrutiny.reintegroJugado ?? 'N/A'} · Origen: {cycleScrutiny.origenApuesta || 'Sheets'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm sm:text-base text-slate-600 py-2">
+                    No hay apuesta activa cargada en «Apuestas Activas» ni «Sorteos».
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-blue-50 border border-blue-200 px-4 py-3.5 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-base sm:text-lg font-extrabold text-[#0A2540]">
+                {cycleScrutiny?.textoAciertos || 'Calculando aciertos del ciclo...'}
+              </span>
+              {cycleScrutiny?.premioGuardado !== null && cycleScrutiny?.premioGuardado !== undefined && (
+                <span className="text-sm font-extrabold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-lg tabular-nums">
+                  Premio en BD: {Number(cycleScrutiny.premioGuardado).toFixed(2)} €
+                </span>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="flex-1">
+                <label className="font-bold text-[#0A2540] block mb-1.5 text-sm sm:text-base">
+                  Importe Oficial del Premio (€):
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={manualPrizeInput}
+                  onChange={e => {
+                    setManualPrizeInput(e.target.value);
+                    setManualPrizeFeedback(null);
+                  }}
+                  placeholder="0.00"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[48px] font-mono text-lg font-bold text-[#0A2540] tabular-nums"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={isSavingManualPrize}
+                onClick={async () => {
+                  const raw = manualPrizeInput.trim();
+                  if (!raw) {
+                    setManualPrizeFeedback('Introduce el importe oficial del premio en euros.');
+                    return;
+                  }
+                  const cantidad = parseFloat(raw.replace(',', '.'));
+                  if (isNaN(cantidad) || cantidad < 0) {
+                    setManualPrizeFeedback('Introduce un importe numérico válido (>= 0).');
+                    return;
+                  }
+                  setIsSavingManualPrize(true);
+                  setManualPrizeFeedback(null);
+
+                  const endpoint = getCleanGasUrl();
+                  let backendBolsa: number | null = null;
+                  let syncedBackend = false;
+
+                  if (endpoint && adminPassword) {
+                    try {
+                      const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                          action: 'guardarPremioManual',
+                          password: adminPassword,
+                          cantidad,
+                          datos: cycleScrutiny,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (data && data.success) {
+                        syncedBackend = true;
+                        if (typeof data.bolsaPremios === 'number' && !isNaN(data.bolsaPremios)) {
+                          backendBolsa = data.bolsaPremios;
+                        }
+                      }
+                    } catch {
+                      // Fallback al estado local
+                    }
+                  }
+
+                  onUpdateSettings({
+                    ...settings,
+                    prizeFundBalance:
+                      backendBolsa !== null
+                        ? backendBolsa
+                        : settings.prizeFundBalance + cantidad,
+                  });
+
+                  if (cantidad > 0) {
+                    const entryId = `manual-prize-${cycleScrutiny?.fechaSorteo || Date.now()}`;
+                    const entry: PrizeHistoryEntry = {
+                      id: entryId,
+                      ticketId: `cycle-${cycleScrutiny?.ciclo || settings.currentCycle}-j${cycleScrutiny?.jornada || settings.currentJornada}`,
+                      cycleNumber: cycleScrutiny?.ciclo || settings.currentCycle,
+                      jornadaNumber: cycleScrutiny?.jornada || settings.currentJornada,
+                      drawDate: cycleScrutiny?.fechaSorteo || new Date().toISOString().slice(0, 10),
+                      hitsCount: cycleScrutiny?.cantidadAciertos ?? 0,
+                      hasReintegro: Boolean(cycleScrutiny?.reintegroAcertado),
+                      prizeCategory: cycleScrutiny?.textoAciertos || 'Premio Oficial SELAE',
+                      prizeAmount: cantidad,
+                      prizeType: cantidad > 2000 ? 'MAYOR_BANCO' : 'MENOR_BOLSA',
+                    };
+                    onUpdatePrizeHistory([entry, ...prizeHistory.filter(p => p.id !== entryId)]);
+                  }
+
+                  setIsSavingManualPrize(false);
+                  setManualPrizeInput('');
+                  setManualPrizeFeedback(
+                    syncedBackend
+                      ? `¡Premio de ${cantidad.toFixed(2)} € guardado en Google Sheets y acreditado!`
+                      : `Premio de ${cantidad.toFixed(2)} € registrado localmente.`
+                  );
+                }}
+                className="px-6 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] disabled:opacity-60 text-white font-bold text-base shadow-xs transition cursor-pointer inline-flex items-center justify-center gap-2 shrink-0"
+              >
+                {isSavingManualPrize && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Guardar Premio</span>
+              </button>
+            </div>
+
+            {manualPrizeFeedback && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm sm:text-base font-bold text-emerald-950">
+                {manualPrizeFeedback}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-5">
+            <div>
+              <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
+                <Trophy className="w-6 h-6 text-[#FF6B00]" />
+                Escrutinio Oficial SELAE &amp; Cálculo de Aciertos
+              </h2>
             <p className="text-base text-slate-600 mt-1">
               Introduce la combinación ganadora oficial para calcular aciertos y repartir según el Art. 5.
             </p>
@@ -1537,6 +2239,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               )}
             </div>
           </div>
+        </div>
         </div>
       )}
 

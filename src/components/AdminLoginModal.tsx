@@ -4,7 +4,7 @@ import { Lock, X, AlertCircle, Loader2 } from 'lucide-react';
 interface AdminLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (pin: string) => void;
   correctPin: string;
   googleAppsScriptUrl?: string;
 }
@@ -40,7 +40,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
     if (enteredPin === correctPin) {
       setError(false);
-      onSuccess();
+      onSuccess(enteredPin);
       onClose();
       return;
     }
@@ -58,7 +58,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         if (data && data.success === true) {
           setError(false);
           setIsVerifying(false);
-          onSuccess();
+          onSuccess(enteredPin);
           onClose();
           return;
         }

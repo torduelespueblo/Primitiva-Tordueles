@@ -132,49 +132,57 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
       {/* TAB 1: MEMBERS (Solo Nombre y Fecha de inscripción) */}
       {activeTab === 'MEMBERS' && (
         <div className="space-y-4">
-          {/* Mobile Card View (< md) */}
-          <div className="md:hidden space-y-3">
-            {activePlayers.map((player) => (
-              <div
-                key={player.id}
-                className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 shadow-xs space-y-2"
-              >
-                <h3 className="text-lg font-extrabold text-[#0A2540]">
-                  {player.name}
-                </h3>
-                <div className="flex items-center gap-2 text-sm sm:text-base font-mono text-slate-600 tabular-nums">
-                  <Calendar className="w-4 h-4 text-[#FF6B00] shrink-0" />
-                  <span>Alta: {formatTimestampWithCentiseconds(player.registrationTimestamp)}</span>
+          {activePlayers.length === 0 ? (
+            <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-base text-slate-600">
+              No hay socios titulares registrados actualmente en la pestaña «Usuarios».
+            </div>
+          ) : (
+            <>
+              {/* Mobile Card View (< md) */}
+              <div className="md:hidden space-y-3">
+                {activePlayers.map((player) => (
+                  <div
+                    key={player.id}
+                    className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 shadow-xs space-y-2"
+                  >
+                    <h3 className="text-lg font-extrabold text-[#0A2540]">
+                      {player.name}
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm sm:text-base font-mono text-slate-600 tabular-nums">
+                      <Calendar className="w-4 h-4 text-[#FF6B00] shrink-0" />
+                      <span>Alta: {formatTimestampWithCentiseconds(player.registrationTimestamp)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View (>= md) */}
+              <div className="hidden md:block rounded-3xl bg-white border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-base text-slate-800">
+                    <thead className="bg-[#0A2540] text-white uppercase text-sm tracking-wider">
+                      <tr>
+                        <th className="py-4 px-6">Nombre y Apellidos</th>
+                        <th className="py-4 px-6">Fecha de Inscripción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {activePlayers.map((player) => (
+                        <tr key={player.id} className="hover:bg-slate-50 transition">
+                          <td className="py-4 px-6 font-bold text-[#0A2540]">
+                            {player.name}
+                          </td>
+                          <td className="py-4 px-6 text-slate-600 font-mono text-base tabular-nums">
+                            {formatTimestampWithCentiseconds(player.registrationTimestamp)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Desktop Table View (>= md) */}
-          <div className="hidden md:block rounded-3xl bg-white border border-slate-200 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-base text-slate-800">
-                <thead className="bg-[#0A2540] text-white uppercase text-sm tracking-wider">
-                  <tr>
-                    <th className="py-4 px-6">Nombre y Apellidos</th>
-                    <th className="py-4 px-6">Fecha de Inscripción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {activePlayers.map((player) => (
-                    <tr key={player.id} className="hover:bg-slate-50 transition">
-                      <td className="py-4 px-6 font-bold text-[#0A2540]">
-                        {player.name}
-                      </td>
-                      <td className="py-4 px-6 text-slate-600 font-mono text-base tabular-nums">
-                        {formatTimestampWithCentiseconds(player.registrationTimestamp)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
 

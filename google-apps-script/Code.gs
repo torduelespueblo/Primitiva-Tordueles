@@ -29,6 +29,7 @@ var PROYECTO_CONFIG = {
   SHEET_SORTEOS: 'Sorteos',
   SHEET_TESORERIA: 'Tesorería',
   SHEET_CONFIGURACION: 'Configuracion',
+  SHEET_APUESTAS_ACTIVAS: 'Apuestas Activas',
 
   COLOR_HEADER_NAVY: '#0A2540',
   COLOR_HEADER_TEXT: '#FFFFFF',
@@ -77,6 +78,7 @@ function inicializarProyectoCompleto() {
   configurarPestanaSorteos(spreadsheet);
   configurarPestanaTesoreria(spreadsheet);
   configurarPestanaConfiguracion(spreadsheet);
+  configurarPestanaApuestasActivas(spreadsheet);
   eliminarHojasSobrantes(spreadsheet);
 
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', spreadsheet.getId());
@@ -221,6 +223,36 @@ function configurarPestanaConfiguracion(ss) {
     .setAllowInvalid(false)
     .build();
   sheet.getRange('A2:B2').setDataValidation(reglaSiNo);
+
+  sheet.autoResizeColumns(1, headers.length);
+  return sheet;
+}
+
+function configurarPestanaApuestasActivas(ss) {
+  var sheet = ss.getSheetByName(PROYECTO_CONFIG.SHEET_APUESTAS_ACTIVAS) || ss.insertSheet(PROYECTO_CONFIG.SHEET_APUESTAS_ACTIVAS);
+  sheet.clear();
+
+  var headers = [
+    'Día / Sorteo',
+    'Fecha Sorteo',
+    'Ciclo',
+    'Jornada',
+    'Combinación Jugada',
+    'Reintegro Jugado',
+    'Activa'
+  ];
+
+  var headerRange = sheet.getRange(1, 1, 1, headers.length);
+  headerRange.setValues([headers]);
+  aplicarEstiloEncabezado(headerRange);
+  sheet.setFrozenRows(1);
+
+  sheet.getRange('B2:B50').setNumberFormat('yyyy-mm-dd');
+  var reglaActiva = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['SÍ', 'NO'], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange('G2:G50').setDataValidation(reglaActiva);
 
   sheet.autoResizeColumns(1, headers.length);
   return sheet;
@@ -415,27 +447,105 @@ function enviarBoletoWhatsApp() {
     return;
   }
 
+  var ahora = new Date();
+  var hoyYMD = Utilities.formatDate(ahora, PROYECTO_CONFIG.TIMEZONE, 'yyyy-MM-dd');
   var lastRow = sheetSorteos.getLastRow();
-  var fila = sheetSorteos.getRange(lastRow, 1, 1, 10).getValues()[0];
+  var numCols = Math.max(16, sheetSorteos.getLastColumn());
+  var rows = sheetSorteos.getRange(2, 1, lastRow - 1, numCols).getValues();
+  var enviados = 0;
+
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var rowNum = i + 2;
+    var combinacion = String(r[5] || '').trim();
+    if (!combinacion) continue;
+
+    var fechaVal = r[1];
+    var fechaYMD = fechaVal instanceof Date
+      ? Utilities.formatDate(fechaVal, PROYECTO_CONFIG.TIMEZONE, 'yyyy-MM-dd')
+      : normalizarFechaAYMD(String(fechaVal || ''));
+
+    var whatsappEnviado = String(r[12] || '').trim().toUpperCase();
+    var estadoPub = String(r[10] || '').trim().toUpperCase();
+
+    // Solo publicar y enviar si la fecha del sorteo coincide con HOY y no se ha enviado aún
+    if (fechaYMD === hoyYMD && whatsappEnviado !== 'SÍ' && whatsappEnviado !== 'SI') {
+      enviarBoletoDeFilaPorWhatsApp(sheetSorteos, rowNum);
+      sheetSorteos.getRange(rowNum, 11).setValue('PUBLICADO');
+      sheetSorteos.getRange(rowNum, 13).setValue('SÍ');
+      enviados++;
+    } else if (estadoPub === 'PROGRAMADO') {
+      Logger.log('Boleto fila ' + rowNum + ' programado para ' + fechaYMD + ' (hoy es ' + hoyYMD + '). En espera.');
+    }
+  }
+
+  Logger.log('Revisión 20:35 completada. Boletos publicados/enviados hoy: ' + enviados);
+}
+
+function normalizarFechaAYMD(fechaTexto) {
+  var s = String(fechaTexto || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return m[3] + '-' + m[2] + '-' + m[1];
+  return s;
+}
+
+function enviarBoletoDeFilaPorWhatsApp(sheetSorteos, rowNum) {
+  var numCols = Math.max(16, sheetSorteos.getLastColumn());
+  var fila = sheetSorteos.getRange(rowNum, 1, 1, numCols).getValues()[0];
   var jornada = fila[0];
   var fecha = fila[1] instanceof Date
     ? Utilities.formatDate(fila[1], PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy')
     : String(fila[1] || '');
-  var fotoUrl = fila[3];
-  var combinacion = fila[5];
+  var fotoUrl = String(fila[3] || '').trim();
   var importe = fila[4];
+  var combinacion = String(fila[5] || '').trim();
+  var ciclo = fila[13] || 1;
+  var reintegro = (fila[14] !== '' && fila[14] !== undefined) ? fila[14] : 0;
+  var jugadores = fila[15] || 14;
 
   if (!combinacion) return;
 
-  var mensaje = '🌲 *RESGUARDO OFICIAL SELLADO - PEÑA LA PRIMITIVA TORDUELES* 🌲\n\n' +
-    '📅 *Fecha:* ' + fecha + '\n' +
-    '🎯 *Jornada:* ' + jornada + ' / 10\n' +
-    '🔢 *Combinación Jugada:* ' + combinacion + '\n' +
-    '💶 *Importe Total:* ' + importe + ' €\n\n' +
-    '📸 *Ver imagen del resguardo:* ' + (fotoUrl || 'Publicado en la WebApp oficial') + '\n\n' +
-    '¡Mucha suerte a todos los socios!';
+  var mensaje = '🌲 *PEÑA LA PRIMITIVA TORDUELES* 🌲\n' +
+    '📅 *Jornada ' + jornada + '/10 (Ciclo ' + ciclo + ') · Sorteo ' + fecha + '*\n' +
+    '⏰ *Publicación oficial: 20:35 h*\n\n' +
+    '🎟️ *Resguardo Sellado Oficial Validado:*\n' +
+    '• Jugadores Activos: ' + jugadores + ' socios (1€/semana)\n' +
+    '• Importe Jugado: ' + importe + ' €\n' +
+    '• Combinación Jugada: ' + combinacion + '\n' +
+    '• Reintegro: [ ' + reintegro + ' ]\n\n' +
+    '🍀 *¡Mucha suerte a todos los socios de Tordueles!*\n' +
+    '📱 Consulta el resguardo oficial completo en la WebApp.';
+
+  if (fotoUrl && fotoUrl.indexOf('http') === 0) {
+    var enviadoConFoto = enviarImagenGreenApi(fotoUrl, 'resguardo_jornada_' + jornada + '.jpg', mensaje);
+    if (enviadoConFoto) return;
+  }
 
   enviarMensajeGreenApi(mensaje);
+}
+
+/**
+ * Configura el disparador diario a las 20:35 CET para publicar y enviar por WhatsApp
+ * únicamente los boletos cuya fecha de sorteo coincida con el día actual.
+ */
+function configurarTriggerBoletos2035() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'enviarBoletoWhatsApp') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+
+  var trigger2035 = ScriptApp.newTrigger('enviarBoletoWhatsApp')
+    .timeBased()
+    .everyDays(1)
+    .atHour(20)
+    .nearMinute(35)
+    .create();
+
+  Logger.log('Disparador diario 20:35 CET para boletos programados instalado. ID: ' + trigger2035.getUniqueId());
+  return trigger2035;
 }
 
 // ============================================================================
@@ -1500,6 +1610,32 @@ function enviarMensajeGreenApi(mensaje) {
   }
 }
 
+function enviarImagenGreenApi(fileUrl, fileName, caption) {
+  if (!fileUrl) return false;
+  var url = 'https://api.green-api.com/waInstance' + PROYECTO_CONFIG.GREEN_API_INSTANCE_ID + '/sendFileByUrl/' + PROYECTO_CONFIG.GREEN_API_TOKEN;
+  var payload = {
+    chatId: PROYECTO_CONFIG.GREEN_API_CHAT_ID,
+    urlFile: fileUrl,
+    fileName: fileName || 'resguardo.jpg',
+    caption: caption || ''
+  };
+
+  try {
+    var response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    var code = response.getResponseCode();
+    Logger.log('Respuesta Green API sendFileByUrl (' + code + '): ' + response.getContentText());
+    return code >= 200 && code < 300;
+  } catch (e) {
+    Logger.log('Error al enviar imagen por Green API: ' + e.message);
+    return false;
+  }
+}
+
 // ============================================================================
 // 6. UTILIDADES AUXILIARES DE DRIVE & SHEETS
 // ============================================================================
@@ -1551,15 +1687,497 @@ function eliminarHojasSobrantes(ss) {
     PROYECTO_CONFIG.SHEET_USUARIOS,
     PROYECTO_CONFIG.SHEET_SORTEOS,
     PROYECTO_CONFIG.SHEET_TESORERIA,
-    PROYECTO_CONFIG.SHEET_CONFIGURACION
+    PROYECTO_CONFIG.SHEET_CONFIGURACION,
+    PROYECTO_CONFIG.SHEET_APUESTAS_ACTIVAS
   ];
 
   for (var i = 0; i < hojas.length; i++) {
     var hoja = hojas[i];
-    if (nombresValidos.indexOf(hoja.getName()) === -1 && hojas.length > 4) {
+    if (nombresValidos.indexOf(hoja.getName()) === -1 && hojas.length > 5) {
       try {
         ss.deleteSheet(hoja);
       } catch (e) {}
     }
+  }
+}
+
+// ============================================================================
+// 7. MOTOR DE ESCRUTINIO AUTOMÁTICO Y PREMIOS DEL CICLO
+// ============================================================================
+
+/**
+ * Consulta el motor de consenso oficial para una fecha concreta sin enviar
+ * alertas de email/WhatsApp (ideal para lectura en vivo del Panel de Admin).
+ */
+function obtenerConsensoSilenciosoPrimitiva(fechaOpcional) {
+  var fecha = fechaOpcional || new Date();
+  var candidatos = [];
+  var errores = [];
+
+  try {
+    var fSelae = consultarSELAEJson('LAPR', fecha);
+    if (fSelae) candidatos.push(fSelae);
+  } catch (e1) {
+    errores.push('SELAE: ' + e1.message);
+  }
+
+  try {
+    var fPrensa = consultarFuentePrensa(fecha);
+    if (fPrensa) candidatos.push(fPrensa);
+  } catch (e2) {
+    errores.push('Prensa: ' + e2.message);
+  }
+
+  try {
+    var fRtve = consultarFuenteRTVE(fecha);
+    if (fRtve) candidatos.push(fRtve);
+  } catch (e3) {
+    errores.push('RTVE: ' + e3.message);
+  }
+
+  if (candidatos.length >= 2) {
+    for (var a = 0; a < candidatos.length; a++) {
+      for (var b = a + 1; b < candidatos.length; b++) {
+        var cmp = compararResultadosConsenso(candidatos[a], candidatos[b]);
+        if (cmp.coincide100 && cmp.datosConsensuados) {
+          return {
+            consenso: true,
+            datos: cmp.datosConsensuados,
+            errores: errores
+          };
+        }
+      }
+    }
+    return {
+      consenso: false,
+      datos: null,
+      mensaje: 'Discrepancia detectada entre las fuentes oficiales consultadas.',
+      errores: errores
+    };
+  }
+
+  return {
+    consenso: false,
+    datos: null,
+    mensaje: candidatos.length === 1
+      ? 'Solo 1 fuente oficial publicada; a la espera de segunda fuente de consenso.'
+      : 'Resultados oficiales aún no publicados para esta fecha.',
+    errores: errores
+  };
+}
+
+/**
+ * Normaliza una cadena o listado de números a un array ordenado de enteros (1..49).
+ */
+function parsearCombinacionEnteros(valor) {
+  if (!valor && valor !== 0) return [];
+  var partes = Array.isArray(valor)
+    ? valor
+    : String(valor).split(/[,;\s\-·]+/);
+  var limpios = [];
+  for (var i = 0; i < partes.length; i++) {
+    var n = parseInt(String(partes[i]).trim(), 10);
+    if (!isNaN(n) && n >= 1 && n <= 49 && limpios.indexOf(n) === -1) {
+      limpios.push(n);
+    }
+  }
+  limpios.sort(function(a, b) { return a - b; });
+  return limpios;
+}
+
+/**
+ * Determina el sorteo del día actual y la apuesta que juega la peña leyendo de
+ * la pestaña 'Apuestas Activas' (y en su defecto del sorteo activo en 'Sorteos').
+ */
+function determinarSorteoYApuestaActiva(ss, fechaRef) {
+  var ahora = fechaRef || new Date();
+  var zona = PROYECTO_CONFIG.TIMEZONE || 'Europe/Madrid';
+  var hoyYMD = Utilities.formatDate(ahora, zona, 'yyyy-MM-dd');
+  var diaIdx = ahora.getDay();
+  var diasNombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  var nombreDiaHoy = diasNombres[diaIdx];
+  var esDiaPrimitiva = (diaIdx === 1 || diaIdx === 4 || diaIdx === 6);
+
+  var info = {
+    esDiaDeSorteo: esDiaPrimitiva,
+    nombreSorteo: 'La Primitiva · ' + nombreDiaHoy,
+    fechaSorteo: hoyYMD,
+    ciclo: 1,
+    jornada: 1,
+    apuestaNumeros: [],
+    reintegroJugado: null,
+    origenApuesta: 'SIN_APUESTA',
+    filaSorteos: null
+  };
+
+  // 1. Buscar en pestaña 'Apuestas Activas'
+  var sheetApuestas = ss.getSheetByName(PROYECTO_CONFIG.SHEET_APUESTAS_ACTIVAS || 'Apuestas Activas');
+  if (!sheetApuestas) {
+    try {
+      sheetApuestas = configurarPestanaApuestasActivas(ss);
+    } catch (eCreate) {}
+  }
+
+  if (sheetApuestas && sheetApuestas.getLastRow() >= 2) {
+    var numRowsA = sheetApuestas.getLastRow() - 1;
+    var rowsA = sheetApuestas.getRange(2, 1, numRowsA, 7).getValues();
+    var candidataCoincidente = null;
+    var candidataActiva = null;
+
+    for (var i = rowsA.length - 1; i >= 0; i--) {
+      var rA = rowsA[i];
+      var combA = parsearCombinacionEnteros(rA[4]);
+      if (combA.length === 0) continue;
+
+      var activaFlag = String(rA[6] || 'SÍ').trim().toUpperCase();
+      if (activaFlag === 'NO') continue;
+
+      var fechaRawA = rA[1];
+      var fechaYMDA = (fechaRawA instanceof Date)
+        ? Utilities.formatDate(fechaRawA, zona, 'yyyy-MM-dd')
+        : normalizarFechaAYMD(String(fechaRawA || ''));
+
+      var diaTextoA = String(rA[0] || '').trim().toLowerCase();
+      var reintRawA = rA[5];
+      var reintValA = (reintRawA !== '' && reintRawA !== null && reintRawA !== undefined && !isNaN(parseInt(reintRawA, 10)))
+        ? parseInt(reintRawA, 10)
+        : null;
+
+      var itemA = {
+        nombreSorteo: String(rA[0] || ('La Primitiva · ' + nombreDiaHoy)).trim(),
+        fechaSorteo: fechaYMDA || hoyYMD,
+        ciclo: parseInt(rA[2], 10) || 1,
+        jornada: parseInt(rA[3], 10) || 1,
+        apuestaNumeros: combA,
+        reintegroJugado: reintValA
+      };
+
+      if (fechaYMDA === hoyYMD || (diaTextoA && diaTextoA.indexOf(nombreDiaHoy.toLowerCase()) !== -1)) {
+        candidataCoincidente = itemA;
+        break;
+      }
+      if (!candidataActiva) {
+        candidataActiva = itemA;
+      }
+    }
+
+    var elegidaA = candidataCoincidente || candidataActiva;
+    if (elegidaA) {
+      info.nombreSorteo = elegidaA.nombreSorteo;
+      info.fechaSorteo = elegidaA.fechaSorteo;
+      info.ciclo = elegidaA.ciclo;
+      info.jornada = elegidaA.jornada;
+      info.apuestaNumeros = elegidaA.apuestaNumeros;
+      info.reintegroJugado = elegidaA.reintegroJugado;
+      info.origenApuesta = 'Apuestas Activas';
+    }
+  }
+
+  // 2. Complementar o tomar respaldo desde la pestaña 'Sorteos' (apuesta activa / pendiente / última)
+  var sheetSorteos = ss.getSheetByName(PROYECTO_CONFIG.SHEET_SORTEOS || 'Sorteos');
+  if (sheetSorteos && sheetSorteos.getLastRow() >= 2) {
+    var lastRowS = sheetSorteos.getLastRow();
+    var numColsS = Math.max(16, sheetSorteos.getLastColumn());
+    var rowsS = sheetSorteos.getRange(2, 1, lastRowS - 1, numColsS).getValues();
+
+    var filaCoincidenteS = null;
+    var filaPendienteS = null;
+    var filaUltimaConApuestaS = null;
+
+    for (var s = rowsS.length - 1; s >= 0; s--) {
+      var rS = rowsS[s];
+      var combJugadaS = parsearCombinacionEnteros(rS[5]);
+      if (combJugadaS.length === 0) continue;
+
+      var fechaS = (rS[1] instanceof Date)
+        ? Utilities.formatDate(rS[1], zona, 'yyyy-MM-dd')
+        : normalizarFechaAYMD(String(rS[1] || ''));
+
+      var metaS = {
+        rowNum: s + 2,
+        jornada: parseInt(rS[0], 10) || (s + 1),
+        fechaSorteo: fechaS || hoyYMD,
+        ciclo: parseInt(rS[13], 10) || 1,
+        apuestaNumeros: combJugadaS,
+        reintegroJugado: (rS[14] !== '' && rS[14] !== null && rS[14] !== undefined && !isNaN(parseInt(rS[14], 10)))
+          ? parseInt(rS[14], 10)
+          : null,
+        combinacionGanadoraGuardada: parsearCombinacionEnteros(rS[6]),
+        premioGuardado: (rS[8] !== '' && rS[8] !== null && rS[8] !== undefined && !isNaN(parseFloat(rS[8])))
+          ? parseFloat(rS[8])
+          : null
+      };
+
+      if (fechaS === info.fechaSorteo || fechaS === hoyYMD) {
+        filaCoincidenteS = metaS;
+        break;
+      }
+      if (!filaPendienteS && metaS.combinacionGanadoraGuardada.length === 0) {
+        filaPendienteS = metaS;
+      }
+      if (!filaUltimaConApuestaS) {
+        filaUltimaConApuestaS = metaS;
+      }
+    }
+
+    var elegidaS = filaCoincidenteS || filaPendienteS || filaUltimaConApuestaS;
+    if (elegidaS) {
+      info.filaSorteos = elegidaS.rowNum;
+      info.premioGuardado = elegidaS.premioGuardado;
+      info.combinacionGanadoraGuardada = elegidaS.combinacionGanadoraGuardada;
+      if (info.apuestaNumeros.length === 0) {
+        info.fechaSorteo = elegidaS.fechaSorteo;
+        info.ciclo = elegidaS.ciclo;
+        info.jornada = elegidaS.jornada;
+        info.apuestaNumeros = elegidaS.apuestaNumeros;
+        info.reintegroJugado = elegidaS.reintegroJugado;
+        info.origenApuesta = 'Sorteos';
+      }
+    }
+  }
+
+  return info;
+}
+
+/**
+ * Calcula los aciertos exactos comparando la apuesta de la peña contra la combinación ganadora.
+ */
+function calcularAciertosCombinacion(apuestaNumeros, reintegroJugado, combinacionGanadora, complementario, reintegroGanador) {
+  var aciertosNumeros = [];
+  var apuesta = parsearCombinacionEnteros(apuestaNumeros);
+  var ganadora = parsearCombinacionEnteros(combinacionGanadora);
+
+  for (var i = 0; i < apuesta.length; i++) {
+    if (ganadora.indexOf(apuesta[i]) !== -1) {
+      aciertosNumeros.push(apuesta[i]);
+    }
+  }
+
+  var compNum = (complementario !== null && complementario !== undefined && !isNaN(parseInt(complementario, 10)))
+    ? parseInt(complementario, 10)
+    : null;
+  var reintGanNum = (reintegroGanador !== null && reintegroGanador !== undefined && !isNaN(parseInt(reintegroGanador, 10)))
+    ? parseInt(reintegroGanador, 10)
+    : null;
+  var reintJugNum = (reintegroJugado !== null && reintegroJugado !== undefined && !isNaN(parseInt(reintegroJugado, 10)))
+    ? parseInt(reintegroJugado, 10)
+    : null;
+
+  var complementarioAcertado = (compNum !== null && apuesta.indexOf(compNum) !== -1);
+  var reintegroAcertado = (reintJugNum !== null && reintGanNum !== null && reintJugNum === reintGanNum);
+
+  var nCount = aciertosNumeros.length;
+  var textoAciertos = 'Aciertos: ' + nCount + (nCount === 1 ? ' número' : ' números');
+  if (complementarioAcertado) {
+    textoAciertos += ' + Complementario';
+  }
+  if (reintegroAcertado) {
+    textoAciertos += ' + Reintegro';
+  }
+
+  return {
+    aciertosNumeros: aciertosNumeros,
+    cantidadAciertos: nCount,
+    complementarioAcertado: complementarioAcertado,
+    reintegroAcertado: reintegroAcertado,
+    textoAciertos: textoAciertos
+  };
+}
+
+/**
+ * Motor de Escrutinio Automático del Ciclo (JSON estructurado).
+ * Determina el sorteo del día + apuesta activa de la peña, consulta la combinación
+ * ganadora mediante el motor de consenso oficial y calcula los aciertos exactos.
+ */
+function ejecutarEscrutinioAutomatico() {
+  try {
+    var ss = obtenerSpreadsheetConfigurado();
+    var ahora = new Date();
+    var contexto = determinarSorteoYApuestaActiva(ss, ahora);
+
+    var fechaConsulta = ahora;
+    if (contexto.fechaSorteo && /^\d{4}-\d{2}-\d{2}$/.test(contexto.fechaSorteo)) {
+      var partesFecha = contexto.fechaSorteo.split('-');
+      fechaConsulta = new Date(
+        parseInt(partesFecha[0], 10),
+        parseInt(partesFecha[1], 10) - 1,
+        parseInt(partesFecha[2], 10),
+        22,
+        0,
+        0
+      );
+    }
+
+    var resConsenso = obtenerConsensoSilenciosoPrimitiva(fechaConsulta);
+    if (!resConsenso.consenso && contexto.fechaSorteo !== Utilities.formatDate(ahora, PROYECTO_CONFIG.TIMEZONE || 'Europe/Madrid', 'yyyy-MM-dd')) {
+      var resHoy = obtenerConsensoSilenciosoPrimitiva(ahora);
+      if (resHoy.consenso) {
+        resConsenso = resHoy;
+      }
+    }
+
+    var combinacionGanadora = [];
+    var complementario = null;
+    var reintegroGanador = null;
+    var fuentesConsenso = [];
+    var fechaResultado = contexto.fechaSorteo;
+    var consensoDisponible = false;
+    var mensajeConsenso = resConsenso.mensaje || '';
+
+    if (resConsenso.consenso && resConsenso.datos && resConsenso.datos.combinacion && resConsenso.datos.combinacion.length === 6) {
+      consensoDisponible = true;
+      combinacionGanadora = resConsenso.datos.combinacion.slice().sort(function(a, b) { return a - b; });
+      complementario = resConsenso.datos.complementario;
+      reintegroGanador = resConsenso.datos.reintegro;
+      fuentesConsenso = resConsenso.datos.fuentes || [];
+      fechaResultado = resConsenso.datos.fecha || contexto.fechaSorteo;
+    }
+
+    var calculo = {
+      aciertosNumeros: [],
+      cantidadAciertos: 0,
+      complementarioAcertado: false,
+      reintegroAcertado: false,
+      textoAciertos: consensoDisponible
+        ? (contexto.apuestaNumeros.length > 0 ? 'Aciertos: 0 números' : 'Sin apuesta activa registrada en la peña')
+        : 'Pendiente de combinación ganadora oficial por consenso'
+    };
+
+    if (consensoDisponible && contexto.apuestaNumeros.length > 0) {
+      calculo = calcularAciertosCombinacion(
+        contexto.apuestaNumeros,
+        contexto.reintegroJugado,
+        combinacionGanadora,
+        complementario,
+        reintegroGanador
+      );
+    }
+
+    return {
+      success: true,
+      esDiaDeSorteo: contexto.esDiaDeSorteo,
+      nombreSorteo: contexto.nombreSorteo,
+      fechaSorteo: contexto.fechaSorteo,
+      fechaResultado: fechaResultado,
+      ciclo: contexto.ciclo,
+      jornada: contexto.jornada,
+      origenApuesta: contexto.origenApuesta,
+      apuestaPena: contexto.apuestaNumeros,
+      reintegroJugado: contexto.reintegroJugado,
+      consensoDisponible: consensoDisponible,
+      mensajeConsenso: mensajeConsenso,
+      fuentesConsenso: fuentesConsenso,
+      combinacionGanadora: combinacionGanadora,
+      complementario: complementario,
+      reintegroGanador: reintegroGanador,
+      aciertosNumeros: calculo.aciertosNumeros,
+      cantidadAciertos: calculo.cantidadAciertos,
+      complementarioAcertado: calculo.complementarioAcertado,
+      reintegroAcertado: calculo.reintegroAcertado,
+      textoAciertos: calculo.textoAciertos,
+      filaSorteos: contexto.filaSorteos,
+      premioGuardado: contexto.premioGuardado !== undefined ? contexto.premioGuardado : null
+    };
+  } catch (err) {
+    return {
+      success: false,
+      consensoDisponible: false,
+      textoAciertos: 'Error al calcular escrutinio automático',
+      message: err.message
+    };
+  }
+}
+
+/**
+ * Registra manualmente el importe oficial del premio en euros en la hoja 'Sorteos'
+ * (y actualiza automáticamente la fórmula de 'Tesorería').
+ */
+function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
+  try {
+    if (cantidad === null || cantidad === undefined || String(cantidad).trim() === '') {
+      return { success: false, message: 'Introduce un importe numérico válido en euros.' };
+    }
+
+    var normalizado = String(cantidad).trim().replace(',', '.');
+    var importe = parseFloat(normalizado);
+    if (isNaN(importe) || importe < 0) {
+      return { success: false, message: 'El importe del premio debe ser un número mayor o igual a 0.' };
+    }
+    importe = Math.round(importe * 100) / 100;
+
+    var ss = obtenerSpreadsheetConfigurado();
+    var sheetSorteos = ss.getSheetByName(PROYECTO_CONFIG.SHEET_SORTEOS || 'Sorteos');
+    if (!sheetSorteos) {
+      sheetSorteos = configurarPestanaSorteos(ss);
+    }
+
+    var escrutinioActual = null;
+    try {
+      escrutinioActual = ejecutarEscrutinioAutomatico();
+    } catch (eEsc) {}
+
+    var filaObjetivo = (datosOpcionales && datosOpcionales.filaSorteos)
+      ? parseInt(datosOpcionales.filaSorteos, 10)
+      : (escrutinioActual && escrutinioActual.filaSorteos ? parseInt(escrutinioActual.filaSorteos, 10) : null);
+
+    if (!filaObjetivo || isNaN(filaObjetivo) || filaObjetivo < 2) {
+      if (sheetSorteos.getLastRow() >= 2) {
+        filaObjetivo = sheetSorteos.getLastRow();
+      } else {
+        filaObjetivo = 2;
+        var zona = PROYECTO_CONFIG.TIMEZONE || 'Europe/Madrid';
+        var fechaDefault = (escrutinioActual && escrutinioActual.fechaSorteo) || Utilities.formatDate(new Date(), zona, 'yyyy-MM-dd');
+        sheetSorteos.getRange(filaObjetivo, 1).setValue((escrutinioActual && escrutinioActual.jornada) || 1);
+        sheetSorteos.getRange(filaObjetivo, 2).setNumberFormat('@').setValue(fechaDefault);
+        sheetSorteos.getRange(filaObjetivo, 3).setValue('Resguardo J' + ((escrutinioActual && escrutinioActual.jornada) || 1));
+        if (escrutinioActual && escrutinioActual.apuestaPena && escrutinioActual.apuestaPena.length > 0) {
+          sheetSorteos.getRange(filaObjetivo, 6).setValue(escrutinioActual.apuestaPena.join(', '));
+        }
+      }
+    }
+
+    // Si hay combinación ganadora y aciertos detectados automáticamente, asegurarlos en columnas G y H
+    var combGanadoraGuardar = (datosOpcionales && Array.isArray(datosOpcionales.combinacionGanadora) && datosOpcionales.combinacionGanadora.length === 6)
+      ? datosOpcionales.combinacionGanadora
+      : (escrutinioActual && escrutinioActual.combinacionGanadora && escrutinioActual.combinacionGanadora.length === 6 ? escrutinioActual.combinacionGanadora : null);
+
+    if (combGanadoraGuardar) {
+      sheetSorteos.getRange(filaObjetivo, 7).setValue(combGanadoraGuardar.join(', '));
+    }
+
+    var aciertosGuardar = (datosOpcionales && typeof datosOpcionales.cantidadAciertos === 'number')
+      ? datosOpcionales.cantidadAciertos
+      : (escrutinioActual && typeof escrutinioActual.cantidadAciertos === 'number' ? escrutinioActual.cantidadAciertos : null);
+
+    if (aciertosGuardar !== null) {
+      sheetSorteos.getRange(filaObjetivo, 8).setValue(aciertosGuardar);
+    }
+
+    sheetSorteos.getRange(filaObjetivo, 9).setValue(importe).setNumberFormat('#,##0.00 €');
+    sheetSorteos.getRange(filaObjetivo, 10)
+      .setFormula('=IF(I' + filaObjetivo + '<>"", IF(I' + filaObjetivo + '<=2000, I' + filaObjetivo + ', 0), 0)')
+      .setNumberFormat('#,##0.00 €');
+
+    SpreadsheetApp.flush();
+
+    var nuevaBolsa = 0;
+    var sheetTesoreria = ss.getSheetByName(PROYECTO_CONFIG.SHEET_TESORERIA || 'Tesorería');
+    if (sheetTesoreria && sheetTesoreria.getLastRow() >= 2) {
+      var valBolsa = parseFloat(sheetTesoreria.getRange(2, 4).getValue());
+      nuevaBolsa = isNaN(valBolsa) ? 0 : valBolsa;
+    }
+
+    return {
+      success: true,
+      fila: filaObjetivo,
+      cantidad: importe,
+      bolsaPremios: nuevaBolsa,
+      message: 'Premio oficial de ' + importe.toFixed(2) + ' € guardado en la base de datos.'
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: 'Error al guardar premio manual: ' + err.message
+    };
   }
 }

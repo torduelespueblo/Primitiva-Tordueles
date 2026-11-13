@@ -169,8 +169,8 @@
 
       @keyframes splashEmblemReveal {
         0% {
-          opacity: 0;
-          transform: scale(0.92);
+          opacity: 1;
+          transform: scale(0.985);
         }
         100% {
           opacity: 1;
@@ -180,7 +180,7 @@
     </style>
   </head>
   <body class="bg-[#F4F6F9] text-slate-900 antialiased selection:bg-[#0A2540] selection:text-white splash-locked">
-    <!-- SPLASH SCREEN NATIVA (2000ms exactos + bloqueo de scroll/interacción) -->
+    <!-- SPLASH SCREEN NATIVA (transición continua sin parpadeo tras el splash del sistema) -->
     <div id="pwa-splash-screen" role="status" aria-live="polite" aria-label="Iniciando Peña Primitiva Tordueles">
       <div class="splash-logo-stage">
         <img
@@ -199,7 +199,7 @@
 
     <script>
       (function () {
-        var SPLASH_DURATION_MS = 2000;
+        var SPLASH_DURATION_MS = 1400;
         var splash = document.getElementById('pwa-splash-screen');
         var htmlEl = document.documentElement;
         var bodyEl = document.body;

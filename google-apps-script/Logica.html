@@ -9,8 +9,7 @@
 
   const ESTADO_APP = {
     usuario: null,
-    adminPassword: '',
-    fallbackPublico: []
+    adminPassword: ''
   };
 
   (function initSplashScreen() {
@@ -211,28 +210,8 @@
 
     setTimeout(function () {
       mostrarCargando(false);
-      ESTADO_APP.usuario = {
-        nombreCompleto: nombre + ' ' + apellidos,
-        estado: 'Suplente',
-        estadoPago: 'Pendiente',
-        cicloActual: 1,
-        porcentajeParticipacion: '0.00%'
-      };
-      ESTADO_APP.fallbackPublico.push({
-        id: ESTADO_APP.fallbackPublico.length + 1,
-        nombre: nombre,
-        apellidos: apellidos,
-        estado: 'Suplente'
-      });
-      mostrarToast('Registro formalizado en lista de espera como Suplente.', 'success');
-      renderizarDashboard({
-        tesoreria: { bolsaPremios: 0 },
-        jornadaInfo: { jornadaActual: 1, jornadaEnCiclo: 1, cicloActual: 1, esPeriodoRenovacion: false },
-        ultimoSorteo: null
-      });
-      cambiarVista('viewDashboard');
-      renderizarTablaPublica(ESTADO_APP.fallbackPublico);
-    }, 350);
+      mostrarToast('El alta requiere conexión activa con el servidor de Google Apps Script.', 'error');
+    }, 250);
   }
 
   // ==========================================================================
@@ -472,7 +451,7 @@
         .obtenerListaJugadoresPublica();
       return;
     }
-    renderizarTablaPublica(ESTADO_APP.fallbackPublico);
+    renderizarTablaPublica([]);
   }
 
   function renderizarTablaPublica(lista) {
@@ -545,6 +524,7 @@
           cerrarModalAdmin();
           cambiarVista('viewAdminPanel');
           renderizarTablaAdmin(res.jugadores || []);
+          cargarEscrutinioDelCiclo();
         } else {
           mostrarToast((res && res.error) || 'Contraseña incorrecta.', 'error');
         }
@@ -572,42 +552,229 @@
       .obtenerListaJugadoresAdmin(ESTADO_APP.adminPassword);
   }
 
+  function parsearTimestampAdmin(ts, tsMs) {
+    if (typeof tsMs === 'number' && !isNaN(tsMs)) return tsMs;
+    if (!ts) return Number.MAX_SAFE_INTEGER;
+    const str = String(ts).trim();
+    const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/);
+    if (m) {
+      const ms = m[7] ? parseInt((m[7] + '000').slice(0, 3), 10) : 0;
+      return new Date(
+        parseInt(m[3], 10),
+        parseInt(m[2], 10) - 1,
+        parseInt(m[1], 10),
+        parseInt(m[4], 10),
+        parseInt(m[5], 10),
+        parseInt(m[6], 10),
+        ms
+      ).getTime();
+    }
+    const parsed = Date.parse(str);
+    return isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+  }
+
+  function normalizarEstadoSocio(rawEstado) {
+    const up = String(rawEstado || '').trim().toUpperCase();
+    if (up === 'TITULAR') return 'TITULAR';
+    if (up.indexOf('BAJA') !== -1) return 'BAJA';
+    return 'SUPLENTE';
+  }
+
+  function construirFilaTablaAdmin(j, incluirTimestamp) {
+    const esPagado = String(j.pago || '').trim().toLowerCase() === 'pagado';
+    const siguienteEstado = esPagado ? 'Pendiente' : 'Pagado';
+    const tsCol = incluirTimestamp
+      ? '<td class="tabular-nums" style="font-size: 0.78rem; color: var(--text-muted); white-space: nowrap;">' + escapeHtml(j.timestamp || '—') + '</td>'
+      : '';
+
+    return (
+      '<tr>' +
+        tsCol +
+        '<td style="font-weight: 700; color: var(--navy-deep);">' + escapeHtml(j.nombre || '—') + '</td>' +
+        '<td style="font-weight: 600;">' + escapeHtml(j.apellidos || '—') + '</td>' +
+        '<td class="tabular-nums">' + escapeHtml(j.dni || '—') + '</td>' +
+        '<td class="tabular-nums">' + escapeHtml(j.telefono || '—') + '</td>' +
+        '<td class="tabular-nums" style="font-size: 0.78rem;">' + escapeHtml(j.iban || '—') + '</td>' +
+        '<td>' +
+          '<button type="button" class="btn-toggle-pago ' + (esPagado ? 'pagado' : 'pendiente') + '" onclick="cambiarEstadoPagoAdmin(' + j.fila + ', \'' + siguienteEstado + '\')">' +
+            (esPagado ? 'Pagado' : 'Pendiente') +
+          '</button>' +
+        '</td>' +
+      '</tr>'
+    );
+  }
+
   function renderizarTablaAdmin(jugadores) {
-    const tbody = document.getElementById('adminPlayersBody');
-    if (!tbody) return;
+    const tbodyTitulares = document.getElementById('adminTitularesBody');
+    const tbodySuplentes = document.getElementById('adminSuplentesBody');
+    const tbodyBajas = document.getElementById('adminBajasBody');
+    if (!tbodyTitulares || !tbodySuplentes || !tbodyBajas) return;
 
-    const titulares = jugadores.filter(function (j) { return j.estado === 'Titular'; }).length;
-    const suplentes = jugadores.filter(function (j) { return j.estado === 'Suplente'; }).length;
-    const pagados = jugadores.filter(function (j) { return j.pago === 'Pagado'; }).length;
+    const lista = Array.isArray(jugadores) ? jugadores : [];
+    const titulares = [];
+    const suplentes = [];
+    const bajas = [];
 
-    document.getElementById('adminTitularesCount').innerText = titulares;
-    document.getElementById('adminSuplentesCount').innerText = suplentes;
+    lista.forEach(function (j) {
+      const cat = normalizarEstadoSocio(j.estado);
+      if (cat === 'TITULAR') titulares.push(j);
+      else if (cat === 'BAJA') bajas.push(j);
+      else suplentes.push(j);
+    });
+
+    // Ordenar estrictamente los Suplentes por su marca temporal cronológica (de más antiguo a más reciente)
+    suplentes.sort(function (a, b) {
+      return parsearTimestampAdmin(a.timestamp, a.timestampMs) - parsearTimestampAdmin(b.timestamp, b.timestampMs);
+    });
+
+    const pagados = lista.filter(function (j) { return String(j.pago || '').trim().toLowerCase() === 'pagado'; }).length;
+
+    document.getElementById('adminTitularesCount').innerText = titulares.length;
+    document.getElementById('adminSuplentesCount').innerText = suplentes.length;
+    document.getElementById('adminBajasCount').innerText = bajas.length;
     document.getElementById('adminPagadosCount').innerText = pagados;
 
-    if (jugadores.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 18px;">No hay jugadores en la hoja Usuarios.</td></tr>';
+    document.getElementById('adminTitularesBadge').innerText = titulares.length;
+    document.getElementById('adminSuplentesBadge').innerText = suplentes.length;
+    document.getElementById('adminBajasBadge').innerText = bajas.length;
+
+    tbodyTitulares.innerHTML = titulares.length > 0
+      ? titulares.map(function (j) { return construirFilaTablaAdmin(j, false); }).join('')
+      : '<tr><td colspan="6" style="text-align: center; padding: 18px; color: var(--text-muted);">No hay socios titulares registrados en Usuarios.</td></tr>';
+
+    tbodySuplentes.innerHTML = suplentes.length > 0
+      ? suplentes.map(function (j) { return construirFilaTablaAdmin(j, true); }).join('')
+      : '<tr><td colspan="7" style="text-align: center; padding: 18px; color: var(--text-muted);">No hay suplentes en lista de espera.</td></tr>';
+
+    tbodyBajas.innerHTML = bajas.length > 0
+      ? bajas.map(function (j) { return construirFilaTablaAdmin(j, false); }).join('')
+      : '<tr><td colspan="6" style="text-align: center; padding: 18px; color: var(--text-muted);">No hay bajas definitivas registradas.</td></tr>';
+  }
+
+  function cargarEscrutinioDelCiclo() {
+    if (!tieneAppsScript()) return;
+    const metaLbl = document.getElementById('scrutinyMetaText');
+    const hitsLbl = document.getElementById('scrutinyHitsText');
+    if (metaLbl) metaLbl.innerText = 'Consultando apuesta activa y consenso oficial SELAE / Prensa / RTVE...';
+    if (hitsLbl) hitsLbl.innerText = 'Calculando aciertos del ciclo...';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        renderizarEscrutinioDelCiclo(res);
+      })
+      .withFailureHandler(function (err) {
+        if (metaLbl) metaLbl.innerText = 'Error al consultar escrutinio: ' + (err.message || err);
+        if (hitsLbl) hitsLbl.innerText = 'No se pudo obtener el escrutinio automático.';
+      })
+      .obtenerEscrutinioDelCiclo();
+  }
+
+  function renderizarEscrutinioDelCiclo(res) {
+    const metaLbl = document.getElementById('scrutinyMetaText');
+    const winBalls = document.getElementById('scrutinyWinningBalls');
+    const winExtra = document.getElementById('scrutinyWinningExtra');
+    const penaBalls = document.getElementById('scrutinyPenaBalls');
+    const penaExtra = document.getElementById('scrutinyPenaExtra');
+    const hitsLbl = document.getElementById('scrutinyHitsText');
+    const savedBadge = document.getElementById('scrutinySavedPrizeBadge');
+    const inputPremio = document.getElementById('inputPremioManual');
+
+    // Siempre vacío por defecto para entrada manual del administrador
+    if (inputPremio) inputPremio.value = '';
+
+    if (!res || !res.success) {
+      if (metaLbl) metaLbl.innerText = (res && res.message) || 'Sin datos de escrutinio disponibles.';
+      if (hitsLbl) hitsLbl.innerText = (res && res.textoAciertos) || 'Escrutinio pendiente';
       return;
     }
 
-    tbody.innerHTML = jugadores.map(function (j) {
-      const esPagado = j.pago === 'Pagado';
-      const siguienteEstado = esPagado ? 'Pendiente' : 'Pagado';
-      return (
-        '<tr>' +
-          '<td class="tabular-nums">' + j.fila + '</td>' +
-          '<td style="font-weight: 700;">' + escapeHtml(j.nombre + ' ' + j.apellidos) + '</td>' +
-          '<td class="tabular-nums">' + escapeHtml(j.dni || '—') + '</td>' +
-          '<td class="tabular-nums">' + escapeHtml(j.telefono || '—') + '</td>' +
-          '<td class="tabular-nums" style="font-size: 0.78rem;">' + escapeHtml(j.iban || '—') + '</td>' +
-          '<td>' +
-            '<button type="button" class="btn-toggle-pago ' + (esPagado ? 'pagado' : 'pendiente') + '" onclick="cambiarEstadoPagoAdmin(' + j.fila + ', \'' + siguienteEstado + '\')">' +
-              (esPagado ? 'Pagado' : 'Pendiente') +
-            '</button>' +
-          '</td>' +
-          '<td><span class="' + (j.estado === 'Titular' ? 'state-text-titular' : 'state-text-suplente') + '">' + escapeHtml(j.estado) + '</span></td>' +
-        '</tr>'
-      );
-    }).join('');
+    if (metaLbl) {
+      metaLbl.innerText = (res.nombreSorteo || 'La Primitiva') + ' · Fecha: ' + (res.fechaSorteo || '-') +
+        ' · Ciclo ' + (res.ciclo || 1) + ' (Jornada ' + (res.jornada || 1) + ')';
+    }
+
+    if (winBalls) {
+      if (res.consensoDisponible && Array.isArray(res.combinacionGanadora) && res.combinacionGanadora.length === 6) {
+        winBalls.innerHTML = res.combinacionGanadora.map(function (n) {
+          const s = n < 10 ? '0' + n : String(n);
+          return '<div class="ball tabular-nums">' + s + '</div>';
+        }).join('');
+        if (winExtra) {
+          winExtra.innerText = 'Complementario: ' + (res.complementario !== null ? res.complementario : '-') +
+            ' · Reintegro: ' + (res.reintegroGanador !== null ? res.reintegroGanador : '-') +
+            (res.fuentesConsenso && res.fuentesConsenso.length ? ' (Consenso: ' + res.fuentesConsenso.join(' + ') + ')' : '');
+        }
+      } else {
+        winBalls.innerHTML = '<span style="font-size: 0.88rem; color: var(--text-muted); font-weight: 600;">' +
+          escapeHtml(res.mensajeConsenso || 'Combinación ganadora aún no disponible por consenso.') + '</span>';
+        if (winExtra) winExtra.innerText = 'Pendiente de publicación oficial para este sorteo.';
+      }
+    }
+
+    if (penaBalls) {
+      if (Array.isArray(res.apuestaPena) && res.apuestaPena.length > 0) {
+        const acertadosSet = Array.isArray(res.aciertosNumeros) ? res.aciertosNumeros : [];
+        penaBalls.innerHTML = res.apuestaPena.map(function (n) {
+          const s = n < 10 ? '0' + n : String(n);
+          const esAcierto = acertadosSet.indexOf(n) !== -1;
+          return '<div class="ball tabular-nums ' + (esAcierto ? 'ball-hit' : 'ball-muted') + '">' + s + '</div>';
+        }).join('');
+        if (penaExtra) {
+          penaExtra.innerText = 'Reintegro jugado: ' + (res.reintegroJugado !== null && res.reintegroJugado !== undefined ? res.reintegroJugado : 'No asignado') +
+            ' · Origen: ' + (res.origenApuesta || 'Sheets');
+        }
+      } else {
+        penaBalls.innerHTML = '<span style="font-size: 0.88rem; color: var(--text-muted);">No hay apuesta activa registrada en «Apuestas Activas» ni «Sorteos».</span>';
+        if (penaExtra) penaExtra.innerText = 'Añade la combinación jugada en la pestaña "Apuestas Activas" o "Sorteos".';
+      }
+    }
+
+    if (hitsLbl) {
+      hitsLbl.innerText = res.textoAciertos || 'Aciertos: 0 números';
+    }
+    if (savedBadge) {
+      savedBadge.innerText = (res.premioGuardado !== null && res.premioGuardado !== undefined)
+        ? ('Premio registrado actualmente: ' + formatearMoneda(res.premioGuardado))
+        : '';
+    }
+  }
+
+  function guardarPremioManual() {
+    if (!tieneAppsScript()) return;
+    const input = document.getElementById('inputPremioManual');
+    const raw = input ? String(input.value || '').trim() : '';
+    if (!raw) {
+      mostrarToast('Introduce el importe oficial del premio en euros antes de guardar.', 'error');
+      if (input) input.focus();
+      return;
+    }
+
+    const cantidad = parseFloat(raw.replace(',', '.'));
+    if (isNaN(cantidad) || cantidad < 0) {
+      mostrarToast('El importe del premio debe ser numérico (>= 0).', 'error');
+      return;
+    }
+
+    mostrarCargando(true, 'Guardando premio oficial en la base de datos...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          mostrarToast(res.message || 'Premio guardado correctamente.', 'success');
+          if (input) input.value = '';
+          const savedBadge = document.getElementById('scrutinySavedPrizeBadge');
+          if (savedBadge) {
+            savedBadge.innerText = 'Premio registrado actualmente: ' + formatearMoneda(res.cantidad);
+          }
+        } else {
+          mostrarToast((res && res.message) || 'No se pudo guardar el premio.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error al guardar el premio: ' + (err.message || err), 'error');
+      })
+      .guardarPremioManual(cantidad);
   }
 
   function cambiarEstadoPagoAdmin(fila, nuevoEstado) {

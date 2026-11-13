@@ -2,6 +2,10 @@ import React from 'react';
 import { SyndicateSettings, TicketDraw, Player, PrizeHistoryEntry } from '../types/lottery';
 import { TicketCard } from './TicketCard';
 import {
+  isTicketPublishedNow,
+  formatScheduledDateTimeLabel
+} from '../services/ticketPublishService';
+import {
   Wallet,
   Clock,
   Trophy,
@@ -9,7 +13,8 @@ import {
   Info,
   MessageCircle,
   CheckCircle2,
-  Receipt
+  Receipt,
+  CalendarClock
 } from 'lucide-react';
 
 interface UserDashboardProps {
@@ -26,7 +31,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   prizeHistory,
   onNavigateTab,
 }) => {
-  const pendingTicket = tickets.find(t => !t.isScrutinized);
+  const pendingTicket = tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t));
+  const scheduledTicket = tickets.find(t => !t.isScrutinized && !isTicketPublishedNow(t));
   const lastScrutinized = tickets.find(t => t.isScrutinized);
 
   const isRenewalWindow = settings.currentJornada >= 7 && settings.currentJornada <= 9;
@@ -58,6 +64,33 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         {pendingTicket ? (
           <div className="max-w-2xl">
             <TicketCard ticket={pendingTicket} />
+          </div>
+        ) : scheduledTicket ? (
+          <div className="p-7 sm:p-8 text-center bg-white rounded-3xl border border-amber-200 text-slate-700 space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-[#FF6B00] mx-auto flex items-center justify-center">
+              <CalendarClock className="w-8 h-8" />
+            </div>
+            <p className="text-lg sm:text-xl font-extrabold text-[#0A2540]">
+              Resguardo programado para el día del sorteo
+            </p>
+            <p className="text-base text-slate-600 max-w-xl mx-auto leading-relaxed">
+              El resguardo oficial ya ha sido validado y programado por administración. Se publicará automáticamente en la App y en el grupo de WhatsApp el{' '}
+              <strong className="text-[#0A2540]">
+                {formatScheduledDateTimeLabel(scheduledTicket.publishAt, scheduledTicket.drawDate)}
+              </strong>.
+            </p>
+            {lastScrutinized && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('tickets')}
+                  className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white text-sm sm:text-base font-bold transition cursor-pointer"
+                >
+                  <span>Ver últimos boletos jugados</span>
+                  <ArrowRight className="w-4 h-4 text-[#FF6B00]" />
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-8 text-center bg-white rounded-3xl border border-slate-200 text-slate-600 space-y-3">

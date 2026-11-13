@@ -4,15 +4,47 @@ export interface Player {
   id: string;
   memberNumber: number; // Número de socio
   name: string;
+  firstName?: string; // Nombre (pestaña Usuarios)
+  lastName?: string; // Apellidos (pestaña Usuarios)
   email: string;
   phone: string;
-  dni?: string; // DNI/NIF opcional para autenticación o cobro de premios mayores
-  registrationTimestamp: string; // Timestamp inalterable de inscripción (Google Form)
+  dni?: string; // DNI/NIF (pestaña Usuarios)
+  iban?: string; // IBAN (pestaña Usuarios)
+  sheetRow?: number; // Fila exacta en Google Sheets "Usuarios"
+  timestampMs?: number; // Marca temporal numérica para ordenación estricta
+  registrationTimestamp: string; // Timestamp inalterable de inscripción
   status: PlayerStatus;
   currentCyclePaid: boolean; // Si ha pagado el ciclo actual de 10 jornadas
   paidUntilCycle: number; // Ciclo hasta el cual tiene cubierto el pago
   renewalStatus: 'RENOVADO' | 'PENDIENTE' | 'URGENTE_EXPIRA' | 'EXCLUIDO';
   notes?: string;
+}
+
+export interface ScrutinyCycleResult {
+  success: boolean;
+  esDiaDeSorteo?: boolean;
+  nombreSorteo?: string;
+  fechaSorteo?: string;
+  fechaResultado?: string;
+  ciclo?: number;
+  jornada?: number;
+  origenApuesta?: string;
+  apuestaPena?: number[];
+  reintegroJugado?: number | null;
+  consensoDisponible?: boolean;
+  mensajeConsenso?: string;
+  fuentesConsenso?: string[];
+  combinacionGanadora?: number[];
+  complementario?: number | null;
+  reintegroGanador?: number | null;
+  aciertosNumeros?: number[];
+  cantidadAciertos?: number;
+  complementarioAcertado?: boolean;
+  reintegroAcertado?: boolean;
+  textoAciertos?: string;
+  filaSorteos?: number | null;
+  premioGuardado?: number | null;
+  message?: string;
 }
 
 export interface WaitingListEntry {
@@ -50,6 +82,11 @@ export interface TicketDraw {
   reintegro?: number;
   jokerNumber?: string;
   
+  // Publicación programada (ej. subido el miércoles para publicar el sábado a las 20:35)
+  publishStatus?: 'PROGRAMADO' | 'PUBLICADO';
+  publishAt?: string; // ISO local datetime ej. '2026-11-14T20:35'
+  scheduledNotificationSent?: boolean;
+
   // Resultados
   hitsCount?: number; // Aciertos en la combinación
   hasReintegro?: boolean;

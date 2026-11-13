@@ -25,6 +25,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { Footer } from './components/Footer';
 import { DualAccessRegistration } from './components/DualAccessRegistration';
 import { pushNotificationService } from './services/pushNotifications';
+import { isTicketPublishedNow } from './services/ticketPublishService';
 
 function hasRegistrationUrlFlag(): boolean {
   if (typeof window === 'undefined') return false;
@@ -46,6 +47,7 @@ export default function App() {
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [adminPassword, setAdminPassword] = useState<string>('');
   const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
   const [showConformityReview, setShowConformityReview] = useState<boolean>(false);
   const [showPostConformityPrompt, setShowPostConformityPrompt] = useState<boolean>(false);
@@ -128,6 +130,38 @@ export default function App() {
     }
   }, [isConformityAccepted]);
 
+  // Comprobación automática de boletos programados (al abrir o cada 30s)
+  useEffect(() => {
+    const checkDueScheduledTickets = () => {
+      const now = new Date();
+      let changed = false;
+      const nextTickets = tickets.map(t => {
+        if (!t.isScrutinized && t.publishStatus === 'PROGRAMADO' && isTicketPublishedNow(t, now)) {
+          changed = true;
+          if (!t.scheduledNotificationSent) {
+            pushNotificationService.notifyTicketValidated(t.jornadaNumber, t.playedNumbers);
+          }
+          return {
+            ...t,
+            publishStatus: 'PUBLICADO' as const,
+            scheduledNotificationSent: true,
+          };
+        }
+        return t;
+      });
+
+      if (changed) {
+        const capped = capTicketsKeepingPlayed(nextTickets);
+        setTickets(capped);
+        storageService.saveTickets(capped);
+      }
+    };
+
+    checkDueScheduledTickets();
+    const timer = window.setInterval(checkDueScheduledTickets, 30000);
+    return () => window.clearInterval(timer);
+  }, [tickets]);
+
   // Sincronización en segundo plano con Google Apps Script si está configurado
   useEffect(() => {
     if (settings.googleAppsScriptUrl) {
@@ -158,6 +192,134 @@ export default function App() {
                   ? Boolean(data.boletinDiarioActivo)
                   : prev.sendDailyGeneralSummary,
             }));
+
+            if (Array.isArray(data.listaPublica)) {
+              const parseTsMs = (rawTs: string, rawMs?: number) => {
+                if (typeof rawMs === 'number' && !isNaN(rawMs)) return rawMs;
+                const str = String(rawTs || '').trim();
+                const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/);
+                if (m) {
+                  const ms = m[7] ? parseInt((m[7] + '000').slice(0, 3), 10) : 0;
+                  return new Date(
+                    parseInt(m[3], 10),
+                    parseInt(m[2], 10) - 1,
+                    parseInt(m[1], 10),
+                    parseInt(m[4], 10),
+                    parseInt(m[5], 10),
+                    parseInt(m[6], 10),
+                    ms
+                  ).getTime();
+                }
+                const parsed = Date.parse(str);
+                return isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+              };
+
+              const syncedPlayers: Player[] = [];
+              const syncedWaiting: WaitingListEntry[] = [];
+
+              data.listaPublica.forEach((u: Record<string, unknown>, idx: number) => {
+                const firstName = String(u.nombre || '').trim();
+                const lastName = String(u.apellidos || '').trim();
+                const fullName = `${firstName} ${lastName}`.trim();
+                if (!fullName) return;
+                const rawEstado = String(u.estado || 'Suplente').trim().toUpperCase();
+                const ts = String(u.timestamp || '').trim();
+                const tsMs = parseTsMs(ts, typeof u.timestampMs === 'number' ? u.timestampMs : undefined);
+
+                if (rawEstado === 'TITULAR') {
+                  syncedPlayers.push({
+                    id: `sheet-u-${u.id || idx + 1}`,
+                    memberNumber: syncedPlayers.length + 1,
+                    name: fullName,
+                    firstName,
+                    lastName,
+                    email: '',
+                    phone: '',
+                    registrationTimestamp: ts,
+                    timestampMs: tsMs,
+                    status: 'TITULAR',
+                    currentCyclePaid: true,
+                    paidUntilCycle: Number(data.ciclo) || 1,
+                    renewalStatus: 'RENOVADO',
+                  });
+                } else if (rawEstado === 'SUPLENTE') {
+                  syncedWaiting.push({
+                    id: `sheet-w-${u.id || idx + 1}`,
+                    name: fullName,
+                    email: '',
+                    phone: '',
+                    registrationTimestamp: ts,
+                    status: 'ESPERANDO',
+                  });
+                }
+              });
+
+              syncedWaiting.sort((a, b) => parseTsMs(a.registrationTimestamp) - parseTsMs(b.registrationTimestamp));
+
+              setPlayers(prev => {
+                // Conservar datos completos si ya se cargaron como administrador en esta sesión
+                if (prev.some(p => p.sheetRow !== undefined)) return prev;
+                storageService.savePlayers(syncedPlayers);
+                return syncedPlayers;
+              });
+              setWaitingList(syncedWaiting);
+              storageService.saveWaitingList(syncedWaiting);
+            }
+
+            if (data.boletoActivo && data.boletoActivo.combinacionJugada) {
+              const b = data.boletoActivo;
+              const nums = String(b.combinacionJugada)
+                .split(/[,;\s-]+/)
+                .map((s: string) => parseInt(s.trim(), 10))
+                .filter((n: number) => !isNaN(n) && n >= 1 && n <= 49);
+
+              if (nums.length > 0) {
+                setTickets(prev => {
+                  const alreadyExists = prev.some(
+                    t =>
+                      !t.isScrutinized &&
+                      t.jornadaNumber === Number(b.jornada) &&
+                      t.drawDate === String(b.fecha)
+                  );
+                  if (alreadyExists) return prev;
+
+                  const syncedTicket: TicketDraw = {
+                    id: `gas-${b.fecha}-${b.jornada}`,
+                    cycleNumber: Number(b.ciclo) || 1,
+                    jornadaNumber: Number(b.jornada) || 1,
+                    drawDate: String(b.fecha),
+                    receiptImageUrl: String(b.fotoResguardo || ''),
+                    betType:
+                      nums.length === 5
+                        ? 'MULTIPLE_5'
+                        : nums.length === 7
+                        ? 'MULTIPLE_7'
+                        : nums.length === 8
+                        ? 'MULTIPLE_8'
+                        : nums.length === 9
+                        ? 'MULTIPLE_9'
+                        : nums.length === 10
+                        ? 'MULTIPLE_10'
+                        : 'COMBINADA',
+                    numbersPlayedCount: nums.length,
+                    cost: Number(b.importeJugado) || 0,
+                    activePlayersCount: Number(b.jugadoresActivos) || 0,
+                    costPerPlayer: 1.0,
+                    playedNumbers: nums,
+                    playedReintegro: Number(b.reintegro) || 0,
+                    jokerPlayed: true,
+                    isScrutinized: false,
+                    totalPrize: 0,
+                    prizeType: 'NINGUNO',
+                    publishStatus: 'PUBLICADO',
+                    scheduledNotificationSent: true,
+                  };
+                  const next = capTicketsKeepingPlayed([syncedTicket, ...prev]);
+                  storageService.saveTickets(next);
+                  return next;
+                });
+              }
+            }
           }
         })
         .catch(err => {
@@ -198,7 +360,8 @@ export default function App() {
         onClose={() => setShowAdminLogin(false)}
         correctPin={storageService.getAdminPin()}
         googleAppsScriptUrl={settings.googleAppsScriptUrl}
-        onSuccess={() => {
+        onSuccess={pin => {
+          setAdminPassword(pin);
           setIsAdminAuthenticated(true);
           setCurrentTab('admin');
         }}
@@ -327,8 +490,10 @@ export default function App() {
                 onUpdateTickets={handleUpdateTickets}
                 prizeHistory={prizeHistory}
                 onUpdatePrizeHistory={handleUpdatePrizeHistory}
+                adminPassword={adminPassword}
                 onLogoutAdmin={() => {
                   setIsAdminAuthenticated(false);
+                  setAdminPassword('');
                   setCurrentTab('dashboard');
                 }}
               />

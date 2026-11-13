@@ -45,6 +45,8 @@ function doGet(e) {
         payload = enviarBoletinDiarioWhatsApp(true);
       } else if (accion === 'escrutinioConsenso') {
         payload = ejecutarMotorPuenteRSSConsenso();
+      } else if (accion === 'escrutinioCiclo') {
+        payload = obtenerEscrutinioDelCiclo();
       } else {
         var ss = obtenerSpreadsheetPeña();
         var sheetTesoreria = ss.getSheetByName('Tesorería');
@@ -57,6 +59,9 @@ function doGet(e) {
           bolsa = isNaN(rawBolsa) ? 0 : rawBolsa;
         }
 
+        var boletoActivo = obtenerBoletoActivoPublico(ss);
+        var listaPublica = obtenerListaJugadoresPublica();
+
         payload = {
           status: 'OK',
           app: 'Peña Primitiva Tordueles',
@@ -66,6 +71,8 @@ function doGet(e) {
           esPeriodoRenovacion: jornadaInfo.esPeriodoRenovacion,
           bolsaPremios: bolsa,
           boletinDiarioActivo: sheetConfig ? (String(sheetConfig.getRange('A2').getValue()).trim().toUpperCase() === 'SÍ') : true,
+          boletoActivo: boletoActivo,
+          listaPublica: listaPublica,
           timestamp: new Date().toISOString()
         };
       }
@@ -105,6 +112,46 @@ function doPost(e) {
     if (action === 'validarAdmin') {
       var valido = validarPasswordAdmin(contents.password);
       return ContentService.createTextOutput(JSON.stringify({ success: valido }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'programarBoleto') {
+      var resBoleto = guardarOProgramarBoletoDesdeWeb(contents.datos);
+      return ContentService.createTextOutput(JSON.stringify(resBoleto))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'adminJugadores') {
+      var resAdmin = obtenerListaJugadoresAdmin(contents.password);
+      return ContentService.createTextOutput(JSON.stringify(resAdmin))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'actualizarPagoAdmin') {
+      var resPago = actualizarEstadoPagoAdmin(contents.fila, contents.nuevoEstado, contents.password);
+      return ContentService.createTextOutput(JSON.stringify(resPago))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'actualizarEstadoUsuarioAdmin') {
+      var resEstado = actualizarEstadoUsuarioAdmin(contents.fila, contents.nuevoEstado, contents.password);
+      return ContentService.createTextOutput(JSON.stringify(resEstado))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'aprobarSaltoNivel') {
+      var resSalto = aprobarSaltoDeNivelAdmin(contents.password);
+      return ContentService.createTextOutput(JSON.stringify(resSalto))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'guardarPremioManual') {
+      if (!validarPasswordAdmin(contents.password)) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, message: 'Acceso no autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resPremio = guardarPremioManual(contents.cantidad, contents.datos);
+      return ContentService.createTextOutput(JSON.stringify(resPremio))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -336,9 +383,37 @@ function aceptarReglamento(dniInput) {
 // 3. MÓDULO 3: VISTA PÚBLICA DE JUGADORES (SEGURIDAD RGPD EN SERVIDOR)
 // ============================================================================
 
+function formatearTimestampUsuario(rawTs) {
+  if (!rawTs) return '';
+  if (rawTs instanceof Date) {
+    return Utilities.formatDate(rawTs, 'Europe/Madrid', 'dd/MM/yyyy HH:mm:ss.SSS');
+  }
+  return String(rawTs).trim();
+}
+
+function convertirTimestampAMs(rawTs) {
+  if (!rawTs) return Number.MAX_SAFE_INTEGER;
+  if (rawTs instanceof Date) return rawTs.getTime();
+  var str = String(rawTs).trim();
+  // Formato dd/MM/yyyy HH:mm:ss.SSS
+  var m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/);
+  if (m) {
+    var d = parseInt(m[1], 10);
+    var mo = parseInt(m[2], 10) - 1;
+    var y = parseInt(m[3], 10);
+    var hh = parseInt(m[4], 10);
+    var mm = parseInt(m[5], 10);
+    var ss = parseInt(m[6], 10);
+    var ms = m[7] ? parseInt((m[7] + '000').slice(0, 3), 10) : 0;
+    return new Date(y, mo, d, hh, mm, ss, ms).getTime();
+  }
+  var parsed = Date.parse(str);
+  return isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+}
+
 /**
  * Extrae el censo de 'Usuarios' y ELIMINA en el servidor DNI, Teléfono, IBAN y Estado de Pago.
- * Devuelve únicamente: [{ id, nombre, apellidos, estado }]
+ * Devuelve únicamente: [{ id, timestamp, timestampMs, nombre, apellidos, estado }]
  */
 function obtenerListaJugadoresPublica() {
   try {
@@ -358,9 +433,11 @@ function obtenerListaJugadoresPublica() {
       var apellidos = (r[2] || '').toString().trim();
       var estado = (r[10] || 'Suplente').toString().trim();
 
-      if (nombre && estado !== 'Baja') {
+      if (nombre && estado.toUpperCase() !== 'BAJA' && estado.toUpperCase() !== 'BAJA DEFINITIVA') {
         listaCensurada.push({
           id: listaCensurada.length + 1,
+          timestamp: formatearTimestampUsuario(r[0]),
+          timestampMs: convertirTimestampAMs(r[0]),
           nombre: nombre,
           apellidos: apellidos,
           estado: estado
@@ -385,7 +462,8 @@ function validarPasswordAdmin(password) {
 }
 
 /**
- * Devuelve la tabla administrativa sin censura (DNI, Teléfono, IBAN y Estado de Pago)
+ * Devuelve el array de usuarios completo sin censurar desde la pestaña 'Usuarios'
+ * (Nombre, Apellidos, DNI, Teléfono, IBAN, Estado de Pago, Marca Temporal y Condición)
  * tras validar la contraseña de administrador en el servidor.
  */
 function obtenerListaJugadoresAdmin(password) {
@@ -410,7 +488,8 @@ function obtenerListaJugadoresAdmin(password) {
       if (nombre) {
         listaCompleta.push({
           fila: i + 2,
-          timestamp: (r[0] || '').toString(),
+          timestamp: formatearTimestampUsuario(r[0]),
+          timestampMs: convertirTimestampAMs(r[0]),
           nombre: nombre,
           apellidos: (r[2] || '').toString().trim(),
           dni: (r[3] || '').toString().trim(),
@@ -455,6 +534,40 @@ function actualizarEstadoPagoAdmin(fila, nuevoEstado, password) {
       fila: filaNum,
       nuevoEstado: estadoNormalizado,
       message: 'Estado de pago actualizado a "' + estadoNormalizado + '".'
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Cambia la condición de un usuario ('Titular' | 'Suplente' | 'Baja') en la pestaña 'Usuarios'.
+ */
+function actualizarEstadoUsuarioAdmin(fila, nuevoEstado, password) {
+  if (!validarPasswordAdmin(password)) {
+    return { success: false, error: 'Acceso no autorizado.' };
+  }
+
+  try {
+    var filaNum = parseInt(fila, 10);
+    if (isNaN(filaNum) || filaNum < 2) {
+      return { success: false, error: 'Número de fila inválido.' };
+    }
+
+    var raw = String(nuevoEstado || '').trim().toUpperCase();
+    var normalizado = raw === 'TITULAR' ? 'Titular' : (raw.indexOf('BAJA') !== -1 ? 'Baja' : 'Suplente');
+
+    var ss = obtenerSpreadsheetPeña();
+    var sheetUsuarios = ss.getSheetByName('Usuarios');
+    var celdaEstado = sheetUsuarios.getRange(filaNum, 11);
+    celdaEstado.clearDataValidations();
+    celdaEstado.setValue(normalizado);
+
+    return {
+      success: true,
+      fila: filaNum,
+      nuevoEstado: normalizado,
+      message: 'Estado del socio actualizado a "' + normalizado + '".'
     };
   } catch (err) {
     return { success: false, error: err.message };
@@ -685,3 +798,176 @@ function obtenerSpreadsheetPeña() {
 
   throw new Error('No se encontró la hoja "Primitiva Tordueles - Base de Datos".');
 }
+
+/**
+ * Devuelve el último boleto pendiente de escrutinio solo si ya alcanzó su fecha/hora de publicación.
+ */
+function obtenerBoletoActivoPublico(ss) {
+  try {
+    var sheetSorteos = ss.getSheetByName('Sorteos');
+    if (!sheetSorteos || sheetSorteos.getLastRow() < 2) return null;
+
+    var lastRow = sheetSorteos.getLastRow();
+    var numCols = Math.max(16, sheetSorteos.getLastColumn());
+    var rows = sheetSorteos.getRange(2, 1, lastRow - 1, numCols).getValues();
+    var ahora = new Date();
+    var zona = 'Europe/Madrid';
+
+    for (var i = rows.length - 1; i >= 0; i--) {
+      var r = rows[i];
+      var combJugada = String(r[5] || '').trim();
+      var combGanadora = String(r[6] || '').trim();
+      if (!combJugada || combGanadora) continue;
+
+      var estadoPub = String(r[10] || 'PUBLICADO').trim().toUpperCase();
+      var fechaHoraPub = String(r[11] || '').trim();
+
+      if (estadoPub === 'PROGRAMADO') {
+        if (!fechaHoraPub) continue;
+        var dtPub = new Date(fechaHoraPub.replace(' ', 'T') + ':00');
+        if (isNaN(dtPub.getTime()) || ahora.getTime() < dtPub.getTime()) {
+          continue; // Todavía no ha llegado el día/hora programados
+        }
+      }
+
+      var fechaStr = r[1] instanceof Date
+        ? Utilities.formatDate(r[1], zona, 'yyyy-MM-dd')
+        : String(r[1] || '');
+
+      return {
+        jornada: parseInt(r[0], 10) || 1,
+        fecha: fechaStr,
+        fotoResguardo: String(r[3] || ''),
+        importeJugado: parseFloat(r[4]) || 0,
+        combinacionJugada: combJugada,
+        ciclo: parseInt(r[13], 10) || 1,
+        reintegro: r[14] !== '' && r[14] !== undefined ? parseInt(r[14], 10) : 0,
+        jugadoresActivos: parseInt(r[15], 10) || 0
+      };
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Guarda un resguardo programado o inmediato en la hoja 'Sorteos' y sube la imagen a Google Drive.
+ */
+function guardarOProgramarBoletoDesdeWeb(datos) {
+  try {
+    if (!datos || !datos.combinacion || !datos.fechaSorteo) {
+      return { success: false, message: 'Faltan datos obligatorios del boleto.' };
+    }
+
+    var ss = obtenerSpreadsheetPeña();
+    var sheetSorteos = ss.getSheetByName('Sorteos');
+    if (!sheetSorteos) {
+      return { success: false, message: 'No existe la pestaña "Sorteos".' };
+    }
+
+    // Asegurar cabeceras extendidas en K..P si no existen
+    if (sheetSorteos.getLastColumn() < 16) {
+      sheetSorteos.getRange(1, 11, 1, 6).setValues([[
+        'Estado Publicación', 'FechaHora Publicación', 'WhatsApp Enviado', 'Ciclo', 'Reintegro', 'Jugadores Activos'
+      ]]);
+    }
+
+    var driveImageUrl = String(datos.imagenUrl || '').trim();
+    if (datos.imagenBase64 && String(datos.imagenBase64).indexOf('data:') === 0) {
+      try {
+        var partes = String(datos.imagenBase64).split(',');
+        var mimeMatch = partes[0].match(/data:([^;]+);base64/);
+        var mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        var bytes = Utilities.base64Decode(partes[1]);
+        var ext = mimeType.indexOf('png') !== -1 ? 'png' : (mimeType.indexOf('pdf') !== -1 ? 'pdf' : 'jpg');
+        var nombreArchivo = datos.fileName || ('resguardo_j' + datos.jornada + '_' + datos.fechaSorteo + '.' + ext);
+        var blob = Utilities.newBlob(bytes, mimeType, nombreArchivo);
+
+        var folderId = PropertiesService.getScriptProperties().getProperty('RESGUARDOS_FOLDER_ID');
+        var folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+        var file = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        driveImageUrl = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+      } catch (eDrive) {
+        Logger.log('Aviso subiendo resguardo a Drive: ' + eDrive.message);
+      }
+    }
+
+    var publicarAhora = Boolean(datos.publicarAhora);
+    var estadoPub = publicarAhora ? 'PUBLICADO' : 'PROGRAMADO';
+    var fechaHoraPub = String(datos.fechaSorteo) + ' ' + String(datos.horaPublicacion || '20:35');
+    var enviandoWhatsAppAhora = false;
+    var jornadaNum = parseInt(datos.jornada, 10) || 1;
+    var fechaTarget = String(datos.fechaSorteo);
+
+    var nuevaFila = sheetSorteos.getLastRow() + 1;
+    if (sheetSorteos.getLastRow() >= 2) {
+      var existentes = sheetSorteos.getRange(2, 1, sheetSorteos.getLastRow() - 1, 2).getValues();
+      for (var rIdx = 0; rIdx < existentes.length; rIdx++) {
+        var jExist = parseInt(existentes[rIdx][0], 10);
+        var fExist = existentes[rIdx][1] instanceof Date
+          ? Utilities.formatDate(existentes[rIdx][1], 'Europe/Madrid', 'yyyy-MM-dd')
+          : String(existentes[rIdx][1] || '').trim();
+        if (jExist === jornadaNum && fExist === fechaTarget) {
+          nuevaFila = rIdx + 2;
+          break;
+        }
+      }
+    }
+
+    sheetSorteos.getRange(nuevaFila, 1).setValue(jornadaNum);
+    sheetSorteos.getRange(nuevaFila, 2).setNumberFormat('@').setValue(fechaTarget);
+    sheetSorteos.getRange(nuevaFila, 3).setValue('Resguardo J' + jornadaNum);
+    if (driveImageUrl) {
+      sheetSorteos.getRange(nuevaFila, 4).setValue(driveImageUrl);
+    }
+    sheetSorteos.getRange(nuevaFila, 5).setValue(parseFloat(datos.importe) || 0);
+    sheetSorteos.getRange(nuevaFila, 6).setValue(String(datos.combinacion));
+    sheetSorteos.getRange(nuevaFila, 10).setFormula('=IF(I' + nuevaFila + '<>"", IF(I' + nuevaFila + '<=2000, I' + nuevaFila + ', 0), 0)');
+    sheetSorteos.getRange(nuevaFila, 11).setValue(estadoPub);
+    sheetSorteos.getRange(nuevaFila, 12).setNumberFormat('@').setValue(fechaHoraPub);
+    sheetSorteos.getRange(nuevaFila, 13).setValue(publicarAhora ? 'SÍ' : 'NO');
+    sheetSorteos.getRange(nuevaFila, 14).setValue(parseInt(datos.ciclo, 10) || 1);
+    sheetSorteos.getRange(nuevaFila, 15).setValue(parseInt(datos.reintegro, 10) || 0);
+    sheetSorteos.getRange(nuevaFila, 16).setValue(parseInt(datos.jugadoresActivos, 10) || 0);
+
+    if (publicarAhora) {
+      enviandoWhatsAppAhora = true;
+      enviarBoletoDeFilaPorWhatsApp(sheetSorteos, nuevaFila);
+    }
+
+    return {
+      success: true,
+      estado: estadoPub,
+      fechaHoraPublicacion: fechaHoraPub,
+      driveImageUrl: driveImageUrl,
+      whatsappEnviadoAhora: enviandoWhatsAppAhora,
+      message: publicarAhora
+        ? 'Resguardo publicado y enviado a WhatsApp.'
+        : 'Resguardo programado en Google Sheets para el ' + fechaHoraPub + '.'
+    };
+  } catch (err) {
+    return { success: false, message: 'Error programando boleto: ' + err.message };
+  }
+}
+
+// ============================================================================
+// 7. MOTOR DE ESCRUTINIO DEL CICLO Y REGISTRO MANUAL DE PREMIOS (PANEL ADMIN)
+// ============================================================================
+
+/**
+ * Llamada invocada desde el bloque "Escrutinio del Ciclo" del Panel Admin.
+ */
+function obtenerEscrutinioDelCiclo() {
+  return ejecutarEscrutinioAutomatico();
+}
+
+/**
+ * Registra manualmente en la base de datos ('Sorteos' + 'Tesorería') el premio oficial en euros.
+ * Invocada directamente mediante google.script.run.guardarPremioManual(cantidad).
+ */
+function guardarPremioManual(cantidad, datosOpcionales) {
+  return guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales);
+}
+

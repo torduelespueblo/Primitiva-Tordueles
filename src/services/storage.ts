@@ -9,7 +9,7 @@ const STORAGE_KEYS = {
   CONFORMITY: 'primitiva_tordueles_conformity_v1',
   ADMIN_PIN: 'primitiva_tordueles_admin_pin',
   PUSH_TOKEN: 'primitiva_tordueles_push_token',
-  CLEAN_VERSION: 'primitiva_tordueles_clean_v2',
+  CLEAN_VERSION: 'primitiva_tordueles_clean_v3',
 };
 
 export const MAX_STORED_TICKETS = 4;
@@ -41,182 +41,18 @@ const DEFAULT_SETTINGS: SyndicateSettings = {
   pushEnabled: true,
 };
 
-// Base inicial de socios titulares (sin sorteos simulados ni premios acumulados ficticios)
-const INITIAL_PLAYERS: Player[] = [
-  {
-    id: 'p-01',
-    memberNumber: 1,
-    name: 'José Antonio Martínez Peña',
-    email: 'jantonio.mp@gmail.com',
-    phone: '+34 612 34 56 01',
-    registrationTimestamp: '2024-01-10T10:14:22.18Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-02',
-    memberNumber: 2,
-    name: 'María Carmen Gómez Arroyo',
-    email: 'mcarmen.gomez@gmail.com',
-    phone: '+34 620 45 67 02',
-    registrationTimestamp: '2024-01-10T10:15:04.45Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-03',
-    memberNumber: 3,
-    name: 'Francisco Javier Tordueles Díez',
-    email: 'fjavier.td@gmail.com',
-    phone: '+34 633 56 78 03',
-    registrationTimestamp: '2024-01-10T10:16:30.73Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-04',
-    memberNumber: 4,
-    name: 'Lucía Santamaría Barbero',
-    email: 'lucia.stmaria@gmail.com',
-    phone: '+34 644 67 89 04',
-    registrationTimestamp: '2024-01-10T10:18:15.91Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-05',
-    memberNumber: 5,
-    name: 'David Rodrigo Alonso',
-    email: 'david.rodrigo@gmail.com',
-    phone: '+34 655 78 90 05',
-    registrationTimestamp: '2024-01-10T10:20:00Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-06',
-    memberNumber: 6,
-    name: 'Elena Nebreda Arribas',
-    email: 'elena.nebreda@gmail.com',
-    phone: '+34 666 89 01 06',
-    registrationTimestamp: '2024-01-10T10:22:45Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-07',
-    memberNumber: 7,
-    name: 'Manuel Castrillo Pineda',
-    email: 'manuel.castrillo@gmail.com',
-    phone: '+34 677 90 12 07',
-    registrationTimestamp: '2024-01-10T10:25:12Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-08',
-    memberNumber: 8,
-    name: 'Sara Calvo Fuente',
-    email: 'sara.calvof@gmail.com',
-    phone: '+34 688 01 23 08',
-    registrationTimestamp: '2024-01-10T10:27:03Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-09',
-    memberNumber: 9,
-    name: 'Pablo Herrero Vicario',
-    email: 'pablo.herrero@gmail.com',
-    phone: '+34 699 12 34 09',
-    registrationTimestamp: '2024-01-10T10:30:19Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-10',
-    memberNumber: 10,
-    name: 'Beatriz Alonso Moral',
-    email: 'beatriz.amoral@gmail.com',
-    phone: '+34 610 23 45 10',
-    registrationTimestamp: '2024-01-10T10:32:50Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-11',
-    memberNumber: 11,
-    name: 'Santiago Miguel Lerma',
-    email: 'santiago.lerma@gmail.com',
-    phone: '+34 621 34 56 11',
-    registrationTimestamp: '2024-01-10T10:35:14Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-12',
-    memberNumber: 12,
-    name: 'Patricia Pascual Sanz',
-    email: 'patricia.pascual@gmail.com',
-    phone: '+34 632 45 67 12',
-    registrationTimestamp: '2024-01-10T10:37:41Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-13',
-    memberNumber: 13,
-    name: 'Raúl Gutiérrez Blanco',
-    email: 'raul.gblanco@gmail.com',
-    phone: '+34 643 56 78 13',
-    registrationTimestamp: '2024-01-10T10:40:02Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-  {
-    id: 'p-14',
-    memberNumber: 14,
-    name: 'Ángel Luis Tordueles Ruiz',
-    email: 'angelluis.tr@gmail.com',
-    phone: '+34 654 67 89 14',
-    registrationTimestamp: '2024-01-10T10:42:19Z',
-    status: 'TITULAR',
-    currentCyclePaid: true,
-    paidUntilCycle: 1,
-    renewalStatus: 'RENOVADO',
-  },
-];
+// Sin jugadores simulados ni nombres hardcodeados: se consume estrictamente la pestaña "Usuarios" del backend
+const INITIAL_PLAYERS: Player[] = [];
 
 const INITIAL_WAITING_LIST: WaitingListEntry[] = [];
 
 // Sin sorteos ni premios simulados; máximo 4 boletos guardados
 const INITIAL_TICKETS: TicketDraw[] = [];
+
+const DELETED_MOCK_PLAYER_IDS = new Set([
+  'p-01', 'p-02', 'p-03', 'p-04', 'p-05', 'p-06', 'p-07',
+  'p-08', 'p-09', 'p-10', 'p-11', 'p-12', 'p-13', 'p-14'
+]);
 
 function runCleanMigrationIfNeeded() {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
@@ -253,6 +89,17 @@ function runCleanMigrationIfNeeded() {
           .filter(t => !DELETED_MOCK_TICKET_IDS.has(t.id))
           .slice(0, MAX_STORED_TICKETS);
         localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(realOnly));
+      }
+    }
+
+    const rawPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS);
+    if (rawPlayers) {
+      const parsedPlayers: Player[] = JSON.parse(rawPlayers);
+      if (Array.isArray(parsedPlayers)) {
+        const realPlayers = parsedPlayers.filter(
+          p => !DELETED_MOCK_PLAYER_IDS.has(p.id) && p.name !== 'José Antonio Martínez Peña'
+        );
+        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(realPlayers));
       }
     }
 
@@ -304,6 +151,7 @@ export const storageService = {
   },
 
   getPlayers(): Player[] {
+    runCleanMigrationIfNeeded();
     const raw = localStorage.getItem(STORAGE_KEYS.PLAYERS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(INITIAL_PLAYERS));
@@ -321,6 +169,7 @@ export const storageService = {
   },
 
   getWaitingList(): WaitingListEntry[] {
+    runCleanMigrationIfNeeded();
     const raw = localStorage.getItem(STORAGE_KEYS.WAITING_LIST);
     if (!raw) {
       localStorage.setItem(STORAGE_KEYS.WAITING_LIST, JSON.stringify(INITIAL_WAITING_LIST));

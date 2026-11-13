@@ -795,12 +795,137 @@
     color: var(--orange-hover);
   }
 
+  .state-text-baja {
+    font-weight: 800;
+    color: var(--danger-fg);
+  }
+
   /* Controles Admin */
   .admin-metrics-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
     margin: 14px 0;
+  }
+
+  @media (min-width: 640px) {
+    .admin-metrics-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .admin-table-section {
+    margin-top: 22px;
+  }
+
+  .admin-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .admin-group-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--navy-deep);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .admin-group-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    background: #EFF6FF;
+    color: var(--navy-deep);
+    border: 1px solid #BFDBFE;
+  }
+
+  .admin-group-badge.suplente {
+    background: var(--orange-tint);
+    color: var(--orange-hover);
+    border-color: var(--orange-border);
+  }
+
+  .admin-group-badge.baja {
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+    border-color: var(--danger-border);
+  }
+
+  /* Escrutinio del Ciclo */
+  .scrutiny-cycle-card {
+    margin-top: 16px;
+    border-top: 4px solid var(--orange-luck);
+  }
+
+  .scrutiny-header-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .scrutiny-info-strip {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-subtle);
+    border: 1px solid var(--border-hairline);
+  }
+
+  @media (min-width: 720px) {
+    .scrutiny-info-strip {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .ball.ball-hit {
+    background: #065F46;
+    border-color: #10B981;
+  }
+
+  .ball.ball-muted {
+    background: #F1F5F9;
+    color: var(--navy-deep);
+    border-color: #CBD5E1;
+  }
+
+  .scrutiny-hits-banner {
+    margin-top: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    color: var(--navy-deep);
+    font-weight: 800;
+    font-size: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .prize-manual-box {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-hairline);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
   }
 
   .btn-toggle-pago {
