@@ -91,3 +91,16 @@ export interface DrawSimulationResult {
   taxWithheld?: number; // 20% sobre exceso de 40.000€
   netPerPlayer?: number;
 }
+
+export interface PrizeHistoryEntry {
+  id: string;
+  ticketId: string;
+  cycleNumber: number;
+  jornadaNumber: number;
+  drawDate: string;
+  hitsCount: number;
+  hasReintegro: boolean;
+  prizeCategory: string;
+  prizeAmount: number;
+  prizeType: 'MENOR_BOLSA' | 'MAYOR_BANCO';
+}

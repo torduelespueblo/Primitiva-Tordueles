@@ -4,7 +4,8 @@ import {
   WaitingListEntry,
   TicketDraw,
   SyndicateSettings,
-  MultipleBetType
+  MultipleBetType,
+  PrizeHistoryEntry
 } from '../types/lottery';
 import {
   calculateScrutiny
@@ -14,7 +15,7 @@ import { pushNotificationService } from '../services/pushNotifications';
 import { processTicketWithAI, optimizeTicketImageToDataUrl } from '../services/aiService';
 import { fetchLiveDailyBulletinFromAppsScript } from '../services/lotteryDailyService';
 import { getPublicRegistrationShareUrl } from '../services/registrationService';
-import { MAX_STORED_TICKETS } from '../services/storage';
+import { capTicketsKeepingPlayed } from '../services/storage';
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
 import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
@@ -39,7 +40,9 @@ import {
   CheckCircle2,
   BellRing,
   Trash2,
-  Megaphone
+  Megaphone,
+  Wallet,
+  RotateCcw
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -51,6 +54,8 @@ interface AdminPanelProps {
   onUpdateWaitingList: (newList: WaitingListEntry[]) => void;
   tickets: TicketDraw[];
   onUpdateTickets: (newTickets: TicketDraw[]) => void;
+  prizeHistory: PrizeHistoryEntry[];
+  onUpdatePrizeHistory: (entries: PrizeHistoryEntry[]) => void;
   onLogoutAdmin: () => void;
 }
 
@@ -63,6 +68,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateWaitingList,
   tickets,
   onUpdateTickets,
+  prizeHistory,
+  onUpdatePrizeHistory,
   onLogoutAdmin,
 }) => {
   const [activeSection, setActiveSection] = useState<
@@ -76,6 +83,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isLoadingBulletin, setIsLoadingBulletin] = useState(false);
   const [bulletinSendStatus, setBulletinSendStatus] = useState<string | null>(null);
   const [copiedRegLink, setCopiedRegLink] = useState(false);
+  const [confirmResetFund, setConfirmResetFund] = useState(false);
+  const [resetFundFeedback, setResetFundFeedback] = useState<string | null>(null);
 
   // Estados de Notificaciones Push Preprogramadas
   const [pushTitle, setPushTitle] = useState(
@@ -277,7 +286,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       prizeType: 'NINGUNO',
     };
 
-    onUpdateTickets([newTicket, ...tickets].slice(0, MAX_STORED_TICKETS));
+    onUpdateTickets(capTicketsKeepingPlayed([newTicket, ...tickets]));
     setTicketSaveSuccess(true);
     setScanError(null);
 
@@ -308,14 +317,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTimeout(() => setTicketSaveSuccess(false), 3000);
   };
 
+  const handleResetPrizeFund = () => {
+    onUpdateSettings({
+      ...settings,
+      prizeFundBalance: 0,
+    });
+    setConfirmResetFund(false);
+    setResetFundFeedback('Bolsa de premios reseteada a 0,00 €.');
+    setTimeout(() => setResetFundFeedback(null), 5000);
+  };
+
   const handleRunScrutiny = () => {
     const winNums = scrutinyWinning
-      .split(',')
+      .split(/[,;\s-]+/)
       .map(s => parseInt(s.trim(), 10))
-      .filter(n => !isNaN(n));
+      .filter(n => !isNaN(n) && n >= 1 && n <= 49);
 
-    const targetTicket = tickets[0];
-    if (!targetTicket) return;
+    if (winNums.length !== 6) {
+      setScrutinyResult('Introduce los 6 números ganadores oficiales (del 1 al 49) antes de ejecutar el escrutinio.');
+      return;
+    }
+
+    const targetTicket = tickets.find(t => !t.isScrutinized) || tickets[0];
+    if (!targetTicket) {
+      setScrutinyResult('No hay ningún boleto publicado para escrutar.');
+      return;
+    }
 
     const result = calculateScrutiny(
       targetTicket.playedNumbers,
@@ -327,8 +354,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       targetTicket.activePlayersCount
     );
 
-    const updated = tickets.map((t, i) => {
-      if (i === 0) {
+    const updated = tickets.map(t => {
+      if (t.id === targetTicket.id) {
         return {
           ...t,
           isScrutinized: true,
@@ -346,6 +373,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
 
     onUpdateTickets(updated);
+
+    // Registrar en el histórico permanente de premios obtenidos si hay premio > 0
+    if (result.prizeAmount > 0) {
+      const entry: PrizeHistoryEntry = {
+        id: `prize-${targetTicket.id}`,
+        ticketId: targetTicket.id,
+        cycleNumber: targetTicket.cycleNumber,
+        jornadaNumber: targetTicket.jornadaNumber,
+        drawDate: targetTicket.drawDate,
+        hitsCount: result.hits,
+        hasReintegro: result.reintegroHit,
+        prizeCategory: result.category,
+        prizeAmount: result.prizeAmount,
+        prizeType: result.isMayor ? 'MAYOR_BANCO' : 'MENOR_BOLSA',
+      };
+      const withoutDuplicate = prizeHistory.filter(p => p.ticketId !== targetTicket.id);
+      onUpdatePrizeHistory([entry, ...withoutDuplicate]);
+    }
 
     // Si es menor <=2000 se suma a la bolsa
     if (!result.isMayor && result.prizeAmount > 0) {
@@ -618,6 +663,69 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               {testMsgStatus && (
                 <span className="text-base text-slate-700 font-semibold">{testMsgStatus}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Gestión y Reset de la Bolsa de Dinero */}
+          <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
+                  <Wallet className="w-6 h-6 text-[#FF6B00]" />
+                  Bolsa de Dinero (Premios Menores · Fondo Común)
+                </h2>
+                <p className="text-base text-slate-600 mt-1">
+                  Saldo actual acumulado en bolsa. Puedes ponerlo a 0,00 € tras repartir el bote o liquidar un ciclo (sin borrar el histórico de premios).
+                </p>
+              </div>
+              <div className="rounded-2xl bg-[#0A2540] text-white px-5 py-3 text-left sm:text-right shrink-0">
+                <span className="text-xs uppercase font-bold text-slate-300 block">Saldo Actual Bolsa</span>
+                <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                  {settings.prizeFundBalance.toFixed(2)} €
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              {!confirmResetFund ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmResetFund(true)}
+                  disabled={settings.prizeFundBalance === 0}
+                  className="inline-flex items-center gap-2 px-5 min-h-[48px] rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-45 text-white font-bold text-base transition cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Resetear Bolsa a 0,00 €</span>
+                </button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 w-full">
+                  <span className="text-sm sm:text-base font-bold text-rose-950">
+                    ¿Confirmas poner a 0,00 € la bolsa actual ({settings.prizeFundBalance.toFixed(2)} €)?
+                  </span>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmResetFund(false)}
+                      className="px-4 min-h-[42px] rounded-xl border border-slate-300 bg-white text-slate-700 font-bold text-sm cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetPrizeFund}
+                      className="px-4 min-h-[42px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm cursor-pointer"
+                    >
+                      Confirmar Reset
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {resetFundFeedback && (
+                <span className="text-sm sm:text-base font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl">
+                  {resetFundFeedback}
+                </span>
               )}
             </div>
           </div>
@@ -1336,58 +1444,98 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
-          {tickets[0] && (
-            <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-2.5 text-base">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-bold text-[#0A2540]">
-                  Comprobación en vivo (Jornada {tickets[0].jornadaNumber}):
-                </span>
-                <span className="font-mono text-slate-600 text-sm font-semibold tabular-nums">
-                  Apuesta: [{tickets[0].playedNumbers.join(', ')}] · R: {tickets[0].playedReintegro}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="text-slate-700 font-medium">Aciertos:</span>
-                {(() => {
-                  const winNums = scrutinyWinning.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-                  const hits = tickets[0].playedNumbers.filter(n => winNums.includes(n));
-                  const reintegroMatch = scrutinyReintegro === tickets[0].playedReintegro;
-                  return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {hits.length > 0 ? (
-                        hits.map(h => (
-                          <span key={h} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-mono font-bold text-sm">
-                            {h}
+          {(() => {
+            const targetScrutinyTicket = tickets.find(t => !t.isScrutinized) || tickets[0];
+            if (!targetScrutinyTicket) return null;
+            return (
+              <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-2.5 text-base">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold text-[#0A2540]">
+                    Comprobación en vivo (Jornada {targetScrutinyTicket.jornadaNumber}):
+                  </span>
+                  <span className="font-mono text-slate-600 text-sm font-semibold tabular-nums">
+                    Apuesta: [{targetScrutinyTicket.playedNumbers.join(', ')}] · R: {targetScrutinyTicket.playedReintegro}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="text-slate-700 font-medium">Aciertos:</span>
+                  {(() => {
+                    const winNums = scrutinyWinning.split(/[,;\s-]+/).map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+                    const hits = targetScrutinyTicket.playedNumbers.filter(n => winNums.includes(n));
+                    const reintegroMatch = scrutinyReintegro === targetScrutinyTicket.playedReintegro;
+                    return (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {hits.length > 0 ? (
+                          hits.map(h => (
+                            <span key={h} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-mono font-bold text-sm">
+                              {h}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-600 font-semibold">0 aciertos en combinación</span>
+                        )}
+                        {reintegroMatch && (
+                          <span className="px-2.5 py-1 rounded-lg bg-[#0A2540] text-white font-bold text-sm">
+                            Reintegro Acertado ({scrutinyReintegro})
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-600 font-semibold">0 aciertos en combinación</span>
-                      )}
-                      {reintegroMatch && (
-                        <span className="px-2.5 py-1 rounded-lg bg-[#0A2540] text-white font-bold text-sm">
-                          Reintegro Acertado ({scrutinyReintegro})
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
-          <div className="pt-2 flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={handleRunScrutiny}
-              className="px-6 min-h-[50px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-xs transition cursor-pointer"
-            >
-              Ejecutar Escrutinio y Acreditar Bolsa
-            </button>
-            {scrutinyResult && (
-              <span className="text-base font-bold text-emerald-900 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200">
-                {scrutinyResult}
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleRunScrutiny}
+                className="px-6 min-h-[50px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-xs transition cursor-pointer"
+              >
+                Ejecutar Escrutinio y Acreditar Bolsa
+              </button>
+              {scrutinyResult && (
+                <span className="text-base font-bold text-emerald-900 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200">
+                  {scrutinyResult}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm sm:text-base font-bold text-[#0A2540] tabular-nums">
+                Bolsa actual: {settings.prizeFundBalance.toFixed(2)} €
               </span>
-            )}
+              {!confirmResetFund ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmResetFund(true)}
+                  disabled={settings.prizeFundBalance === 0}
+                  className="inline-flex items-center gap-1.5 px-4 min-h-[44px] rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 disabled:opacity-45 text-rose-800 font-bold text-sm transition cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Resetear Bolsa</span>
+                </button>
+              ) : (
+                <div className="inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmResetFund(false)}
+                    className="px-3 min-h-[40px] rounded-xl border border-slate-300 bg-white text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetPrizeFund}
+                    className="px-3 min-h-[40px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer"
+                  >
+                    Confirmar 0,00 €
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

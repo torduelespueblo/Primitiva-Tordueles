@@ -1,5 +1,5 @@
 import React from 'react';
-import { SyndicateSettings, TicketDraw, Player } from '../types/lottery';
+import { SyndicateSettings, TicketDraw, Player, PrizeHistoryEntry } from '../types/lottery';
 import { TicketCard } from './TicketCard';
 import {
   Wallet,
@@ -16,16 +16,19 @@ interface UserDashboardProps {
   settings: SyndicateSettings;
   tickets: TicketDraw[];
   players: Player[];
+  prizeHistory: PrizeHistoryEntry[];
   onNavigateTab: (tab: string) => void;
 }
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({
   settings,
   tickets,
+  prizeHistory,
   onNavigateTab,
 }) => {
-  const currentTicket = tickets[0];
+  const pendingTicket = tickets.find(t => !t.isScrutinized);
   const lastScrutinized = tickets.find(t => t.isScrutinized);
+  const totalAllPrizes = prizeHistory.reduce((sum, entry) => sum + (entry.prizeAmount || 0), 0);
 
   const isRenewalWindow = settings.currentJornada >= 7 && settings.currentJornada <= 9;
   const isFinalDeadline = settings.currentJornada === 9;
@@ -37,35 +40,47 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   return (
     <div className="space-y-8">
-      {/* 1. LO PRIMERO: LA APUESTA QUE SE VA A JUGAR */}
+      {/* 1. LO PRIMERO: LA APUESTA QUE SE VA A JUGAR (SOLO PENDIENTE) */}
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
             <p className="text-sm font-extrabold uppercase tracking-wider text-[#FF6B00] tabular-nums">
-              Sorteo en Curso · Jornada {currentTicket?.jornadaNumber || settings.currentJornada} de {settings.cycleLength}
+              Sorteo en Curso · Jornada {pendingTicket?.jornadaNumber || settings.currentJornada} de {settings.cycleLength}
             </p>
             <h1 className="text-2xl sm:text-3xl font-black font-serif text-[#0A2540] mt-1">
               Apuesta Oficial de la Peña
             </h1>
             <p className="text-base text-slate-600 mt-1 max-w-2xl leading-relaxed">
-              Combinación múltiple sellada por terminal oficial de SELAE para todos los socios activos.
+              Combinación múltiple sellada por terminal oficial de SELAE pendiente de sorteo para todos los socios activos.
             </p>
           </div>
         </div>
 
-        {currentTicket ? (
+        {pendingTicket ? (
           <div className="max-w-2xl">
-            <TicketCard ticket={currentTicket} />
+            <TicketCard ticket={pendingTicket} />
           </div>
         ) : (
           <div className="p-8 text-center bg-white rounded-3xl border border-slate-200 text-slate-600 space-y-3">
             <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
             <p className="text-lg font-bold text-[#0A2540]">
-              Todavía no hay ningún boleto sellado publicado
+              Pendiente de publicar el boleto del próximo sorteo
             </p>
             <p className="text-base text-slate-600 max-w-xl mx-auto">
-              Cuando el administrador valide la combinación en el terminal oficial de SELAE, el boleto aparecerá aquí automáticamente.
+              Cuando el administrador suba el resguardo oficial sellado en el terminal de SELAE para la próxima jornada, aparecerá aquí. Los boletos ya jugados están en «Boletos».
             </p>
+            {lastScrutinized && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('tickets')}
+                  className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white text-sm sm:text-base font-bold transition cursor-pointer"
+                >
+                  <span>Ver últimos boletos jugados</span>
+                  <ArrowRight className="w-4 h-4 text-[#FF6B00]" />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -221,34 +236,60 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </section>
       )}
 
-      {/* 4. BOLSA DE PREMIOS MENORES */}
-      <section className="rounded-3xl bg-[#0A2540] p-6 sm:p-8 text-white shadow-md relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div>
+      {/* 4. TOTAL PREMIOS OBTENIDOS & BOLSA ACTUAL DE PREMIOS MENORES */}
+      <section className="rounded-3xl bg-[#0A2540] p-6 sm:p-8 text-white shadow-md relative overflow-hidden space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Importe total histórico de todos los premios obtenidos */}
+          <div className="rounded-2xl bg-white/10 border border-white/15 p-5">
             <span className="text-sm font-extrabold uppercase tracking-wider text-[#FF6B00] flex items-center gap-2">
-              <Wallet className="w-5 h-5" />
-              Bolsa de Premios Menores · Fondo Común
+              <Trophy className="w-5 h-5" />
+              Importe Total de Premios Obtenidos
+            </span>
+            <div className="mt-2 text-4xl sm:text-5xl font-black tracking-tight font-serif text-emerald-400 tabular-nums">
+              {totalAllPrizes.toFixed(2)} €
+            </div>
+            <p className="mt-2 text-sm sm:text-base text-slate-200 leading-relaxed">
+              Suma acumulada de todos los premios conseguidos por la peña en sus sorteos ({prizeHistory.length}{' '}
+              {prizeHistory.length === 1 ? 'premio registrado' : 'premios registrados'}).
+            </p>
+          </div>
+
+          {/* Bolsa actual de dinero (resetable por el Admin) */}
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
+            <span className="text-sm font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-[#FF6B00]" />
+              Bolsa Actual · Fondo Común Menores
             </span>
             <div className="mt-2 text-4xl sm:text-5xl font-black tracking-tight font-serif text-white tabular-nums">
               {settings.prizeFundBalance.toFixed(2)} €
             </div>
-            <p className="mt-2.5 text-base text-slate-200 max-w-2xl leading-relaxed">
-              Fondo acumulado de todos los premios menores o iguales a 2.000 € obtenidos por la peña. Separado estrictamente de las cuotas semanales.
+            <p className="mt-2 text-sm sm:text-base text-slate-300 leading-relaxed">
+              Saldo actual disponible en la bolsa de premios menores (&le; 2.000 €), separado estrictamente de las cuotas semanales.
             </p>
           </div>
+        </div>
 
-          <div className="sm:text-right shrink-0 space-y-2">
+        <div className="pt-4 border-t border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <p className="text-sm text-slate-300">
+            Consulta el desglose ordenado por fecha en «Boletos». Sin derecho a devolución en caso de baja (Art. 5).
+          </p>
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => onNavigateTab('tickets')}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[46px] rounded-xl bg-white/15 hover:bg-white/25 text-base font-bold text-white transition cursor-pointer"
+            >
+              <span>Histórico de Premios</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
             <button
               type="button"
               onClick={() => onNavigateTab('rules')}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white transition cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-5 min-h-[46px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white transition cursor-pointer"
             >
               <span>Reglamento Art. 5</span>
               <ArrowRight className="w-5 h-5" />
             </button>
-            <p className="text-sm text-slate-300">
-              Sin derecho a devolución en caso de baja
-            </p>
           </div>
         </div>
       </section>

@@ -8,9 +8,10 @@ import {
   SyndicateSettings,
   Player,
   WaitingListEntry,
-  TicketDraw
+  TicketDraw,
+  PrizeHistoryEntry
 } from './types/lottery';
-import { MAX_STORED_TICKETS, storageService } from './services/storage';
+import { capTicketsKeepingPlayed, storageService } from './services/storage';
 import { Navbar } from './components/Navbar';
 import { UserDashboard } from './components/UserDashboard';
 import { TicketsHistory } from './components/TicketsHistory';
@@ -39,6 +40,7 @@ export default function App() {
   const [players, setPlayers] = useState<Player[]>(() => storageService.getPlayers());
   const [waitingList, setWaitingList] = useState<WaitingListEntry[]>(() => storageService.getWaitingList());
   const [tickets, setTickets] = useState<TicketDraw[]>(() => storageService.getTickets());
+  const [prizeHistory, setPrizeHistory] = useState<PrizeHistoryEntry[]>(() => storageService.getPrizeHistory());
   const [isConformityAccepted, setIsConformityAccepted] = useState<boolean>(() => storageService.isConformityAccepted());
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
@@ -66,9 +68,14 @@ export default function App() {
   };
 
   const handleUpdateTickets = (newTickets: TicketDraw[]) => {
-    const capped = newTickets.slice(0, MAX_STORED_TICKETS);
+    const capped = capTicketsKeepingPlayed(newTickets);
     setTickets(capped);
     storageService.saveTickets(capped);
+  };
+
+  const handleUpdatePrizeHistory = (newEntries: PrizeHistoryEntry[]) => {
+    setPrizeHistory(newEntries);
+    storageService.savePrizeHistory(newEntries);
   };
 
   const handleAcceptConformity = () => {
@@ -255,6 +262,7 @@ export default function App() {
                 settings={settings}
                 tickets={tickets}
                 players={players}
+                prizeHistory={prizeHistory}
                 onNavigateTab={tab => setCurrentTab(tab)}
               />
             )}
@@ -262,6 +270,7 @@ export default function App() {
             {currentTab === 'tickets' && (
               <TicketsHistory
                 tickets={tickets}
+                prizeHistory={prizeHistory}
                 currentCycle={settings.currentCycle}
               />
             )}
@@ -287,6 +296,8 @@ export default function App() {
                 onUpdateWaitingList={handleUpdateWaitingList}
                 tickets={tickets}
                 onUpdateTickets={handleUpdateTickets}
+                prizeHistory={prizeHistory}
+                onUpdatePrizeHistory={handleUpdatePrizeHistory}
                 onLogoutAdmin={() => {
                   setIsAdminAuthenticated(false);
                   setCurrentTab('dashboard');

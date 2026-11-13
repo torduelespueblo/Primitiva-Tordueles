@@ -1,30 +1,45 @@
 import React, { useState } from 'react';
-import { TicketDraw } from '../types/lottery';
+import { TicketDraw, PrizeHistoryEntry } from '../types/lottery';
 import { TicketCard } from './TicketCard';
-import { Receipt, Trophy, Layers } from 'lucide-react';
+import { Receipt, Trophy, Layers, ArrowUpDown, Calendar } from 'lucide-react';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
 import { MAX_STORED_TICKETS } from '../services/storage';
 
 interface TicketsHistoryProps {
   tickets: TicketDraw[];
+  prizeHistory: PrizeHistoryEntry[];
   currentCycle: number;
 }
 
-export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, currentCycle }) => {
+export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
+  tickets,
+  prizeHistory,
+  currentCycle,
+}) => {
   const [filter, setFilter] = useState<'ALL' | 'CURRENT_CYCLE' | 'PRIZES_ONLY'>('ALL');
   const [showMultiplesGuide, setShowMultiplesGuide] = useState(false);
+  const [prizeSortOrder, setPrizeSortOrder] = useState<'DESC' | 'ASC'>('DESC');
 
-  const recentTickets = tickets.slice(0, MAX_STORED_TICKETS);
+  // Solo los últimos 4 boletos ya jugados/escrutados (excluye el boleto pendiente de «Mi Jugada»)
+  const playedTickets = tickets
+    .filter(t => t.isScrutinized)
+    .sort((a, b) => new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime())
+    .slice(0, MAX_STORED_TICKETS);
 
-  const filteredTickets = recentTickets.filter(t => {
+  const filteredTickets = playedTickets.filter(t => {
     if (filter === 'CURRENT_CYCLE') return t.cycleNumber === currentCycle;
     if (filter === 'PRIZES_ONLY') return t.totalPrize > 0;
     return true;
   });
 
-  const totalWonInCycle = recentTickets
-    .filter(t => t.cycleNumber === currentCycle)
-    .reduce((sum, t) => sum + (t.totalPrize || 0), 0);
+  // Histórico completo de premios obtenidos ordenado por fecha del sorteo
+  const sortedPrizes = [...prizeHistory].sort((a, b) => {
+    const timeA = new Date(a.drawDate).getTime();
+    const timeB = new Date(b.drawDate).getTime();
+    return prizeSortOrder === 'DESC' ? timeB - timeA : timeA - timeB;
+  });
+
+  const totalPrizesAllTime = sortedPrizes.reduce((sum, p) => sum + (p.prizeAmount || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -34,11 +49,11 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, current
           <div className="flex items-center gap-2.5">
             <Receipt className="w-6 h-6 text-[#FF6B00] shrink-0" />
             <h1 className="text-2xl sm:text-3xl font-black font-serif text-[#0A2540]">
-              Historial de Boletos Sellados
+              Historial de Boletos Jugados
             </h1>
           </div>
           <p className="text-base text-slate-600 mt-1.5 leading-relaxed">
-            Se conservan únicamente los últimos {MAX_STORED_TICKETS} resguardos sellados oficiales y sus escrutinios.
+            Se conservan los últimos {MAX_STORED_TICKETS} boletos ya jugados y escrutados. El boleto pendiente del próximo sorteo se muestra en «Mi Jugada».
           </p>
         </div>
 
@@ -53,10 +68,10 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, current
           </button>
           <div className="rounded-2xl bg-[#0A2540] text-white px-5 py-2.5 text-left sm:text-right">
             <span className="text-xs sm:text-sm text-slate-300 uppercase font-bold block">
-              Premios Ciclo {currentCycle}
+              Total Premios
             </span>
             <span className="text-xl font-black text-emerald-400 tabular-nums">
-              +{totalWonInCycle.toFixed(2)} €
+              +{totalPrizesAllTime.toFixed(2)} €
             </span>
           </div>
         </div>
@@ -75,7 +90,7 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, current
               : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
           }`}
         >
-          <span>Últimos ({recentTickets.length}/{MAX_STORED_TICKETS})</span>
+          <span>Últimos Jugados ({playedTickets.length}/{MAX_STORED_TICKETS})</span>
         </button>
 
         <button
@@ -88,7 +103,7 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, current
           }`}
         >
           <span>
-            Ciclo {currentCycle} ({recentTickets.filter(t => t.cycleNumber === currentCycle).length})
+            Ciclo {currentCycle} ({playedTickets.filter(t => t.cycleNumber === currentCycle).length})
           </span>
         </button>
 
@@ -102,21 +117,21 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, current
           }`}
         >
           <Trophy className="w-5 h-5 text-[#FF6B00]" />
-          <span>Con Premio ({recentTickets.filter(t => t.totalPrize > 0).length})</span>
+          <span>Con Premio ({playedTickets.filter(t => t.totalPrize > 0).length})</span>
         </button>
       </div>
 
-      {/* Empty state or Grid of Tickets */}
+      {/* Grid of Last 4 Played Tickets */}
       {filteredTickets.length === 0 ? (
         <div className="rounded-3xl bg-white border border-slate-200 p-8 sm:p-10 text-center space-y-2.5 shadow-xs">
           <Receipt className="w-10 h-10 text-slate-400 mx-auto" />
           <h2 className="text-lg font-extrabold text-[#0A2540]">
-            No hay boletos publicados todavía
+            No hay boletos jugados todavía
           </h2>
           <p className="text-base text-slate-600 max-w-lg mx-auto">
-            {recentTickets.length === 0
-              ? `Cuando el administrador valide el resguardo oficial del próximo sorteo, aparecerá aquí. Solo se almacenan los últimos ${MAX_STORED_TICKETS} boletos.`
-              : 'No hay boletos en este filtro con los últimos resguardos guardados.'}
+            {playedTickets.length === 0
+              ? `Cuando finalice un sorteo y se realice el escrutinio oficial, el boleto pasará aquí automáticamente (máximo los últimos ${MAX_STORED_TICKETS} jugados). El boleto pendiente de sortearse se consulta en «Mi Jugada».`
+              : 'No hay boletos jugados que coincidan con este filtro.'}
           </p>
         </div>
       ) : (
@@ -126,6 +141,109 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({ tickets, current
           ))}
         </div>
       )}
+
+      {/* Histórico de Premios Obtenidos ordenado por fecha del sorteo */}
+      <section className="rounded-3xl bg-white border border-slate-200 shadow-xs overflow-hidden">
+        <div className="p-5 sm:p-7 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black font-serif text-[#0A2540] flex items-center gap-2.5">
+              <Trophy className="w-6 h-6 text-[#FF6B00] shrink-0" />
+              Histórico de Premios Obtenidos
+            </h2>
+            <p className="text-base text-slate-600 mt-1">
+              Registro completo de premios conseguidos por la peña, ordenado por la fecha de cada sorteo.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setPrizeSortOrder(prev => (prev === 'DESC' ? 'ASC' : 'DESC'))}
+            className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl border border-slate-300 bg-[#F4F6F9] hover:bg-slate-200 text-sm sm:text-base font-bold text-[#0A2540] transition cursor-pointer shrink-0"
+          >
+            <ArrowUpDown className="w-4 h-4 text-[#FF6B00]" />
+            <span>
+              {prizeSortOrder === 'DESC' ? 'Fecha: Más recientes primero' : 'Fecha: Más antiguos primero'}
+            </span>
+          </button>
+        </div>
+
+        {sortedPrizes.length === 0 ? (
+          <div className="p-8 text-center text-slate-600 space-y-2">
+            <Calendar className="w-9 h-9 text-slate-300 mx-auto" />
+            <p className="text-base font-bold text-[#0A2540]">
+              Aún no hay premios registrados en el histórico
+            </p>
+            <p className="text-sm sm:text-base text-slate-600 max-w-md mx-auto">
+              Cada vez que un escrutinio oficial obtenga premio, quedará anotado aquí de forma permanente con la fecha del sorteo.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-base text-slate-800">
+              <thead className="bg-[#0A2540] text-white uppercase text-sm tracking-wider">
+                <tr>
+                  <th className="py-3.5 px-4 sm:px-6">Fecha del Sorteo</th>
+                  <th className="py-3.5 px-4">Ciclo / Jornada</th>
+                  <th className="py-3.5 px-4">Categoría / Aciertos</th>
+                  <th className="py-3.5 px-4">Destino</th>
+                  <th className="py-3.5 px-4 sm:px-6 text-right">Importe</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sortedPrizes.map(entry => {
+                  const dateLabel = new Date(entry.drawDate).toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  });
+                  return (
+                    <tr key={entry.id} className="hover:bg-slate-50">
+                      <td className="py-3.5 px-4 sm:px-6 font-bold text-[#0A2540] tabular-nums whitespace-nowrap">
+                        {dateLabel}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold tabular-nums whitespace-nowrap">
+                        Ciclo {entry.cycleNumber} · J{entry.jornadaNumber}/10
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-[#0A2540] block">
+                          {entry.prizeCategory}
+                        </span>
+                        <span className="text-sm text-slate-600">
+                          {entry.hitsCount} aciertos{entry.hasReintegro ? ' + Reintegro' : ''}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-flex px-2.5 py-1 rounded-lg text-xs sm:text-sm font-bold ${
+                            entry.prizeType === 'MAYOR_BANCO'
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-emerald-50 text-emerald-800'
+                          }`}
+                        >
+                          {entry.prizeType === 'MAYOR_BANCO' ? 'Cobro Bancario' : 'Bolsa Común'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 text-right font-black text-emerald-700 tabular-nums whitespace-nowrap">
+                        +{entry.prizeAmount.toFixed(2)} €
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="bg-[#F4F6F9] border-t-2 border-slate-200">
+                <tr>
+                  <td colSpan={4} className="py-4 px-4 sm:px-6 font-extrabold text-[#0A2540]">
+                    Total Histórico de Premios Obtenidos ({sortedPrizes.length})
+                  </td>
+                  <td className="py-4 px-4 sm:px-6 text-right font-black text-lg text-emerald-700 tabular-nums whitespace-nowrap">
+                    +{totalPrizesAllTime.toFixed(2)} €
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 };

@@ -1,10 +1,11 @@
-import { Player, WaitingListEntry, TicketDraw, SyndicateSettings } from '../types/lottery';
+import { Player, WaitingListEntry, TicketDraw, SyndicateSettings, PrizeHistoryEntry } from '../types/lottery';
 
 const STORAGE_KEYS = {
   SETTINGS: 'primitiva_tordueles_settings',
   PLAYERS: 'primitiva_tordueles_players',
   WAITING_LIST: 'primitiva_tordueles_waiting_list',
   TICKETS: 'primitiva_tordueles_tickets',
+  PRIZE_HISTORY: 'primitiva_tordueles_prize_history',
   CONFORMITY: 'primitiva_tordueles_conformity_v1',
   ADMIN_PIN: 'primitiva_tordueles_admin_pin',
   PUSH_TOKEN: 'primitiva_tordueles_push_token',
@@ -12,6 +13,12 @@ const STORAGE_KEYS = {
 };
 
 export const MAX_STORED_TICKETS = 4;
+
+export function capTicketsKeepingPlayed(tickets: TicketDraw[]): TicketDraw[] {
+  const pending = tickets.filter(t => !t.isScrutinized);
+  const played = tickets.filter(t => t.isScrutinized).slice(0, MAX_STORED_TICKETS);
+  return [...pending, ...played];
+}
 
 const DELETED_MOCK_TICKET_IDS = new Set(['t-08', 't-07', 't-06', 't-05']);
 
@@ -339,15 +346,64 @@ export const storageService = {
     }
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.slice(0, MAX_STORED_TICKETS) : INITIAL_TICKETS;
+      return Array.isArray(parsed) ? capTicketsKeepingPlayed(parsed) : INITIAL_TICKETS;
     } catch {
       return INITIAL_TICKETS;
     }
   },
 
   saveTickets(tickets: TicketDraw[]): void {
-    const capped = tickets.slice(0, MAX_STORED_TICKETS);
+    const capped = capTicketsKeepingPlayed(tickets);
     localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(capped));
+  },
+
+  getPrizeHistory(): PrizeHistoryEntry[] {
+    runCleanMigrationIfNeeded();
+    let stored: PrizeHistoryEntry[] = [];
+    const raw = localStorage.getItem(STORAGE_KEYS.PRIZE_HISTORY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          stored = parsed;
+        }
+      } catch {
+        stored = [];
+      }
+    }
+
+    // Sincronizar automáticamente boletos ya escrutados con premio que no estuvieran en el histórico
+    const existingTicketIds = new Set(stored.map(e => e.ticketId));
+    const currentTickets = this.getTickets();
+    let added = false;
+    for (const t of currentTickets) {
+      if (t.isScrutinized && (t.totalPrize || 0) > 0 && !existingTicketIds.has(t.id)) {
+        stored.push({
+          id: `prize-${t.id}`,
+          ticketId: t.id,
+          cycleNumber: t.cycleNumber,
+          jornadaNumber: t.jornadaNumber,
+          drawDate: t.drawDate,
+          hitsCount: t.hitsCount ?? 0,
+          hasReintegro: Boolean(t.hasReintegro),
+          prizeCategory: t.prizeCategory || 'Premio SELAE',
+          prizeAmount: t.totalPrize,
+          prizeType: t.totalPrize > 2000 ? 'MAYOR_BANCO' : 'MENOR_BOLSA',
+        });
+        existingTicketIds.add(t.id);
+        added = true;
+      }
+    }
+
+    if (added) {
+      localStorage.setItem(STORAGE_KEYS.PRIZE_HISTORY, JSON.stringify(stored));
+    }
+
+    return stored;
+  },
+
+  savePrizeHistory(entries: PrizeHistoryEntry[]): void {
+    localStorage.setItem(STORAGE_KEYS.PRIZE_HISTORY, JSON.stringify(entries));
   },
 
   isConformityAccepted(): boolean {
