@@ -47,6 +47,14 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  html.splash-locked,
+  body.splash-locked {
+    overflow: hidden !important;
+    height: 100% !important;
+    touch-action: none !important;
+    overscroll-behavior: none !important;
+  }
+
   body {
     font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     background-color: var(--bg-canvas);
@@ -54,6 +62,101 @@
     line-height: 1.55;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* ==========================================================================
+     PANTALLA DE INICIO (SPLASH SCREEN NATIVA)
+     ========================================================================== */
+  .pwa-splash-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    width: 100%;
+    height: 100dvh;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background-color: #0A2540;
+    background-image:
+      radial-gradient(circle at 50% 48%, rgba(26, 77, 128, 0.45) 0%, rgba(10, 37, 64, 0.92) 38%, #0A2540 62%, #051628 100%);
+    pointer-events: all;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+    transition:
+      opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0.55s ease,
+      transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .pwa-splash-screen.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scale(1.035);
+  }
+
+  .splash-logo-stage {
+    position: relative;
+    width: clamp(230px, 60vw, 330px);
+    height: clamp(230px, 60vw, 330px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: splashEmblemReveal 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .splash-logo-stage::before {
+    content: "";
+    position: absolute;
+    inset: -14%;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at center,
+      rgba(255, 107, 0, 0.14) 0%,
+      rgba(22, 65, 108, 0.28) 44%,
+      rgba(10, 37, 64, 0) 74%
+    );
+    pointer-events: none;
+  }
+
+  .splash-logo-graphic {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 50%;
+    -webkit-mask-image: radial-gradient(
+      circle at center,
+      rgba(0, 0, 0, 1) 54%,
+      rgba(0, 0, 0, 0.88) 68%,
+      rgba(0, 0, 0, 0.32) 84%,
+      rgba(0, 0, 0, 0) 98%
+    );
+    mask-image: radial-gradient(
+      circle at center,
+      rgba(0, 0, 0, 1) 54%,
+      rgba(0, 0, 0, 0.88) 68%,
+      rgba(0, 0, 0, 0.32) 84%,
+      rgba(0, 0, 0, 0) 98%
+    );
+  }
+
+  @keyframes splashEmblemReveal {
+    0% {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   .tabular-nums {

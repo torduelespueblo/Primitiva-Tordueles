@@ -13,7 +13,8 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg', 'logo.svg'],
+        manifestFilename: 'manifest.json',
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg', 'logo.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
         manifest: {
           id: './',
           name: 'Peña Primitiva Tordueles',
@@ -21,6 +22,7 @@ export default defineConfig(() => {
           description: 'WebApp PWA oficial de la Peña de Lotería Primitiva Tordueles',
           theme_color: '#0A2540',
           background_color: '#0A2540',
+          lang: 'es',
           display: 'standalone',
           orientation: 'portrait-primary',
           start_url: './',
@@ -47,11 +49,12 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
           navigateFallback: 'index.html',
         },
         devOptions: {
-          enabled: false,
+          enabled: true,
+          type: 'module',
         },
       }),
     ],

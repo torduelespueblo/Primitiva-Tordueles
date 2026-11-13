@@ -13,6 +13,25 @@
     fallbackPublico: []
   };
 
+  (function initSplashScreen() {
+    var SPLASH_DURATION_MS = 2000;
+    window.setTimeout(function () {
+      document.documentElement.classList.remove('splash-locked');
+      if (document.body) {
+        document.body.classList.remove('splash-locked');
+      }
+      var splash = document.getElementById('pwaSplashScreen');
+      if (!splash) return;
+      splash.classList.add('is-hidden');
+      splash.setAttribute('aria-hidden', 'true');
+      window.setTimeout(function () {
+        if (splash && splash.parentNode) {
+          splash.parentNode.removeChild(splash);
+        }
+      }, 600);
+    }, SPLASH_DURATION_MS);
+  })();
+
   function cambiarVista(viewId) {
     document.querySelectorAll('.view-section').forEach(function (sec) {
       sec.classList.remove('active');

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="splash-locked">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -55,21 +55,176 @@
     </script>
     <title>Peña Primitiva Tordueles | WebApp Oficial</title>
     <meta name="description" content="Portal oficial de la Peña de Lotería Primitiva Tordueles. Seguimiento de ciclos de 10 jornadas, apuestas múltiples adaptables, fondo común y lista de espera." />
+
+    <!-- PWA Metaetiquetas e Iconos Oficiales -->
     <meta name="theme-color" content="#0A2540" />
+    <meta name="msapplication-TileColor" content="#0A2540" />
+    <meta name="application-name" content="Peña Tordueles" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Tordueles" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="./pwa-512x512.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="icon" href="./favicon.ico" />
+
     <meta property="og:title" content="Peña Primitiva Tordueles" />
     <meta property="og:description" content="Portal oficial de la Peña de Lotería Primitiva Tordueles." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary" />
+
+    <!-- CSS Crítico de Splash Screen Nativa (renderizado instantáneo sin parpadeos) -->
+    <style id="splash-critical-css">
+      html.splash-locked,
+      body.splash-locked {
+        overflow: hidden !important;
+        height: 100% !important;
+        overscroll-behavior: none !important;
+        touch-action: none !important;
+      }
+
+      #pwa-splash-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        width: 100%;
+        height: 100dvh;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background-color: #0A2540;
+        background-image:
+          radial-gradient(circle at 50% 48%, rgba(26, 77, 128, 0.45) 0%, rgba(10, 37, 64, 0.92) 38%, #0A2540 62%, #051628 100%);
+        pointer-events: all;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        opacity: 1;
+        visibility: visible;
+        transform: scale(1);
+        transition:
+          opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+          visibility 0.55s ease,
+          transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      #pwa-splash-screen.is-hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: scale(1.035);
+      }
+
+      .splash-logo-stage {
+        position: relative;
+        width: clamp(230px, 60vw, 340px);
+        height: clamp(230px, 60vw, 340px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: splashEmblemReveal 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .splash-logo-stage::before {
+        content: "";
+        position: absolute;
+        inset: -14%;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at center,
+          rgba(255, 107, 0, 0.14) 0%,
+          rgba(22, 65, 108, 0.28) 44%,
+          rgba(10, 37, 64, 0) 74%
+        );
+        pointer-events: none;
+      }
+
+      .splash-logo-img {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        border: 0;
+        border-radius: 50%;
+        /* Difuminado radial sobre los bordes del logo para fusión invisible con #0A2540 */
+        -webkit-mask-image: radial-gradient(
+          circle at center,
+          rgba(0, 0, 0, 1) 54%,
+          rgba(0, 0, 0, 0.88) 68%,
+          rgba(0, 0, 0, 0.32) 84%,
+          rgba(0, 0, 0, 0) 98%
+        );
+        mask-image: radial-gradient(
+          circle at center,
+          rgba(0, 0, 0, 1) 54%,
+          rgba(0, 0, 0, 0.88) 68%,
+          rgba(0, 0, 0, 0.32) 84%,
+          rgba(0, 0, 0, 0) 98%
+        );
+      }
+
+      @keyframes splashEmblemReveal {
+        0% {
+          opacity: 0;
+          transform: scale(0.92);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+    </style>
   </head>
-  <body class="bg-[#F4F6F9] text-slate-900 antialiased selection:bg-[#0A2540] selection:text-white">
+  <body class="bg-[#F4F6F9] text-slate-900 antialiased selection:bg-[#0A2540] selection:text-white splash-locked">
+    <!-- SPLASH SCREEN NATIVA (2000ms exactos + bloqueo de scroll/interacción) -->
+    <div id="pwa-splash-screen" role="status" aria-live="polite" aria-label="Iniciando Peña Primitiva Tordueles">
+      <div class="splash-logo-stage">
+        <img
+          src="./pwa-maskable-512x512.png"
+          alt="Logotipo oficial Peña Primitiva Tordueles"
+          class="splash-logo-img"
+          width="512"
+          height="512"
+          decoding="sync"
+          fetchpriority="high"
+        />
+      </div>
+    </div>
+
     <div id="root"></div>
+
+    <script>
+      (function () {
+        var SPLASH_DURATION_MS = 2000;
+        var splash = document.getElementById('pwa-splash-screen');
+        var htmlEl = document.documentElement;
+        var bodyEl = document.body;
+
+        window.setTimeout(function () {
+          htmlEl.classList.remove('splash-locked');
+          if (bodyEl) {
+            bodyEl.classList.remove('splash-locked');
+          }
+
+          if (!splash) return;
+          splash.classList.add('is-hidden');
+          splash.setAttribute('aria-hidden', 'true');
+
+          window.setTimeout(function () {
+            if (splash && splash.parentNode) {
+              splash.parentNode.removeChild(splash);
+            }
+          }, 600);
+        }, SPLASH_DURATION_MS);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

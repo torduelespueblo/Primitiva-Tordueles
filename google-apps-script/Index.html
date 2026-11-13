@@ -1,10 +1,64 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="splash-locked">
 <head>
   <base target="_top">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Peña Primitiva Tordueles | Portal Oficial</title>
+
+  <!-- PWA Metaetiquetas -->
+  <meta name="theme-color" content="#0A2540">
+  <meta name="msapplication-TileColor" content="#0A2540">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tordueles">
+
+  <!-- Icono y Manifest.json embebido con el emblema oficial -->
+  <link id="pwaAppleIcon" rel="apple-touch-icon" sizes="180x180" href="">
+  <link id="pwaFavicon" rel="icon" type="image/svg+xml" href="">
+  <link id="pwaManifestLink" rel="manifest" href="">
+  <script>
+    (function () {
+      var svgEmblem = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">' +
+        '<rect width="512" height="512" fill="#0A2540"/>' +
+        '<circle cx="256" cy="256" r="206" fill="#0A2540" stroke="#FFFFFF" stroke-width="10"/>' +
+        '<path d="M168 184 C168 128 212 96 256 96 C300 96 344 128 344 184 C344 214 316 232 284 232 L228 232 C196 232 168 214 168 184 Z" fill="#FFFFFF"/>' +
+        '<circle cx="256" cy="176" r="22" fill="#FF6B00"/>' +
+        '<path d="M236 228 L276 228 L286 320 L226 320 Z" fill="#FFFFFF"/>' +
+        '<rect x="116" y="316" width="280" height="72" rx="30" fill="#FFFFFF" stroke="#FF6B00" stroke-width="8"/>' +
+        '<text x="256" y="366" fill="#0A2540" font-family="Georgia,serif" font-weight="900" font-size="48" text-anchor="middle">Tordueles</text>' +
+      '</svg>';
+      var svgDataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgEmblem);
+
+      var fav = document.getElementById('pwaFavicon');
+      var apple = document.getElementById('pwaAppleIcon');
+      if (fav) fav.href = svgDataUri;
+      if (apple) apple.href = svgDataUri;
+
+      var manifestObj = {
+        id: './',
+        name: 'Peña Primitiva Tordueles',
+        short_name: 'Tordueles',
+        description: 'Portal Oficial de Socios de la Peña La Primitiva Tordueles',
+        start_url: './',
+        scope: './',
+        display: 'standalone',
+        orientation: 'portrait-primary',
+        theme_color: '#0A2540',
+        background_color: '#0A2540',
+        icons: [
+          { src: svgDataUri, sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
+          { src: svgDataUri, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+        ]
+      };
+      var manifestLink = document.getElementById('pwaManifestLink');
+      if (manifestLink) {
+        manifestLink.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestObj));
+      }
+    })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -12,7 +66,24 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <?!= include('Estilos'); ?>
 </head>
-<body>
+<body class="splash-locked">
+  <!-- PANTALLA DE INICIO (SPLASH SCREEN NATIVA 2 SEGUNDOS) -->
+  <div id="pwaSplashScreen" class="pwa-splash-screen" role="status" aria-live="polite" aria-label="Cargando Peña Primitiva Tordueles">
+    <div class="splash-logo-stage">
+      <svg class="splash-logo-graphic" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="Logotipo Peña Primitiva Tordueles">
+        <rect width="100" height="100" fill="#0A2540"/>
+        <circle cx="50" cy="50" r="44" fill="none" stroke="#FFFFFF" stroke-width="2.2"/>
+        <circle cx="50" cy="50" r="39" fill="none" stroke="#FF6B00" stroke-width="1.2" opacity="0.85"/>
+        <path d="M26 36 C26 24 37 18 50 18 C63 18 74 24 74 36 C74 42 68 46 60 46 L40 46 C32 46 26 42 26 36 Z" fill="#FFFFFF"/>
+        <rect x="28" y="42" width="44" height="7" rx="3.5" fill="#FF6B00"/>
+        <path d="M44 46 L56 46 L58 75 L42 75 Z" fill="#FFFFFF"/>
+        <path d="M46 61 L38 52 M54 61 L62 52" stroke="#FF6B00" stroke-width="2.6" stroke-linecap="round"/>
+        <rect x="19" y="70" width="62" height="15" rx="6" fill="#FFFFFF" stroke="#FF6B00" stroke-width="1.8"/>
+        <text x="50" y="80.5" fill="#0A2540" font-family="Georgia,serif" font-weight="900" font-size="10.2" text-anchor="middle">Tordueles</text>
+      </svg>
+    </div>
+  </div>
+
   <div class="app-shell">
     <!-- CABECERA OFICIAL CON EMBLEMA (ÁRBOL INTEGRADO EN LA "T") -->
     <header class="app-header">
