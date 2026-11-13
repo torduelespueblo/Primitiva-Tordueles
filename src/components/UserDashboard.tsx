@@ -28,7 +28,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 }) => {
   const pendingTicket = tickets.find(t => !t.isScrutinized);
   const lastScrutinized = tickets.find(t => t.isScrutinized);
-  const totalAllPrizes = prizeHistory.reduce((sum, entry) => sum + (entry.prizeAmount || 0), 0);
 
   const isRenewalWindow = settings.currentJornada >= 7 && settings.currentJornada <= 9;
   const isFinalDeadline = settings.currentJornada === 9;
@@ -236,48 +235,28 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </section>
       )}
 
-      {/* 4. TOTAL PREMIOS OBTENIDOS & BOLSA ACTUAL DE PREMIOS MENORES */}
-      <section className="rounded-3xl bg-[#0A2540] p-6 sm:p-8 text-white shadow-md relative overflow-hidden space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Importe total histórico de todos los premios obtenidos */}
-          <div className="rounded-2xl bg-white/10 border border-white/15 p-5">
+      {/* 4. BOTE TOTAL DE PREMIOS OBTENIDOS */}
+      <section className="rounded-3xl bg-[#0A2540] p-6 sm:p-8 text-white shadow-md relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
             <span className="text-sm font-extrabold uppercase tracking-wider text-[#FF6B00] flex items-center gap-2">
               <Trophy className="w-5 h-5" />
-              Importe Total de Premios Obtenidos
+              Bote Total de Premios Obtenidos
             </span>
             <div className="mt-2 text-4xl sm:text-5xl font-black tracking-tight font-serif text-emerald-400 tabular-nums">
-              {totalAllPrizes.toFixed(2)} €
-            </div>
-            <p className="mt-2 text-sm sm:text-base text-slate-200 leading-relaxed">
-              Suma acumulada de todos los premios conseguidos por la peña en sus sorteos ({prizeHistory.length}{' '}
-              {prizeHistory.length === 1 ? 'premio registrado' : 'premios registrados'}).
-            </p>
-          </div>
-
-          {/* Bolsa actual de dinero (resetable por el Admin) */}
-          <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
-            <span className="text-sm font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-[#FF6B00]" />
-              Bolsa Actual · Fondo Común Menores
-            </span>
-            <div className="mt-2 text-4xl sm:text-5xl font-black tracking-tight font-serif text-white tabular-nums">
               {settings.prizeFundBalance.toFixed(2)} €
             </div>
-            <p className="mt-2 text-sm sm:text-base text-slate-300 leading-relaxed">
-              Saldo actual disponible en la bolsa de premios menores (&le; 2.000 €), separado estrictamente de las cuotas semanales.
+            <p className="mt-2.5 text-base text-slate-200 max-w-2xl leading-relaxed">
+              Importe total acumulado de los premios obtenidos por la peña ({prizeHistory.length}{' '}
+              {prizeHistory.length === 1 ? 'premio registrado' : 'premios registrados'}). Separado estrictamente de las cuotas semanales.
             </p>
           </div>
-        </div>
 
-        <div className="pt-4 border-t border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <p className="text-sm text-slate-300">
-            Consulta el desglose ordenado por fecha en «Boletos». Sin derecho a devolución en caso de baja (Art. 5).
-          </p>
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-3 shrink-0">
             <button
               type="button"
               onClick={() => onNavigateTab('tickets')}
-              className="inline-flex items-center justify-center gap-2 px-4 min-h-[46px] rounded-xl bg-white/15 hover:bg-white/25 text-base font-bold text-white transition cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-5 min-h-[46px] rounded-xl bg-white/15 hover:bg-white/25 text-base font-bold text-white transition cursor-pointer"
             >
               <span>Histórico de Premios</span>
               <ArrowRight className="w-4 h-4" />

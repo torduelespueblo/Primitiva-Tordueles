@@ -591,20 +591,40 @@ function verificarFechaEnTexto(texto, fechaReferencia) {
   var mm = Utilities.formatDate(fecha, PROYECTO_CONFIG.TIMEZONE, 'MM');
   var yyyy = Utilities.formatDate(fecha, PROYECTO_CONFIG.TIMEZONE, 'yyyy');
   var meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var mesNombre = meses[fecha.getMonth()];
+  var mesNombre = meses[parseInt(mm, 10) - 1];
   var diaSinCero = String(parseInt(dd, 10));
 
   var t = texto.toLowerCase();
   return (
     t.indexOf(dd + '/' + mm + '/' + yyyy) !== -1 ||
     t.indexOf(dd + '-' + mm + '-' + yyyy) !== -1 ||
-    t.indexOf(diaSinCero + ' de ' + mesNombre) !== -1 ||
-    t.indexOf(dd + ' de ' + mesNombre) !== -1
+    t.indexOf(diaSinCero + ' de ' + mesNombre + ' de ' + yyyy) !== -1 ||
+    t.indexOf(dd + ' de ' + mesNombre + ' de ' + yyyy) !== -1
   );
 }
 
+function escaparRegex(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function construirRegexFechaDDMMYYYY(fechaReferencia) {
+  var fecha = fechaReferencia || new Date();
+  return escaparRegex(Utilities.formatDate(fecha, PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy'));
+}
+
+function construirRegexFechaLarga(fechaReferencia) {
+  var fecha = fechaReferencia || new Date();
+  var dd = Utilities.formatDate(fecha, PROYECTO_CONFIG.TIMEZONE, 'dd');
+  var mm = Utilities.formatDate(fecha, PROYECTO_CONFIG.TIMEZONE, 'MM');
+  var yyyy = Utilities.formatDate(fecha, PROYECTO_CONFIG.TIMEZONE, 'yyyy');
+  var meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var mesNombre = meses[parseInt(mm, 10) - 1];
+  var diaSinCero = String(parseInt(dd, 10));
+  return '(?:' + diaSinCero + '|' + dd + ')\\s+de\\s+' + mesNombre + '\\s+de\\s+' + yyyy;
+}
+
 /**
- * Fuente pública RTVE (La Primitiva) con verificación estricta de fecha actual
+ * Fuente pública RTVE / El País resumen (La Primitiva) con verificación estricta de fecha actual
  */
 function consultarFuenteRTVE(fechaReferencia) {
   var urls = [
@@ -612,68 +632,149 @@ function consultarFuenteRTVE(fechaReferencia) {
     'https://www.rtve.es/noticias/loteria-primitiva/rss/'
   ];
   for (var u = 0; u < urls.length; u++) {
-    var res = obtenerTextoUrlSeguro(urls[u]);
-    if (res.code === 200 && res.body) {
-      var limpio = limpiarHtmlATexto(res.body);
-      if (verificarFechaEnTexto(limpio, fechaReferencia)) {
-        var parsed = extraerCombinacionDeTexto(limpio);
-        if (parsed && parsed.combinacion.length === 6) {
-          parsed.fuente = 'RTVE';
-          parsed.fecha = Utilities.formatDate(fechaReferencia || new Date(), PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy');
-          return parsed;
+    try {
+      var res = obtenerTextoUrlSeguro(urls[u]);
+      if (res.code === 200 && res.body) {
+        var limpio = limpiarHtmlATexto(res.body);
+        if (verificarFechaEnTexto(limpio, fechaReferencia)) {
+          var parsed = extraerCombinacionDeTexto(limpio);
+          if (parsed && parsed.combinacion.length === 6) {
+            parsed.fuente = 'RTVE';
+            parsed.fecha = Utilities.formatDate(fechaReferencia || new Date(), PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy');
+            return parsed;
+          }
         }
       }
-    }
+    } catch (e) {}
   }
+
+  // Respaldo verificado desde la portada de sorteos de El País
+  try {
+    var fechaStr = construirRegexFechaDDMMYYYY(fechaReferencia);
+    var resIdx = obtenerTextoUrlSeguro('https://servicios.elpais.com/sorteos/');
+    if (resIdx.code === 200 && resIdx.body) {
+      var txtIdx = limpiarHtmlATexto(resIdx.body);
+      var reIdx = new RegExp(
+        'La\\s+Primitiva\\s+[^\\d]{0,20}' + fechaStr +
+        '\\s+Combinaci[oó]n\\s+ganadora\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})' +
+        '\\s+Complementario\\s+(\\d{1,2})\\s+Reintegro\\s+(\\d{1,2})',
+        'i'
+      );
+      var m = txtIdx.match(reIdx);
+      if (m) {
+        return {
+          fuente: 'El País Portada',
+          fecha: Utilities.formatDate(fechaReferencia || new Date(), PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy'),
+          combinacion: [1, 2, 3, 4, 5, 6].map(function(i) { return parseInt(m[i], 10); }).sort(function(a, b) { return a - b; }),
+          complementario: parseInt(m[7], 10),
+          reintegro: parseInt(m[8], 10)
+        };
+      }
+    }
+  } catch (e2) {}
+
   return null;
 }
 
 /**
  * Fuente pública Prensa (El País) para Primitiva, Bonoloto, Euromillones, Gordo
+ * Anclada estrictamente a la fecha DD/MM/YYYY del bloque del sorteo.
  */
 function consultarPrensaElPais(slug, fechaReferencia, minVal, maxVal, expectedCount) {
-  var url = 'https://servicios.elpais.com/sorteos/' + slug + '/';
+  var slugNormalizado = slug;
+  if (slug === 'loteria-primitiva') slugNormalizado = 'primitiva';
+  if (slug === 'el-gordo-primitiva') slugNormalizado = 'el-gordo';
+
+  var url = 'https://servicios.elpais.com/sorteos/' + slugNormalizado + '/';
   var res = obtenerTextoUrlSeguro(url);
   if (res.code !== 200 || !res.body) return null;
 
   var limpio = limpiarHtmlATexto(res.body);
-  if (!verificarFechaEnTexto(limpio, fechaReferencia)) {
-    return null;
-  }
+  var fechaRegex = construirRegexFechaDDMMYYYY(fechaReferencia);
+  var fechaDisplay = Utilities.formatDate(fechaReferencia || new Date(), PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy');
 
   if (expectedCount === 6) {
-    var parsed = extraerCombinacionDeTexto(limpio);
-    if (parsed && parsed.combinacion.length === 6) {
-      parsed.fuente = 'El País Prensa';
-      parsed.fecha = Utilities.formatDate(fechaReferencia || new Date(), PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy');
-      return parsed;
-    }
-  } else if (expectedCount === 5 && slug === 'euromillones') {
-    var m5 = limpio.match(/\b(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})\b/);
-    var mEst = limpio.match(/estrellas?[:\s]+(\d{1,2})[,\s·y-]+(\d{1,2})/i);
-    if (m5 && mEst) {
+    var re6 = new RegExp(
+      fechaRegex + '\\s+Combinaci[oó]n\\s+ganadora\\s+' +
+      '(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})' +
+      '\\s+Complementario\\s+(\\d{1,2})(?:\\s+Reintegro\\s+(\\d{1,2}))?',
+      'i'
+    );
+    var m6 = limpio.match(re6);
+    if (m6) {
+      var nums6 = [1, 2, 3, 4, 5, 6].map(function(i) { return parseInt(m6[i], 10); }).sort(function(a, b) { return a - b; });
       return {
         fuente: 'El País Prensa',
-        combinacion: [1, 2, 3, 4, 5].map(function(i) { return parseInt(m5[i], 10); }),
-        estrellas: [parseInt(mEst[1], 10), parseInt(mEst[2], 10)]
+        fecha: fechaDisplay,
+        combinacion: nums6,
+        complementario: parseInt(m6[7], 10),
+        reintegro: m6[8] !== undefined ? parseInt(m6[8], 10) : '-'
       };
     }
-  } else if (expectedCount === 5 && slug === 'el-gordo-primitiva') {
-    var mG = limpio.match(/\b(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})\b/);
-    var mK = limpio.match(/clave[:\s]+(\d{1,2})/i);
-    if (mG && mK) {
+  } else if (expectedCount === 5 && slugNormalizado === 'euromillones') {
+    var reEmil = new RegExp(
+      fechaRegex + '\\s+Combinaci[oó]n\\s+ganadora\\s+' +
+      '(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})' +
+      '\\s+Estrellas\\s+(\\d{1,2})\\s+(\\d{1,2})',
+      'i'
+    );
+    var mEm = limpio.match(reEmil);
+    if (mEm) {
       return {
         fuente: 'El País Prensa',
+        fecha: fechaDisplay,
+        combinacion: [1, 2, 3, 4, 5].map(function(i) { return parseInt(mEm[i], 10); }),
+        estrellas: [parseInt(mEm[6], 10), parseInt(mEm[7], 10)]
+      };
+    }
+  } else if (expectedCount === 5 && slugNormalizado === 'el-gordo') {
+    var reGordo = new RegExp(
+      fechaRegex + '\\s+Combinaci[oó]n\\s+ganadora\\s+' +
+      '(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})' +
+      '\\s+Clave\\s+(\\d{1,2})',
+      'i'
+    );
+    var mG = limpio.match(reGordo);
+    if (mG) {
+      return {
+        fuente: 'El País Prensa',
+        fecha: fechaDisplay,
         combinacion: [1, 2, 3, 4, 5].map(function(i) { return parseInt(mG[i], 10); }),
-        clave: parseInt(mK[1], 10)
+        clave: parseInt(mG[6], 10)
       };
     }
   }
   return null;
 }
 
+function consultarLoteriaNacionalElPais(fechaReferencia) {
+  try {
+    var res = obtenerTextoUrlSeguro('https://servicios.elpais.com/sorteos/loteria-nacional/');
+    if (res.code !== 200 || !res.body) return null;
+    var limpio = limpiarHtmlATexto(res.body);
+    var fechaRegex = construirRegexFechaDDMMYYYY(fechaReferencia);
+    var reLn = new RegExp(
+      fechaRegex + '\\s+Primer\\s+premio\\s+(\\d{5})\\s+Segundo\\s+premio\\s+(\\d{5})' +
+      '(?:\\s+Reintegros\\s+([\\d\\s]{1,12}))?',
+      'i'
+    );
+    var m = limpio.match(reLn);
+    if (!m) return null;
+    var reints = m[3] ? m[3].trim().split(/\s+/).join(', ') : '';
+    return {
+      fuente: 'El País Prensa',
+      fecha: Utilities.formatDate(fechaReferencia || new Date(), PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy'),
+      primerPremio: m[1],
+      segundoPremio: m[2],
+      reintegros: reints
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 function consultarFuentePrensa(fechaReferencia) {
-  return consultarPrensaElPais('loteria-primitiva', fechaReferencia, 1, 49, 6);
+  return consultarPrensaElPais('primitiva', fechaReferencia, 1, 49, 6);
 }
 
 function extraerCombinacionDeTexto(texto) {
@@ -711,39 +812,36 @@ function extraerCombinacionDeTexto(texto) {
 }
 
 /**
- * Consulta JuegosONCE en vivo (RSS oficial de JuegosONCE + webs oficiales)
+ * Consulta JuegosONCE en vivo (páginas oficiales JuegosONCE + respaldo El País ONCE)
+ * Anclado estrictamente a "celebrado el <día>, <fecha>" o DD/MM/YYYY para no mezclar sorteos de otros días.
  */
 function consultarJuegosONCEEnVivo(fechaReferencia) {
   var fecha = fechaReferencia || new Date();
   var diaSemana = fecha.getDay(); // 0 Dom, 1..4 Diario, 5 Viernes Cuponazo, 6 Sáb Sueldazo
+  var fechaLargaRegex = construirRegexFechaLarga(fecha);
+  var fechaDDMMRegex = construirRegexFechaDDMMYYYY(fecha);
   var resultado = { cupon: null, eurojackpot: null, superOnce: null };
 
-  // 1. RSS oficial de JuegosONCE
-  var rssTexto = '';
-  try {
-    var rssRes = obtenerTextoUrlSeguro('https://www.juegosonce.es/rss/resultados.xml');
-    if (rssRes.code === 200 && rssRes.body) {
-      rssTexto = limpiarHtmlATexto(rssRes.body);
-    }
-  } catch (e) {}
-
-  // Cupón (Diario L-J, Cuponazo V, Sueldazo S-D)
-  var tituloCupon = diaSemana === 5 ? 'CUPONAZO ONCE' : (diaSemana === 0 || diaSemana === 6 ? 'SUELDAZO FIN DE SEMANA ONCE' : 'CUPÓN DIARIO ONCE');
+  // 1. Cupón (Diario L-J, Cuponazo V, Sueldazo S-D)
+  var tituloCupon = diaSemana === 5
+    ? 'CUPONAZO ONCE'
+    : (diaSemana === 0 || diaSemana === 6 ? 'SUELDAZO FIN DE SEMANA ONCE' : 'CUPÓN DIARIO ONCE');
   var urlCupon = diaSemana === 5
-    ? 'https://www.juegosonce.es/resultados-cuponazo-once'
+    ? 'https://www.juegosonce.es/resultados-cuponazo'
     : (diaSemana === 0 || diaSemana === 6
       ? 'https://www.juegosonce.es/resultados-sueldazo-fin-de-semana'
       : 'https://www.juegosonce.es/resultados-cupon-diario');
 
   try {
     var resCupon = obtenerTextoUrlSeguro(urlCupon);
-    var textoCupon = resCupon.code === 200 ? limpiarHtmlATexto(resCupon.body) : '';
-    if ((!textoCupon || !verificarFechaEnTexto(textoCupon, fecha)) && rssTexto) {
-      textoCupon = rssTexto;
-    }
-    if (textoCupon && verificarFechaEnTexto(textoCupon, fecha)) {
-      var mNum = textoCupon.match(/\b(\d{5})\b[\s\S]{0,60}?serie[:\s]+(\d{1,3})/i) ||
-                 textoCupon.match(/n[uú]mero[:\s]+(\d{5})[\s\S]{0,60}?serie[:\s]+(\d{1,3})/i);
+    if (resCupon.code === 200 && resCupon.body) {
+      var textoCupon = limpiarHtmlATexto(resCupon.body);
+      var reCuponOnce = new RegExp(
+        'celebrado\\s+el\\s+[^,]+,\\s*' + fechaLargaRegex +
+        '[\\s\\S]{0,260}?N[úu]mero[:\\s]+(\\d{5}),?\\s*serie[:\\s]+(\\d{1,3})',
+        'i'
+      );
+      var mNum = textoCupon.match(reCuponOnce);
       if (mNum) {
         resultado.cupon = {
           titulo: tituloCupon,
@@ -754,13 +852,44 @@ function consultarJuegosONCEEnVivo(fechaReferencia) {
     }
   } catch (eC) {}
 
-  // Eurojackpot (Martes 2 y Viernes 5)
+  // Respaldo Cupón ONCE desde El País (/sorteos/once/)
+  if (!resultado.cupon) {
+    try {
+      var resOnceEp = obtenerTextoUrlSeguro('https://servicios.elpais.com/sorteos/once/');
+      if (resOnceEp.code === 200 && resOnceEp.body) {
+        var txtEp = limpiarHtmlATexto(resOnceEp.body);
+        var reEpOnce = new RegExp(
+          '(Cup[óo]n\\s+Diario|El\\s+Cuponazo|Sueldazo\\s+Fin\\s+de\\s+semana)\\s+[^\\d]{0,20}' + fechaDDMMRegex +
+          '\\s+N[úu]mero\\s+([\\d\\s]{5,12})\\s+Serie\\s+(\\d{1,3})',
+          'i'
+        );
+        var mEp = txtEp.match(reEpOnce);
+        if (mEp) {
+          var numLimpio = mEp[2].replace(/\s+/g, '');
+          var serLimpia = mEp[3].trim();
+          resultado.cupon = {
+            titulo: tituloCupon,
+            numero: numLimpio,
+            serie: serLimpia.length < 3 ? ('000' + serLimpia).slice(-3) : serLimpia
+          };
+        }
+      }
+    } catch (eEp) {}
+  }
+
+  // 2. Eurojackpot (Martes 2 y Viernes 5)
   if (diaSemana === 2 || diaSemana === 5) {
     try {
       var resEj = obtenerTextoUrlSeguro('https://www.juegosonce.es/resultados-eurojackpot');
-      var txtEj = resEj.code === 200 ? limpiarHtmlATexto(resEj.body) : '';
-      if (txtEj && verificarFechaEnTexto(txtEj, fecha)) {
-        var mEj = txtEj.match(/\b(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})\b[\s\S]{0,60}?soles?[:\s]+(\d{1,2})[,\s·y-]+(\d{1,2})/i);
+      if (resEj.code === 200 && resEj.body) {
+        var txtEj = limpiarHtmlATexto(resEj.body);
+        var reEj = new RegExp(
+          'celebrado\\s+el\\s+[^,]+,\\s*' + fechaLargaRegex +
+          '[\\s\\S]{0,220}?N[úu]meros[:\\s]+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})\\s+(\\d{1,2})' +
+          '[\\s\\S]{0,80}?Soles[:\\s]+(\\d{1,2})\\s+(\\d{1,2})',
+          'i'
+        );
+        var mEj = txtEj.match(reEj);
         if (mEj) {
           resultado.eurojackpot = {
             combinacion: [1, 2, 3, 4, 5].map(function(i) { return parseInt(mEj[i], 10); }),
@@ -771,12 +900,17 @@ function consultarJuegosONCEEnVivo(fechaReferencia) {
     } catch (eEj) {}
   }
 
-  // Super Once (Diario)
+  // 3. Super Once (Diario)
   try {
-    var resSo = obtenerTextoUrlSeguro('https://www.juegosonce.es/resultados-super-once');
-    var txtSo = resSo.code === 200 ? limpiarHtmlATexto(resSo.body) : '';
-    if (txtSo && verificarFechaEnTexto(txtSo, fecha)) {
-      var mSo = txtSo.match(/(?:combinaci[óo]n|sorteo)[\s\S]{0,120}?((?:\b\d{1,2}\b[\s,·-]+){19}\b\d{1,2}\b)/i);
+    var resSo = obtenerTextoUrlSeguro('https://www.juegosonce.es/resultados-superonce');
+    if (resSo.code === 200 && resSo.body) {
+      var txtSo = limpiarHtmlATexto(resSo.body);
+      var reSo = new RegExp(
+        fechaLargaRegex +
+        '\\s+Combinaci[óo]n\\s+ganadora\\s+del\\s+Sorteo\\s+\\d+\\s+((?:\\d{1,2}\\s+){19}\\d{1,2})',
+        'i'
+      );
+      var mSo = txtSo.match(reSo);
       if (mSo) {
         var numsSo = mSo[1].match(/\d{1,2}/g) || [];
         if (numsSo.length >= 20) {
@@ -1089,7 +1223,7 @@ function obtenerBoletinDiarioLive(fechaReferencia, datosPrimitivaConsenso, resum
 
   // 4. EL GORDO DE LA PRIMITIVA (Domingos 0)
   if (diaSemanaIndex === 0) {
-    var gordo = consultarSELAEJson('ELGR', fecha) || consultarPrensaElPais('el-gordo-primitiva', fecha, 1, 54, 5);
+    var gordo = consultarSELAEJson('ELGR', fecha) || consultarPrensaElPais('el-gordo', fecha, 1, 54, 5);
     if (gordo && gordo.combinacion && gordo.combinacion.length === 5) {
       bloquesONLAE.push(
         '🟢 EL GORDO DE LA PRIMITIVA\n' +
@@ -1102,7 +1236,7 @@ function obtenerBoletinDiarioLive(fechaReferencia, datosPrimitivaConsenso, resum
 
   // 5. LOTERÍA NACIONAL (Jueves 4, Sábado 6)
   if (diaSemanaIndex === 4 || diaSemanaIndex === 6) {
-    var lnac = consultarSELAEJson('LNAC', fecha);
+    var lnac = consultarSELAEJson('LNAC', fecha) || consultarLoteriaNacionalElPais(fecha);
     if (lnac && lnac.primerPremio) {
       bloquesONLAE.push(
         '🏛️ LOTERÍA NACIONAL\n' +

@@ -392,8 +392,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       onUpdatePrizeHistory([entry, ...withoutDuplicate]);
     }
 
-    // Si es menor <=2000 se suma a la bolsa
-    if (!result.isMayor && result.prizeAmount > 0) {
+    // Acumular al Bote Total de Premios si hay premio obtenido
+    if (result.prizeAmount > 0) {
       onUpdateSettings({
         ...settings,
         prizeFundBalance: settings.prizeFundBalance + result.prizeAmount,
@@ -667,20 +667,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
-          {/* Gestión y Reset de la Bolsa de Dinero */}
+          {/* Gestión y Reset del Bote Total de Premios */}
           <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
                   <Wallet className="w-6 h-6 text-[#FF6B00]" />
-                  Bolsa de Dinero (Premios Menores · Fondo Común)
+                  Bote Total de Premios Obtenidos
                 </h2>
                 <p className="text-base text-slate-600 mt-1">
-                  Saldo actual acumulado en bolsa. Puedes ponerlo a 0,00 € tras repartir el bote o liquidar un ciclo (sin borrar el histórico de premios).
+                  Importe actual del bote mostrado en «Jugada». Puedes resetearlo a 0,00 € tras repartirlo o cerrar un ciclo (el histórico de boletos se conserva).
                 </p>
               </div>
               <div className="rounded-2xl bg-[#0A2540] text-white px-5 py-3 text-left sm:text-right shrink-0">
-                <span className="text-xs uppercase font-bold text-slate-300 block">Saldo Actual Bolsa</span>
+                <span className="text-xs uppercase font-bold text-slate-300 block">Bote Actual</span>
                 <span className="text-2xl font-black text-emerald-400 tabular-nums">
                   {settings.prizeFundBalance.toFixed(2)} €
                 </span>
@@ -696,12 +696,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="inline-flex items-center gap-2 px-5 min-h-[48px] rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-45 text-white font-bold text-base transition cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  <span>Resetear Bolsa a 0,00 €</span>
+                  <span>Resetear Bote a 0,00 €</span>
                 </button>
               ) : (
                 <div className="flex flex-wrap items-center gap-3 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 w-full">
                   <span className="text-sm sm:text-base font-bold text-rose-950">
-                    ¿Confirmas poner a 0,00 € la bolsa actual ({settings.prizeFundBalance.toFixed(2)} €)?
+                    ¿Confirmas poner a 0,00 € el bote actual ({settings.prizeFundBalance.toFixed(2)} €)?
                   </span>
                   <div className="flex items-center gap-2 ml-auto">
                     <button
