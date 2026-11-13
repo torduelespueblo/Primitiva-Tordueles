@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Logo } from './Logo';
-import { ShieldCheck, AlertCircle, CheckSquare, Square, FileText, Lock } from 'lucide-react';
+import { ShieldCheck, AlertCircle, CheckSquare, Square, FileText, Lock, FileDown, Check } from 'lucide-react';
 import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
+import { downloadOfficialRulesPdf } from '../services/pdfService';
 
 interface ConformityModalProps {
   isOpen: boolean;
@@ -11,8 +12,15 @@ interface ConformityModalProps {
 export const ConformityModal: React.FC<ConformityModalProps> = ({ isOpen, onAccept }) => {
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [acceptedData, setAcceptedData] = useState(false);
+  const [downloadedPdf, setDownloadedPdf] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleDownloadPdf = () => {
+    downloadOfficialRulesPdf();
+    setDownloadedPdf(true);
+    setTimeout(() => setDownloadedPdf(false), 3500);
+  };
 
   const canProceed = acceptedRules && acceptedData;
 
@@ -50,10 +58,20 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({ isOpen, onAcce
           </div>
 
           <div className="space-y-4">
-            <h3 className="font-black text-[#0A2540] text-lg sm:text-xl flex items-center gap-2">
-              <FileText className="w-5 h-5 text-[#FF6B00] shrink-0" />
-              {OFFICIAL_RULES_TITLE}
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h3 className="font-black text-[#0A2540] text-lg sm:text-xl flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#FF6B00] shrink-0" />
+                {OFFICIAL_RULES_TITLE}
+              </h3>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                className="inline-flex items-center justify-center gap-2 px-4 min-h-[42px] rounded-xl border border-[#0A2540] text-[#0A2540] hover:bg-slate-100 text-sm font-bold transition cursor-pointer shrink-0"
+              >
+                {downloadedPdf ? <Check className="w-4 h-4 text-emerald-600" /> : <FileDown className="w-4 h-4 text-[#FF6B00]" />}
+                <span>{downloadedPdf ? '¡PDF Descargado!' : 'Descargar PDF'}</span>
+              </button>
+            </div>
 
             <div className="space-y-5 text-base text-slate-700 bg-[#F4F6F9] border border-slate-200 rounded-2xl p-4 sm:p-5">
               {OFFICIAL_RULES_SECTIONS.map(section => (

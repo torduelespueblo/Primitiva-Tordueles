@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Logo } from './Logo';
 import {
   DollarSign,
@@ -6,16 +6,22 @@ import {
   Clock,
   UserX,
   Trophy,
-  Printer
+  FileDown,
+  Check
 } from 'lucide-react';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
 import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
+import { downloadOfficialRulesPdf } from '../services/pdfService';
 
 const SECTION_ICONS = [DollarSign, Shuffle, Clock, UserX, Trophy];
 
 export const OfficialRules: React.FC = () => {
-  const handlePrint = () => {
-    window.print();
+  const [downloaded, setDownloaded] = useState(false);
+
+  const handleDownloadPdf = () => {
+    downloadOfficialRulesPdf();
+    setDownloaded(true);
+    setTimeout(() => setDownloaded(false), 3500);
   };
 
   return (
@@ -44,11 +50,11 @@ export const OfficialRules: React.FC = () => {
 
         <button
           type="button"
-          onClick={handlePrint}
+          onClick={handleDownloadPdf}
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white transition cursor-pointer shrink-0"
         >
-          <Printer className="w-5 h-5" />
-          <span>Imprimir / Guardar PDF</span>
+          {downloaded ? <Check className="w-5 h-5" /> : <FileDown className="w-5 h-5" />}
+          <span>{downloaded ? '¡PDF Descargado!' : 'Descargar Reglamento PDF'}</span>
         </button>
       </div>
 

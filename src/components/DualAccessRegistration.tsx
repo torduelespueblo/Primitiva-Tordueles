@@ -7,11 +7,13 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowLeft,
-  UserPlus
+  UserPlus,
+  Check
 } from 'lucide-react';
 import { Player } from '../types/lottery';
 import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
 import { submitRegistrationToSheet } from '../services/registrationService';
+import { downloadOfficialRulesPdf } from '../services/pdfService';
 
 interface DualAccessRegistrationProps {
   initialMode?: 'ACCESS' | 'REGISTER';
@@ -47,6 +49,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
   const [regRulesAccepted, setRegRulesAccepted] = useState(false);
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [pdfDownloadMsg, setPdfDownloadMsg] = useState<string | null>(null);
   const [registrationData, setRegistrationData] = useState<{
     name: string;
     phone: string;
@@ -123,40 +126,9 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
   };
 
   const handleDownloadPdf = () => {
-    const printableElement = document.getElementById('pdf-rules-printable-container');
-    if (!printableElement) {
-      window.print();
-      return;
-    }
-
-    const win = window as unknown as {
-      html2pdf?: () => { set: (o: unknown) => { from: (el: HTMLElement) => { save: () => Promise<void> } } };
-    };
-    if (typeof win.html2pdf === 'function') {
-      printableElement.style.display = 'block';
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename: 'Reglamento_Oficial_Pena_Primitiva_Tordueles.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      };
-
-      win
-        .html2pdf()
-        .set(opt)
-        .from(printableElement)
-        .save()
-        .then(() => {
-          printableElement.style.display = 'none';
-        })
-        .catch(() => {
-          printableElement.style.display = 'none';
-          window.print();
-        });
-    } else {
-      window.print();
-    }
+    const res = downloadOfficialRulesPdf();
+    setPdfDownloadMsg(`¡Descargado! (${res.pages} páginas · ${res.filename})`);
+    setTimeout(() => setPdfDownloadMsg(null), 4000);
   };
 
   const isFormValid =
@@ -403,8 +375,12 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 onClick={handleDownloadPdf}
                 className="w-full min-h-[50px] px-4 rounded-xl border-2 border-[#0A2540] text-[#0A2540] hover:bg-slate-100 font-bold text-base transition flex items-center justify-center gap-2 cursor-pointer"
               >
-                <FileDown className="w-5 h-5 text-[#FF6B00]" />
-                <span>Descargar Reglamento en PDF</span>
+                {pdfDownloadMsg ? (
+                  <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+                ) : (
+                  <FileDown className="w-5 h-5 text-[#FF6B00] shrink-0" />
+                )}
+                <span>{pdfDownloadMsg || 'Descargar Reglamento en PDF'}</span>
               </button>
 
               <button
@@ -478,8 +454,12 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
               onClick={handleDownloadPdf}
               className="w-full min-h-[48px] px-4 rounded-xl border border-slate-300 text-[#0A2540] hover:bg-slate-50 font-bold text-base transition flex items-center justify-center gap-2 cursor-pointer"
             >
-              <FileDown className="w-5 h-5 text-[#FF6B00]" />
-              <span>Descargar Copia del Reglamento (PDF)</span>
+              {pdfDownloadMsg ? (
+                <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+              ) : (
+                <FileDown className="w-5 h-5 text-[#FF6B00] shrink-0" />
+              )}
+              <span>{pdfDownloadMsg || 'Descargar Copia del Reglamento (PDF)'}</span>
             </button>
 
             <button
@@ -498,48 +478,6 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
           </div>
         </div>
       )}
-
-      {/* PLANTILLA OCULTA PDF CON EL REGLAMENTO ÍNTEGRO */}
-      <div id="pdf-rules-printable-container" className="hidden p-8 bg-white text-slate-900 font-sans">
-        <div className="flex items-center gap-4 border-b-2 border-[#0A2540] pb-4 mb-4">
-          <Logo size={72} variant="full" theme="light" />
-          <div>
-            <h1 className="text-xl font-bold text-[#0A2540]">Peña La Primitiva Tordueles</h1>
-            <h2 className="text-sm uppercase tracking-wider text-[#FF6B00] font-bold">
-              {OFFICIAL_RULES_TITLE}
-            </h2>
-            <p className="text-xs text-slate-500">Tordueles (Burgos) · Documento Oficial Vinculante</p>
-          </div>
-        </div>
-        <div className="space-y-4 text-sm leading-relaxed text-slate-800">
-          {OFFICIAL_RULES_SECTIONS.map(section => (
-            <div key={section.articleNumber} className="space-y-1.5">
-              <h3 className="font-bold text-[#0A2540]">
-                {section.articleNumber}. {section.title}
-              </h3>
-              {section.paragraphs.map((p, idx) => (
-                <div key={idx} className="space-y-1">
-                  <p>
-                    {p.code && (
-                      <strong>
-                        {p.code} {p.heading}{' '}
-                      </strong>
-                    )}
-                    {p.text}
-                  </p>
-                  {p.bullets && (
-                    <ul className="list-disc pl-5 space-y-0.5">
-                      {p.bullets.map((b, bIdx) => (
-                        <li key={bIdx}>{b}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
