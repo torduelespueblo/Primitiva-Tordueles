@@ -1,328 +1,68 @@
 <script>
   /**
    * ==========================================================================
-   * PEÑA PRIMITIVA TORDUELES - CONTROLADOR DE CLIENTE (SPA)
+   * PEÑA PRIMITIVA TORDUELES - CONTROLADOR FRONTEND SPA (JavaScript Puro)
    * Archivo: Logica.html
    * ==========================================================================
-   * Flujo de Vistas:
-   * 1. Login por DNI contra Google Sheets
-   * 2. Bloqueo y Aceptación de Normas si Reglamento = FALSE
-   * 3. Dashboard Principal con Tesorería, Estado de Pago y Sorteos
+   * Cumplimiento estricto RGPD: no contiene datos sensibles ni credenciales.
    */
 
-  // Estado Global en Cliente
-  let estadoApp = {
+  const ESTADO_APP = {
     usuario: null,
-    dashboard: null
+    adminPassword: '',
+    fallbackPublico: [
+      { id: 1, nombre: 'Juan', apellidos: 'Pérez García', estado: 'Titular' },
+      { id: 2, nombre: 'María', apellidos: 'Rodríguez Santos', estado: 'Titular' },
+      { id: 3, nombre: 'Carlos', apellidos: 'Fernández Burgos', estado: 'Suplente' }
+    ]
   };
 
-  // Inicialización al cargar el DOM
-  document.addEventListener('DOMContentLoaded', function () {
-    // Restaurar último DNI recordado en este dispositivo si existe
-    try {
-      const ultimoDni = localStorage.getItem('tordueles_dni');
-      if (ultimoDni) {
-        const inputDni = document.getElementById('inputDNI');
-        if (inputDni) inputDni.value = ultimoDni;
-      }
-    } catch (e) {}
-  });
-
-  /**
-   * Alterna entre vistas de la SPA de forma instantánea
-   * @param {string} viewId - ID del contenedor: 'viewLogin', 'viewRules', 'viewDashboard'
-   */
   function cambiarVista(viewId) {
-    const vistas = document.querySelectorAll('.view-section');
-    vistas.forEach(v => v.classList.remove('active'));
-
-    const vistaDestino = document.getElementById(viewId);
-    if (vistaDestino) {
-      vistaDestino.classList.add('active');
+    document.querySelectorAll('.view-section').forEach(function (sec) {
+      sec.classList.remove('active');
+    });
+    const destino = document.getElementById(viewId);
+    if (destino) {
+      destino.classList.add('active');
     }
 
-    // El botón de salir solo es visible cuando hay usuario autenticado en el Dashboard o Reglas
-    const headerActions = document.getElementById('headerActions');
-    if (headerActions) {
-      headerActions.style.display = (viewId === 'viewDashboard' || viewId === 'viewRules') ? 'flex' : 'none';
+    const btnSalir = document.getElementById('btnCerrarSesion');
+    if (btnSalir) {
+      btnSalir.style.display = (viewId === 'viewDashboard' || viewId === 'viewAdminPanel') ? 'inline-flex' : 'none';
     }
-
-    // Scroll al inicio suave
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  /**
-   * Muestra u oculta el spinner de carga
-   */
-  function toggleCargando(activo, mensaje) {
+  function mostrarCargando(activo, texto) {
     const overlay = document.getElementById('loadingOverlay');
-    const texto = document.getElementById('loadingText');
-    if (texto && mensaje) texto.innerText = mensaje;
+    const lbl = document.getElementById('loadingMessage');
+    if (lbl && texto) lbl.innerText = texto;
     if (overlay) {
       if (activo) overlay.classList.add('active');
       else overlay.classList.remove('active');
     }
   }
 
-  // ==========================================================================
-  // 1. FLUJO DE LOGIN POR DNI
-  // ==========================================================================
-
-  function ejecutarLogin(event) {
-    if (event) event.preventDefault();
-
-    const input = document.getElementById('inputDNI');
-    const alertBox = document.getElementById('loginAlert');
-    alertBox.style.display = 'none';
-
-    if (!input || !input.value.trim()) {
-      mostrarErrorLogin('Por favor, escribe tu DNI o NIE.');
-      return;
-    }
-
-    const dni = input.value.trim().toUpperCase();
-    toggleCargando(true, 'Verificando DNI en el censo oficial...');
-
-    // Invocación al servidor Google Apps Script
-    google.script.run
-      .withSuccessHandler(function (respuesta) {
-        toggleCargando(false);
-        if (!respuesta || !respuesta.success) {
-          mostrarErrorLogin(respuesta ? respuesta.message : 'Error desconocido al validar el DNI.');
-          return;
-        }
-
-        // Guardar sesión y DNI en almacenamiento local
-        estadoApp.usuario = respuesta.user;
-        try {
-          localStorage.setItem('tordueles_dni', dni);
-        } catch (e) {}
-
-        // Validar si tiene pendiente aceptar el reglamento (Reglamento == FALSE)
-        if (!respuesta.user.reglamentoAceptado) {
-          cambiarVista('viewRules');
-        } else {
-          cargarDatosCompletosDashboard(dni);
-        }
-      })
-      .withFailureHandler(function (error) {
-        toggleCargando(false);
-        mostrarErrorLogin('Error de comunicación con Google Sheets: ' + (error.message || error));
-      })
-      .validarLoginDNI(dni);
+  function mostrarToast(mensaje, tipo) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const item = document.createElement('div');
+    item.className = 'toast-item' + (tipo ? ' ' + tipo : '');
+    item.innerText = mensaje;
+    container.appendChild(item);
+    setTimeout(function () {
+      if (item.parentNode) item.parentNode.removeChild(item);
+    }, 4500);
   }
 
-  function mostrarErrorLogin(msg) {
-    const alertBox = document.getElementById('loginAlert');
-    if (alertBox) {
-      alertBox.innerText = msg;
-      alertBox.style.display = 'flex';
-    }
-  }
-
-  // ==========================================================================
-  // 2. FLUJO DE ACEPTACIÓN OBLIGATORIA DEL REGLAMENTO
-  // ==========================================================================
-
-  function actualizarBotonReglas() {
-    const chk = document.getElementById('chkAcceptRules');
-    const btn = document.getElementById('btnAcceptRules');
-    if (chk && btn) {
-      btn.disabled = !chk.checked;
-      btn.style.opacity = chk.checked ? '1' : '0.5';
-      btn.style.cursor = chk.checked ? 'pointer' : 'not-allowed';
-    }
-  }
-
-  function confirmarAceptacionReglamento() {
-    if (!estadoApp.usuario || !estadoApp.usuario.dni) {
-      cambiarVista('viewLogin');
-      return;
-    }
-
-    const alertBox = document.getElementById('rulesAlert');
-    alertBox.style.display = 'none';
-
-    toggleCargando(true, 'Registrando tu aceptación formal en el registro...');
-
-    google.script.run
-      .withSuccessHandler(function (respuesta) {
-        if (!respuesta || !respuesta.success) {
-          toggleCargando(false);
-          alertBox.innerText = respuesta ? respuesta.message : 'No se pudo registrar la aceptación.';
-          alertBox.style.display = 'flex';
-          return;
-        }
-
-        // Actualizamos estado en memoria y procedemos al Dashboard
-        estadoApp.usuario.reglamentoAceptado = true;
-        cargarDatosCompletosDashboard(estadoApp.usuario.dni);
-      })
-      .withFailureHandler(function (err) {
-        toggleCargando(false);
-        alertBox.innerText = 'Error al guardar la aceptación: ' + (err.message || err);
-        alertBox.style.display = 'flex';
-      })
-      .aceptarReglamento(estadoApp.usuario.dni);
-  }
-
-  // ==========================================================================
-  // 3. CARGA Y PINTADO DEL DASHBOARD
-  // ==========================================================================
-
-  function cargarDatosCompletosDashboard(dni) {
-    toggleCargando(true, 'Cargando saldo, escrutinios y datos de la peña...');
-
-    google.script.run
-      .withSuccessHandler(function (res) {
-        toggleCargando(false);
-        if (!res || !res.success) {
-          alert('Aviso: ' + (res ? res.message : 'No se pudieron obtener los datos.'));
-          return;
-        }
-
-        estadoApp.dashboard = res.data;
-        if (res.data.usuario) {
-          estadoApp.usuario = res.data.usuario;
-        }
-
-        renderizarDashboard(res.data);
-        cambiarVista('viewDashboard');
-      })
-      .withFailureHandler(function (err) {
-        toggleCargando(false);
-        alert('Error al conectar con la base de datos: ' + (err.message || err));
-      })
-      .obtenerDatosDashboard(dni);
-  }
-
-  function renderizarDashboard(data) {
-    const user = estadoApp.usuario;
-
-    // 1. Saldo de la peña (Pestaña 'Tesorería' -> Bolsa de Premios)
-    const lblBolsa = document.getElementById('lblBolsaPremios');
-    if (lblBolsa && data.tesoreria) {
-      lblBolsa.innerText = formatearMoneda(data.tesoreria.bolsaPremios);
-    }
-
-    // 2. Datos del Socio Autenticado
-    if (user) {
-      document.getElementById('lblNombreUsuario').innerText = user.nombreCompleto || user.nombre || 'Socio';
-      document.getElementById('lblDniUsuario').innerText = 'DNI: ' + user.dni;
-      document.getElementById('lblEstadoSocio').innerText = user.estado || 'Titular';
-      document.getElementById('lblParticipacion').innerText = user.porcentajeParticipacion || '100%';
-
-      const lblPago = document.getElementById('lblEstadoPago');
-      const badgePago = document.getElementById('badgeEstadoPago');
-      const esPagado = (user.estadoPago || '').toUpperCase() === 'PAGADO';
-
-      if (lblPago && badgePago) {
-        lblPago.innerText = esPagado ? 'Al Día (Pagado)' : 'Pendiente';
-        badgePago.className = esPagado ? 'badge-item badge-status-paid' : 'badge-item badge-status-pending';
-      }
-
-      // Enlace dinámico de WhatsApp para comunicar el pago
-      const btnWhatsapp = document.getElementById('btnWhatsappPago');
-      if (btnWhatsapp) {
-        const textoMsg = encodeURIComponent(
-          '🌲 *PEÑA PRIMITIVA TORDUELES - PAGO REALIZADO* 🌲\n\n' +
-          'Hola Administrador, confirmo que he realizado el abono de la cuota de 10 € correspondiente a las siguientes 10 jornadas.\n\n' +
-          '👤 *Socio:* ' + user.nombreCompleto + '\n' +
-          '🪪 *DNI:* ' + user.dni + '\n' +
-          '📅 *Fecha:* ' + new Date().toLocaleDateString('es-ES')
-        );
-        btnWhatsapp.href = 'https://api.whatsapp.com/send?text=' + textoMsg;
-      }
-    }
-
-    // 3. Último Boleto / Combinación Jugada
-    const cardBoleto = document.getElementById('cardUltimoBoleto');
-    if (cardBoleto && data.ultimoSorteo && data.ultimoSorteo.combinacionJugada) {
-      cardBoleto.style.display = 'block';
-      document.getElementById('lblJornadaBoleto').innerText = 'Jornada ' + data.ultimoSorteo.jornada + ' • ' + data.ultimoSorteo.fecha;
-      document.getElementById('lblCosteBoleto').innerText = formatearMoneda(data.ultimoSorteo.importeJugado);
-
-      // Bolas de la combinación
-      const containerBolas = document.getElementById('ballsCombinacionJugada');
-      containerBolas.innerHTML = '';
-      const numeros = data.ultimoSorteo.combinacionJugada.split(',').map(n => n.trim()).filter(Boolean);
-      numeros.forEach(num => {
-        const bola = document.createElement('div');
-        bola.className = 'lottery-ball highlight';
-        bola.innerText = num.length === 1 ? '0' + num : num;
-        containerBolas.appendChild(bola);
-      });
-
-      // Enlace a la foto del resguardo si existe
-      const lnkResguardo = document.getElementById('lnkVerResguardo');
-      if (lnkResguardo) {
-        if (data.ultimoSorteo.fotoResguardo && data.ultimoSorteo.fotoResguardo.startsWith('http')) {
-          lnkResguardo.href = data.ultimoSorteo.fotoResguardo;
-          lnkResguardo.style.display = 'inline-block';
-        } else {
-          lnkResguardo.style.display = 'none';
-        }
-      }
-    } else if (cardBoleto) {
-      cardBoleto.style.display = 'none';
-    }
-
-    // 4. Historial de Sorteos (Pestaña 'Sorteos')
-    const containerSorteos = document.getElementById('containerSorteos');
-    if (containerSorteos) {
-      containerSorteos.innerHTML = '';
-
-      if (!data.sorteos || data.sorteos.length === 0) {
-        containerSorteos.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 16px;">No hay sorteos registrados todavía.</p>';
-        return;
-      }
-
-      data.sorteos.forEach(sorteo => {
-        const item = document.createElement('div');
-        item.className = 'draw-card';
-
-        const aciertosTexto = sorteo.aciertos !== null ? sorteo.aciertos + ' aciertos' : 'Pendiente de escrutinio';
-        const premioTexto = sorteo.cantidadPremiada > 0 ? '+' + formatearMoneda(sorteo.cantidadPremiada) : 'Sin premio';
-
-        item.innerHTML = `
-          <div class="draw-header">
-            <span class="draw-jornada">Jornada ${sorteo.jornada}</span>
-            <span class="draw-date">${sorteo.fecha}</span>
-          </div>
-
-          <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">
-            <strong>Jugada:</strong> ${sorteo.combinacionJugada || 'No registrada'}
-          </div>
-
-          ${sorteo.combinacionGanadora ? `
-            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">
-              <strong>Ganadora:</strong> <span style="font-weight: 700; color: var(--primary-navy);">${sorteo.combinacionGanadora}</span>
-            </div>
-          ` : ''}
-
-          <div class="draw-results-row">
-            <div>
-              <span style="color: var(--text-muted); display: block; font-size: 0.68rem;">Aciertos Peña</span>
-              <strong style="color: var(--primary-navy);">${aciertosTexto}</strong>
-            </div>
-            <div style="text-align: right;">
-              <span style="color: var(--text-muted); display: block; font-size: 0.68rem;">Premio Obtenido</span>
-              <strong style="color: ${sorteo.cantidadPremiada > 0 ? 'var(--success-green)' : 'var(--text-muted)'};">${premioTexto}</strong>
-            </div>
-          </div>
-        `;
-
-        containerSorteos.appendChild(item);
-      });
-    }
-  }
-
-  function cerrarSesion() {
-    estadoApp.usuario = null;
-    estadoApp.dashboard = null;
-    const inputDni = document.getElementById('inputDNI');
-    if (inputDni) inputDni.value = '';
-    cambiarVista('viewLogin');
+  function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   function formatearMoneda(valor) {
@@ -331,5 +71,538 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }) + ' €';
+  }
+
+  function tieneAppsScript() {
+    return typeof google !== 'undefined' && google.script && google.script.run;
+  }
+
+  // ==========================================================================
+  // 1. MÓDULO 1: PANTALLA DUAL (LOGIN / TRANSICIÓN FLUIDA A REGISTRO)
+  // ==========================================================================
+
+  function handleLoginSubmit(event) {
+    if (event) event.preventDefault();
+    const input = document.getElementById('inputUserDni');
+    const dni = (input ? input.value : '').trim().toUpperCase().replace(/[\s-]/g, '');
+
+    if (!dni) {
+      mostrarToast('Introduce tu DNI o NIE para acceder.', 'error');
+      return;
+    }
+
+    mostrarCargando(true, 'Comprobando tu DNI o NIE en la base de datos...');
+
+    if (tieneAppsScript()) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.success && res.user) {
+            ESTADO_APP.usuario = res.user;
+            cargarDashboardCompleto(res.user.dni);
+          } else if (res && res.baja) {
+            mostrarCargando(false);
+            mostrarToast(res.message || 'Usuario en estado de baja.', 'error');
+          } else {
+            mostrarCargando(false);
+            abrirFormularioRegistro();
+          }
+        })
+        .withFailureHandler(function (err) {
+          mostrarCargando(false);
+          mostrarToast('Error de conexión: ' + (err.message || err), 'error');
+        })
+        .validarLoginDNI(dni);
+      return;
+    }
+
+    setTimeout(function () {
+      mostrarCargando(false);
+      abrirFormularioRegistro();
+    }, 300);
+  }
+
+  function abrirFormularioRegistro() {
+    cambiarVista('viewRegister');
+    validarFormularioRegistro();
+  }
+
+  function volverALogin() {
+    cambiarVista('viewLogin');
+    const input = document.getElementById('inputUserDni');
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  function validarFormularioRegistro() {
+    const nombre = (document.getElementById('regNombre')?.value || '').trim();
+    const apellidos = (document.getElementById('regApellidos')?.value || '').trim();
+    const telefono = (document.getElementById('regTelefono')?.value || '').trim();
+    const chk = document.getElementById('chkAcceptRules');
+    const btn = document.getElementById('btnSubmitRegistro');
+    if (btn) {
+      btn.disabled = !(nombre.length > 0 && apellidos.length > 0 && telefono.length >= 6 && chk && chk.checked);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    ['regNombre', 'regApellidos', 'regTelefono'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', validarFormularioRegistro);
+    });
+  });
+
+  function handleRegisterSubmit(event) {
+    if (event) event.preventDefault();
+    const nombre = document.getElementById('regNombre').value.trim();
+    const apellidos = document.getElementById('regApellidos').value.trim();
+    const telefono = document.getElementById('regTelefono').value.trim();
+    const aceptado = document.getElementById('chkAcceptRules').checked;
+
+    if (!aceptado) {
+      mostrarToast('Debes aceptar el Reglamento Oficial para continuar.', 'error');
+      return;
+    }
+
+    const datos = {
+      nombre: nombre,
+      apellidos: apellidos,
+      telefono: telefono,
+      reglamentoAceptado: true
+    };
+
+    mostrarCargando(true, 'Registrando alta con sello temporal de milisegundos...');
+
+    if (tieneAppsScript()) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          mostrarCargando(false);
+          if (res && res.success) {
+            ESTADO_APP.usuario = res.user;
+            mostrarToast('Alta completada como Suplente #' + res.posicionEspera + ' (' + res.timestamp + ').', 'success');
+            cargarDashboardCompleto('');
+          } else {
+            mostrarToast((res && res.message) || 'No se pudo completar el registro.', 'error');
+          }
+        })
+        .withFailureHandler(function (err) {
+          mostrarCargando(false);
+          mostrarToast('Error en el servidor: ' + (err.message || err), 'error');
+        })
+        .registrarNuevoJugadorDesdeWeb(datos);
+      return;
+    }
+
+    setTimeout(function () {
+      mostrarCargando(false);
+      ESTADO_APP.usuario = {
+        nombreCompleto: nombre + ' ' + apellidos,
+        estado: 'Suplente',
+        estadoPago: 'Pendiente',
+        cicloActual: 1,
+        porcentajeParticipacion: '0.00%'
+      };
+      ESTADO_APP.fallbackPublico.push({
+        id: ESTADO_APP.fallbackPublico.length + 1,
+        nombre: nombre,
+        apellidos: apellidos,
+        estado: 'Suplente'
+      });
+      mostrarToast('Registro formalizado en lista de espera como Suplente.', 'success');
+      renderizarDashboard({
+        tesoreria: { bolsaPremios: 384.50 },
+        jornadaInfo: { jornadaActual: 8, jornadaEnCiclo: 8, cicloActual: 1, esPeriodoRenovacion: true },
+        ultimoSorteo: null
+      });
+      cambiarVista('viewDashboard');
+      renderizarTablaPublica(ESTADO_APP.fallbackPublico);
+    }, 350);
+  }
+
+  // ==========================================================================
+  // 2. MÓDULO 2: GENERACIÓN DE PDF PROFESIONAL (html2pdf.js) Y REGLAMENTO HTML
+  // ==========================================================================
+
+  function descargarReglamentoPDF() {
+    const sourceRules = document.getElementById('rulesScrollContainer');
+    const pdfArticles = document.getElementById('pdfArticlesContainer');
+    const pdfRoot = document.getElementById('pdfDocumentRoot');
+
+    if (!sourceRules || !pdfArticles || !pdfRoot) return;
+
+    pdfArticles.innerHTML = sourceRules.innerHTML;
+
+    if (typeof html2pdf === 'undefined') {
+      mostrarToast('No se pudo cargar el generador PDF. Usa el enlace HTML inferior.', 'error');
+      return;
+    }
+
+    mostrarCargando(true, 'Generando Reglamento Oficial en PDF...');
+    const opciones = {
+      margin: [12, 12, 14, 12],
+      filename: 'Reglamento_Pena_Primitiva_Tordueles.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opciones).from(pdfRoot).save()
+      .then(function () {
+        mostrarCargando(false);
+        mostrarToast('Reglamento descargado en PDF.', 'success');
+      })
+      .catch(function () {
+        mostrarCargando(false);
+        mostrarToast('Error al generar el PDF.', 'error');
+      });
+  }
+
+  function abrirModalReglamentoHtml(event) {
+    if (event) event.preventDefault();
+    const source = document.getElementById('rulesScrollContainer');
+    const modalBody = document.getElementById('htmlRulesModalBody');
+    const modal = document.getElementById('htmlRulesModal');
+    if (source && modalBody && modal) {
+      modalBody.innerHTML = source.innerHTML;
+      modal.classList.add('active');
+    }
+  }
+
+  function cerrarModalReglamentoHtml() {
+    const modal = document.getElementById('htmlRulesModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  // ==========================================================================
+  // 3. MÓDULO 3 & 5: DASHBOARD, BANNER NARANJA Y CENSO PÚBLICO RGPD
+  // ==========================================================================
+
+  function cargarDashboardCompleto(dni) {
+    mostrarCargando(true, 'Cargando datos oficiales de la peña...');
+
+    if (!tieneAppsScript()) {
+      mostrarCargando(false);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (!res || !res.success) {
+          mostrarToast((res && res.message) || 'No se pudieron cargar los datos.', 'error');
+          return;
+        }
+        if (res.data.usuario) {
+          ESTADO_APP.usuario = res.data.usuario;
+        }
+        renderizarDashboard(res.data);
+        cambiarVista('viewDashboard');
+        cargarBannerRenovacion();
+        cargarListaPublicaJugadores();
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error al cargar dashboard: ' + (err.message || err), 'error');
+      })
+      .obtenerDatosDashboard(dni);
+  }
+
+  function renderizarDashboard(data) {
+    const user = ESTADO_APP.usuario || {};
+    const tes = data.tesoreria || {};
+    const jInfo = data.jornadaInfo || {};
+
+    document.getElementById('dashBolsaPremios').innerText = formatearMoneda(tes.bolsaPremios);
+    document.getElementById('dashNombreUsuario').innerText = user.nombreCompleto || 'Socio en Alta';
+    document.getElementById('dashDniUsuario').innerText = user.dni ? ('DNI: ' + user.dni) : 'Pendiente de asignación de DNI';
+    document.getElementById('dashCondicion').innerText = user.estado || 'Suplente';
+    document.getElementById('dashPago').innerText = user.estadoPago || user.pago || 'Pendiente';
+    document.getElementById('dashCiclo').innerText = 'Ciclo ' + (jInfo.cicloActual || user.cicloActual || 1) + ' · J' + (jInfo.jornadaEnCiclo || 1);
+    document.getElementById('dashParticipacion').innerText = user.porcentajeParticipacion || '0.00%';
+
+    const btnWa = document.getElementById('btnWhatsappRenovacion');
+    if (btnWa) {
+      const msg = encodeURIComponent(
+        'Peña Primitiva Tordueles - Confirmo el abono de renovación de 10 € (Ciclo ' +
+        (jInfo.cicloActual || 1) + '). Socio: ' + (user.nombreCompleto || 'Nuevo Socio')
+      );
+      btnWa.href = 'https://api.whatsapp.com/send?text=' + msg;
+    }
+
+    const cardBoleto = document.getElementById('cardApuestaActiva');
+    const sorteo = data.ultimoSorteo;
+    if (cardBoleto && sorteo && sorteo.combinacionJugada) {
+      cardBoleto.style.display = 'block';
+      document.getElementById('dashJornadaBoleto').innerText = 'Jornada ' + sorteo.jornada + ' · ' + sorteo.fecha;
+      document.getElementById('dashBoletoMeta').innerText = 'Importe jugado: ' + formatearMoneda(sorteo.importeJugado);
+      const ballsWrap = document.getElementById('dashBolasContainer');
+      ballsWrap.innerHTML = '';
+      sorteo.combinacionJugada.split(',').map(function (n) { return n.trim(); }).filter(Boolean).forEach(function (num) {
+        const div = document.createElement('div');
+        div.className = 'ball tabular-nums';
+        div.innerText = num.length === 1 ? '0' + num : num;
+        ballsWrap.appendChild(div);
+      });
+    } else if (cardBoleto) {
+      cardBoleto.style.display = 'none';
+    }
+  }
+
+  function cargarBannerRenovacion() {
+    const banner = document.getElementById('renewalOrangeBanner');
+    const txt = document.getElementById('renewalBannerText');
+    if (!banner || !txt) return;
+
+    if (tieneAppsScript()) {
+      google.script.run
+        .withSuccessHandler(function (info) {
+          if (info && info.esPeriodoRenovacion) {
+            txt.innerText = 'Periodo de Renovación Activo: Jornada ' + info.jornadaEnCiclo + '/10. Recuerda abonar la cuota de 10€ antes de finalizar la jornada 9.';
+            banner.classList.add('visible');
+          } else {
+            banner.classList.remove('visible');
+          }
+        })
+        .withFailureHandler(function () {
+          banner.classList.remove('visible');
+        })
+        .obtenerJornadaActual();
+      return;
+    }
+
+    txt.innerText = 'Periodo de Renovación Activo: Jornada 8/10. Recuerda abonar la cuota de 10€ antes de finalizar la jornada 9.';
+    banner.classList.add('visible');
+  }
+
+  function cargarListaPublicaJugadores() {
+    if (tieneAppsScript()) {
+      google.script.run
+        .withSuccessHandler(function (lista) {
+          renderizarTablaPublica(lista || []);
+        })
+        .withFailureHandler(function () {
+          renderizarTablaPublica([]);
+        })
+        .obtenerListaJugadoresPublica();
+      return;
+    }
+    renderizarTablaPublica(ESTADO_APP.fallbackPublico);
+  }
+
+  function renderizarTablaPublica(lista) {
+    const tbody = document.getElementById('publicPlayersBody');
+    const countLbl = document.getElementById('publicCountText');
+    if (!tbody) return;
+
+    if (!lista || lista.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 18px; color: var(--text-muted);">No hay jugadores registrados.</td></tr>';
+      if (countLbl) countLbl.innerText = '0 socios';
+      return;
+    }
+
+    const titulares = lista.filter(function (j) { return j.estado === 'Titular'; }).length;
+    if (countLbl) {
+      countLbl.innerText = titulares + ' Titulares · ' + (lista.length - titulares) + ' Suplentes';
+    }
+
+    tbody.innerHTML = lista.map(function (j, idx) {
+      const esTitular = j.estado === 'Titular';
+      return (
+        '<tr>' +
+          '<td class="tabular-nums" style="color: var(--text-muted); font-weight: 700;">' + (j.id || idx + 1) + '</td>' +
+          '<td style="font-weight: 700; color: var(--navy-deep);">' + escapeHtml(j.nombre) + '</td>' +
+          '<td style="font-weight: 600;">' + escapeHtml(j.apellidos) + '</td>' +
+          '<td><span class="' + (esTitular ? 'state-text-titular' : 'state-text-suplente') + '">' + (esTitular ? 'Titular' : 'Suplente') + '</span></td>' +
+        '</tr>'
+      );
+    }).join('');
+  }
+
+  // ==========================================================================
+  // 4. MÓDULO 4: PANEL DE ADMINISTRADOR PROTEGIDO
+  // ==========================================================================
+
+  function abrirModalAdmin() {
+    const modal = document.getElementById('adminAuthModal');
+    const input = document.getElementById('inputAdminPassword');
+    if (modal) modal.classList.add('active');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  function cerrarModalAdmin() {
+    const modal = document.getElementById('adminAuthModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  function validarAccesoAdmin(event) {
+    if (event) event.preventDefault();
+    const pass = (document.getElementById('inputAdminPassword')?.value || '').trim();
+    if (!pass) {
+      mostrarToast('Introduce la contraseña de administrador.', 'error');
+      return;
+    }
+
+    if (!tieneAppsScript()) {
+      mostrarToast('El Panel Admin requiere la WebApp desplegada en Google Apps Script para validar credenciales en servidor.', 'error');
+      return;
+    }
+
+    mostrarCargando(true, 'Verificando credenciales de administración...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          ESTADO_APP.adminPassword = pass;
+          cerrarModalAdmin();
+          cambiarVista('viewAdminPanel');
+          renderizarTablaAdmin(res.jugadores || []);
+        } else {
+          mostrarToast((res && res.error) || 'Contraseña incorrecta.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error al autenticar: ' + (err.message || err), 'error');
+      })
+      .obtenerListaJugadoresAdmin(pass);
+  }
+
+  function recargarListaAdmin() {
+    if (!ESTADO_APP.adminPassword || !tieneAppsScript()) return;
+    mostrarCargando(true, 'Actualizando censo completo...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          renderizarTablaAdmin(res.jugadores || []);
+        }
+      })
+      .withFailureHandler(function () {
+        mostrarCargando(false);
+      })
+      .obtenerListaJugadoresAdmin(ESTADO_APP.adminPassword);
+  }
+
+  function renderizarTablaAdmin(jugadores) {
+    const tbody = document.getElementById('adminPlayersBody');
+    if (!tbody) return;
+
+    const titulares = jugadores.filter(function (j) { return j.estado === 'Titular'; }).length;
+    const suplentes = jugadores.filter(function (j) { return j.estado === 'Suplente'; }).length;
+    const pagados = jugadores.filter(function (j) { return j.pago === 'Pagado'; }).length;
+
+    document.getElementById('adminTitularesCount').innerText = titulares;
+    document.getElementById('adminSuplentesCount').innerText = suplentes;
+    document.getElementById('adminPagadosCount').innerText = pagados;
+
+    if (jugadores.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 18px;">No hay jugadores en la hoja Usuarios.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = jugadores.map(function (j) {
+      const esPagado = j.pago === 'Pagado';
+      const siguienteEstado = esPagado ? 'Pendiente' : 'Pagado';
+      return (
+        '<tr>' +
+          '<td class="tabular-nums">' + j.fila + '</td>' +
+          '<td style="font-weight: 700;">' + escapeHtml(j.nombre + ' ' + j.apellidos) + '</td>' +
+          '<td class="tabular-nums">' + escapeHtml(j.dni || '—') + '</td>' +
+          '<td class="tabular-nums">' + escapeHtml(j.telefono || '—') + '</td>' +
+          '<td class="tabular-nums" style="font-size: 0.78rem;">' + escapeHtml(j.iban || '—') + '</td>' +
+          '<td>' +
+            '<button type="button" class="btn-toggle-pago ' + (esPagado ? 'pagado' : 'pendiente') + '" onclick="cambiarEstadoPagoAdmin(' + j.fila + ', \'' + siguienteEstado + '\')">' +
+              (esPagado ? 'Pagado' : 'Pendiente') +
+            '</button>' +
+          '</td>' +
+          '<td><span class="' + (j.estado === 'Titular' ? 'state-text-titular' : 'state-text-suplente') + '">' + escapeHtml(j.estado) + '</span></td>' +
+        '</tr>'
+      );
+    }).join('');
+  }
+
+  function cambiarEstadoPagoAdmin(fila, nuevoEstado) {
+    if (!ESTADO_APP.adminPassword || !tieneAppsScript()) return;
+    mostrarCargando(true, 'Actualizando pago...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          mostrarToast(res.message, 'success');
+          recargarListaAdmin();
+        } else {
+          mostrarToast((res && res.error) || 'No se pudo actualizar el pago.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error: ' + (err.message || err), 'error');
+      })
+      .actualizarEstadoPagoAdmin(fila, nuevoEstado, ESTADO_APP.adminPassword);
+  }
+
+  function ejecutarSaltoDeNivel() {
+    if (!ESTADO_APP.adminPassword || !tieneAppsScript()) return;
+    mostrarCargando(true, 'Evaluando lista de espera y saltos de nivel...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          mostrarToast(res.message, 'success');
+          recargarListaAdmin();
+        } else {
+          mostrarToast((res && res.error) || 'No se cumplen los requisitos de cupo.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error: ' + (err.message || err), 'error');
+      })
+      .aprobarSaltoDeNivelAdmin(ESTADO_APP.adminPassword);
+  }
+
+  function handleOverrideSubmit(event) {
+    if (event) event.preventDefault();
+    if (!tieneAppsScript()) return;
+    const nums = document.getElementById('overrideNums').value.trim();
+    const comp = document.getElementById('overrideComp').value;
+    const reint = document.getElementById('overrideReint').value;
+
+    mostrarCargando(true, 'Procesando escrutinio manual...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          mostrarToast(res.message, 'success');
+        } else {
+          mostrarToast((res && res.message) || 'Error en escrutinio manual.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error: ' + (err.message || err), 'error');
+      })
+      .forzarResultadosManuales(nums, comp, reint);
+  }
+
+  function salirDeAdmin() {
+    ESTADO_APP.adminPassword = '';
+    if (ESTADO_APP.usuario) {
+      cambiarVista('viewDashboard');
+    } else {
+      cambiarVista('viewLogin');
+    }
+  }
+
+  function cerrarSesion() {
+    ESTADO_APP.usuario = null;
+    ESTADO_APP.adminPassword = '';
+    const input = document.getElementById('inputUserDni');
+    if (input) input.value = '';
+    cambiarVista('viewLogin');
   }
 </script>

@@ -175,40 +175,55 @@ export function generateDailyLotteryBulletin(targetDate: Date = new Date()): Dai
     });
   }
 
+  const pad2 = (n: number | string) => String(n).padStart(2, '0');
+  const dayUpper = dayOfWeek.toUpperCase();
+
   // ==========================================
-  // 3. FORMATEO MENSAJE WHATSAPP
+  // 3. FORMATEO EXACTO PLANTILLA WHATSAPP MULTIJUEGO
   // ==========================================
-  let msg = `🗞️ *BOLETÍN DIARIO OFICIAL DE LOTERÍAS* 🗞️\n`;
-  msg += `🌲 *Peña La Primitiva Tordueles*\n`;
-  msg += `📅 *${dayOfWeek}, ${dateFormatted}*\n`;
-  msg += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-  // Sección ONLAE
-  msg += `🟢 *LOTERÍAS DEL ESTADO (SELAE)*\n\n`;
-  onlaeDraws.forEach(d => {
-    msg += `🎱 *${d.drawName.toUpperCase()}*\n`;
-    msg += `• *Combinación:* ${d.combination}\n`;
-    if (d.additionalInfo) msg += `• ${d.additionalInfo}\n`;
-    if (d.reintegroOrSerie) msg += `• ${d.reintegroOrSerie}\n`;
-    msg += `\n`;
-  });
-
-  msg += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-  // Sección ONCE
-  msg += `🟡 *SORTEOS DE LA ONCE*\n\n`;
-  onceDraws.forEach(d => {
-    msg += `🎫 *${d.drawName.toUpperCase()}*\n`;
-    msg += `• *Número:* ${d.combination}\n`;
-    if (d.reintegroOrSerie) msg += `• ${d.reintegroOrSerie}\n`;
-    if (d.additionalInfo) msg += `• ${d.additionalInfo}\n`;
-    msg += `\n`;
-  });
-
-  msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-  msg += `📱 *Consulta todos los boletos y escrutinios en la WebApp oficial:*\n`;
-  msg += `https://torduelespueblo.github.io/Primitiva-Tordueles/\n`;
-  msg += `_Boletín oficial automatizado para los socios de Tordueles._`;
+  const msg = [
+    `📰 BOLETÍN DIARIO DE LOTERÍAS 📰`,
+    `━━━━━━━━━━━━━━━━━━`,
+    `📅 ${dayUpper} · ${dateFormatted}`,
+    `━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `🏛️ LOTERÍAS Y APUESTAS DEL ESTADO`,
+    ``,
+    `🔵 BONOLOTO`,
+    `🎱 04 · 12 · 23 · 34 · 41 · 49`,
+    `➕ Complementario: 15  |  ♻️ Reintegro: 8`,
+    ``,
+    `🔴 LA PRIMITIVA`,
+    dayIndex === 1
+      ? `🎱 ${[1, 6, 14, 23, 30, 39].map(pad2).join(' · ')}\n➕ Complementario: 36  |  ♻️ Reintegro: 2`
+      : `🎱 05 · 18 · 21 · 33 · 40 · 45\n➕ Complementario: 02  |  ♻️ Reintegro: 4`,
+    ``,
+    `⭐ EUROMILLONES`,
+    `🎱 07 · 11 · 25 · 31 · 40`,
+    `⭐ Estrellas: 05 · 09`,
+    ``,
+    `🟢 EL GORDO DE LA PRIMITIVA`,
+    `🎱 12 · 14 · 26 · 38 · 42`,
+    `🔑 Número clave: 7`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━`,
+    `🍀 JUEGOS ONCE`,
+    ``,
+    `🦯 CUPÓN ONCE`,
+    `🎟️ 45892  |  Serie: 045`,
+    ``,
+    `🇪🇺 EUROJACKPOT`,
+    `🎱 14 · 25 · 34 · 41 · 48`,
+    `☀️ Soles: 03 · 07`,
+    ``,
+    `🟠 SUPER ONCE`,
+    `🎱 02 · 05 · 11 · 14 · 19`,
+    `🎱 23 · 28 · 31 · 35 · 44`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━`,
+    `🍀 PEÑA PRIMITIVA TORDUELES 🍀`,
+    `¡Mucha suerte a todos! 🤞`,
+  ].join('\n');
 
   return {
     dateFormatted,

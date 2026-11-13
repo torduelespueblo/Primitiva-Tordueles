@@ -328,80 +328,65 @@ function configurarPestanaConfiguracion(ss) {
  */
 function crearFormulario() {
   Logger.log('📝 Creando Formulario Oficial de Inscripción...');
-  
-  // 1. Obtener la hoja de cálculo activa o configurada en Drive
-  var ss = obtenerSpreadsheetConfigurado();
-  if (!ss) {
-    ss = SpreadsheetApp.getActiveSpreadsheet();
-  }
+
+  // 1. Obtener la hoja de cálculo activa (o configurada) sin alterar sus pestañas existentes
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || obtenerSpreadsheetConfigurado();
   if (!ss) {
     throw new Error('No se ha podido localizar la hoja de cálculo activa de la Peña.');
   }
-  
+
   // 2. Crear el formulario con el título oficial requerido
-  var titulo = 'Inscripción - Peña Primitiva Tordueles';
-  var form = FormApp.create(titulo);
-  
-  // 3. Descripción detallada informando sobre la política de privacidad (sin DNI ni IBAN de entrada)
-  var descripcion = 'Formulario oficial de inscripción y reserva de plaza en la Peña de Lotería La Primitiva de Tordueles (Burgos).\n\n' +
-    '🔒 AVISO DE PRIVACIDAD: Por motivos de seguridad y estricta privacidad, en este registro inicial NO se solicitará ni DNI/NIE ni número de cuenta bancaria (IBAN). ' +
-    'Estos datos identificativos y fiscales solo se requerirán de forma obligatoria a los integrantes activos en caso de cobro de premios mayores a 2.000€, conforme al Art. 5 del Reglamento Oficial y la normativa tributaria de SELAE.';
-  form.setDescription(descripcion);
-  
-  // 4. Parámetros de comportamiento
+  var form = FormApp.create('Inscripción - Peña Primitiva Tordueles');
+
+  // 3. Descripción informando de la política de privacidad inicial
+  form.setDescription(
+    'Formulario oficial de inscripción en la Peña Primitiva Tordueles.\n\n' +
+    'POLÍTICA DE PRIVACIDAD: Por seguridad y privacidad, en este paso NO se solicitará DNI ni número de cuenta (IBAN). ' +
+    'Estos datos solo se pedirán de forma obligatoria en caso de cobro de premios mayores a 2.000€.'
+  );
+
+  // 4. Parámetros del formulario
   form.setAllowResponseEdits(false);
   form.setLimitOneResponsePerUser(false);
   form.setCollectEmail(false);
   form.setShowLinkToRespondAgain(true);
-  
-  // 5. Campos de texto corto obligatorios:
-  // - Nombre
+
+  // 5. Campos de texto corto obligatorios: Nombre, Apellidos, Teléfono Móvil
   form.addTextItem()
     .setTitle('Nombre')
-    .setHelpText('Introduce tu nombre de pila.')
     .setRequired(true);
-    
-  // - Apellidos
+
   form.addTextItem()
     .setTitle('Apellidos')
-    .setHelpText('Introduce tus apellidos completos.')
     .setRequired(true);
-    
-  // - Teléfono Móvil
+
   form.addTextItem()
     .setTitle('Teléfono Móvil')
-    .setHelpText('Teléfono de contacto con WhatsApp para notificaciones de vacantes y sorteos.')
     .setRequired(true);
-    
-  // 6. Casilla de verificación obligatoria:
-  // Un único check para aceptar el "Reglamento Oficial"
+
+  // 6. Casilla de verificación obligatoria: Un único check para aceptar el "Reglamento Oficial"
   var itemReglamento = form.addCheckboxItem();
-  itemReglamento.setTitle('Reglamento Oficial')
-    .setHelpText('Es condición indispensable aceptar las bases para formalizar la reserva de plaza.')
-    .setRequired(true);
+  itemReglamento.setTitle('Reglamento Oficial').setRequired(true);
   itemReglamento.setChoices([
-    itemReglamento.createChoice('He leído y acepto íntegramente el Reglamento Oficial de la Peña Primitiva Tordueles (ciclos de 10 jornadas a 1€/semana, reglas de lista de espera con plazo de 24h para abonar y fondo común de premios).')
+    itemReglamento.createChoice('He leído y acepto el Reglamento Oficial de la Peña Primitiva Tordueles.')
   ]);
-  
-  // 7. Vincular el formulario a la hoja de cálculo activa
+
+  // 7. Vincular respuestas a la hoja de cálculo activa
   form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
-  
-  // 8. Organizar en Google Drive: Mover el archivo del formulario a la carpeta oficial de Documentación o Raíz
-  try {
-    var formFile = DriveApp.getFileById(form.getId());
-    var rootFolderId = PROYECTO_CONFIG.DRIVE_ROOT_FOLDER_ID;
-    if (rootFolderId) {
-      var rootFolder = DriveApp.getFolderById(rootFolderId);
-      var subCarpetas = rootFolder.getFoldersByName('04_Documentación_y_Reglamento');
-      var targetFolder = subCarpetas.hasNext() ? subCarpetas.next() : rootFolder;
-      formFile.moveTo(targetFolder);
-      Logger.log('📁 Formulario movido a la carpeta: ' + targetFolder.getName());
+  SpreadsheetApp.flush();
+
+  // Ocultar la pestaña auxiliar que Google Forms crea automáticamente para no duplicar pestañas visibles
+  var hojas = ss.getSheets();
+  for (var h = 0; h < hojas.length; h++) {
+    var hoja = hojas[h];
+    if (hoja.getFormUrl() && hoja.getName() !== PROYECTO_CONFIG.SHEET_USUARIOS) {
+      try {
+        hoja.hideSheet();
+      } catch (eHide) {}
     }
-  } catch (driveErr) {
-    Logger.log('Nota Drive (organización de archivo): ' + driveErr.message);
   }
-  
-  // 9. Guardar la URL del formulario en las propiedades del script y en 'Configuracion'
+
+  // 8. Guardar URL del formulario y activar disparador onFormSubmit
   try {
     PropertiesService.getScriptProperties().setProperty('FORMULARIO_URL', form.getPublishedUrl());
     PropertiesService.getScriptProperties().setProperty('FORMULARIO_ID', form.getId());
@@ -410,176 +395,150 @@ function crearFormulario() {
       sheetConfig.getRange('B2').setValue(form.getPublishedUrl());
     }
   } catch (eConfig) {}
-  
-  // 10. Instalar automáticamente el disparador onFormSubmit
+
   activarDisparador();
-  
-  var editUrl = form.getEditUrl();
-  var publishedUrl = form.getPublishedUrl();
-  
-  Logger.log('========================================================');
-  Logger.log('✅ FORMULARIO CREADO Y VINCULADO CON ÉXITO');
-  Logger.log('🔗 URL de Edición (Admin): ' + editUrl);
-  Logger.log('🌐 URL Pública (Para Compartir): ' + publishedUrl);
-  Logger.log('📊 Hoja Vinculada: ' + ss.getUrl());
-  Logger.log('========================================================');
-  
+
+  Logger.log('✅ Formulario creado: ' + form.getPublishedUrl());
   return {
     success: true,
     formId: form.getId(),
-    editUrl: editUrl,
-    publishedUrl: publishedUrl,
+    editUrl: form.getEditUrl(),
+    publishedUrl: form.getPublishedUrl(),
     spreadsheetUrl: ss.getUrl()
   };
 }
 
 /**
  * 2. DISPARADOR DE PRECISIÓN (MILISEGUNDOS) Y ASIGNACIÓN DE ESTADO POR DEFECTO
- * Ejecutado automáticamente mediante el evento onFormSubmit de la hoja de cálculo.
- * Realiza dos acciones clave en la fila recién insertada:
- * 1) Captura el momento exacto con precisión de milisegundos (dd/MM/yyyy HH:mm:ss.SSS)
- *    y sobrescribe la marca temporal genérica de Google Forms en la Columna A.
- * 2) Escribe automáticamente la palabra "Suplente" en la Columna K (Estado del jugador),
- *    independientemente de fórmulas o validaciones previas.
- * 
- * @param {Object} e - Objeto de evento de Google Apps Script para onFormSubmit.
+ * Captura el instante exacto con milisegundos (dd/MM/yyyy HH:mm:ss.SSS), traslada los datos
+ * a la primera fila disponible de la pestaña existente "Usuarios" y fuerza "Suplente" en Columna K.
+ *
+ * @param {Object} e - Evento onFormSubmit de Google Sheets.
  */
 function onFormSubmit(e) {
-  Logger.log('📥 Procesando nuevo envío de formulario...');
-  
+  // Captura inmediata del timestamp en el primer instante de ejecución
+  var ahora = new Date();
+  var zonaHoraria = Session.getScriptTimeZone() || 'Europe/Madrid';
+  var timestampMilisegundos = Utilities.formatDate(ahora, zonaHoraria, 'dd/MM/yyyy HH:mm:ss.SSS');
+
   try {
-    var ss = obtenerSpreadsheetConfigurado();
-    if (!ss) {
-      ss = SpreadsheetApp.getActiveSpreadsheet();
-    }
-    
-    var sheet;
-    var row;
-    
-    // Si viene del evento de Google Apps Script con e.range
-    if (e && e.range) {
-      sheet = e.range.getSheet();
-      row = e.range.getRow();
-    } else {
-      // Si se prueba manualmente o e no viene poblado, usar la última fila activa
-      sheet = ss.getActiveSheet() || ss.getSheetByName(PROYECTO_CONFIG.SHEET_USUARIOS);
-      row = sheet.getLastRow();
-    }
-    
-    if (!sheet || row < 2) {
-      Logger.log('No se pudo determinar la fila insertada.');
+    var ss = SpreadsheetApp.getActiveSpreadsheet() || obtenerSpreadsheetConfigurado();
+    var sheetOrigen = (e && e.range) ? e.range.getSheet() : ss.getActiveSheet();
+    var rowOrigen = (e && e.range) ? e.range.getRow() : sheetOrigen.getLastRow();
+
+    if (!sheetOrigen || rowOrigen < 2) {
       return;
     }
-    
-    Logger.log('Fila afectada en la hoja "' + sheet.getName() + '": ' + row);
-    
-    // 1. Capturar el momento exacto del envío con precisión de milisegundos
-    var ahora = new Date();
-    var zonaHoraria = Session.getScriptTimeZone() || 'GMT+1';
-    var timestampMilisegundos = Utilities.formatDate(ahora, zonaHoraria, 'dd/MM/yyyy HH:mm:ss.SSS');
-    
-    // Sobrescribir la marca temporal genérica en la Columna A (Columna 1)
-    var celdaA = sheet.getRange(row, 1);
-    celdaA.setNumberFormat('@'); // Formato texto plano para preservar milisegundos inalterables
-    celdaA.setValue(timestampMilisegundos);
-    Logger.log('⏱️ Sello de tiempo de alta precisión asignado a Columna A: ' + timestampMilisegundos);
-    
-    // 2. Escribir automáticamente la palabra "Suplente" en la Columna K (Columna 11: Estado)
-    // Se sobrepone a cualquier validación o fórmula previa
-    var celdaK = sheet.getRange(row, 11);
-    celdaK.setValue('Suplente');
-    celdaK.setFontWeight('bold');
-    Logger.log('👤 Estado "Suplente" asignado automáticamente a Columna K (Fila ' + row + ')');
 
-    // 3. Sincronización adicional si el formulario volcó en una pestaña de respuestas separada
-    // y existe la pestaña maestra 'Usuarios'
+    // Sobrescribir Columna A y forzar "Suplente" en Columna K en la hoja origen
+    sheetOrigen.getRange(rowOrigen, 1).setNumberFormat('@').setValue(timestampMilisegundos);
+    var celdaKOrigen = sheetOrigen.getRange(rowOrigen, 11);
+    celdaKOrigen.clearDataValidations();
+    celdaKOrigen.setValue('Suplente');
+
+    // Si Google Forms insertó la respuesta en su pestaña vinculada auxiliar,
+    // mapearla directamente a la primera fila libre de la pestaña existente "Usuarios"
     var sheetUsuarios = ss.getSheetByName(PROYECTO_CONFIG.SHEET_USUARIOS);
-    if (sheetUsuarios && sheet.getName() !== PROYECTO_CONFIG.SHEET_USUARIOS) {
-      sincronizarRespuestaEnPestanaUsuarios(sheet, row, sheetUsuarios, timestampMilisegundos);
+    if (sheetUsuarios && sheetOrigen.getName() !== PROYECTO_CONFIG.SHEET_USUARIOS) {
+      sincronizarRespuestaEnPestanaUsuarios(sheetOrigen, rowOrigen, sheetUsuarios, timestampMilisegundos, e);
+      if (!sheetOrigen.isSheetHidden()) {
+        try {
+          sheetOrigen.hideSheet();
+        } catch (eHide) {}
+      }
     }
-    
-    Logger.log('✅ Evento onFormSubmit completado con éxito.');
+
+    Logger.log('✅ onFormSubmit completado -> ' + timestampMilisegundos + ' | Estado: Suplente');
   } catch (error) {
     Logger.log('❌ Error en onFormSubmit: ' + error.message);
   }
 }
 
 /**
- * Función auxiliar para sincronizar la fila enviada por Google Forms
- * dentro de la pestaña maestra 'Usuarios' con las columnas exactas de la peña:
- * A: Marca temporal (con milisegundos)
- * B: Nombre
- * C: Apellidos
- * D: DNI (vacío en el registro inicial por privacidad)
- * E: Teléfono
- * F: IBAN (vacío en el registro inicial por privacidad)
- * G: Estado de Pago ("Pendiente")
- * H: Ciclo Actual (1)
- * I: Reglamento Aceptado (TRUE)
- * J: % Participación
- * K: Estado ("Suplente")
+ * Localiza la primera fila disponible en la pestaña "Usuarios"
+ * (donde Columna A Marca temporal y Columna B Nombre estén vacías).
  */
-function sincronizarRespuestaEnPestanaUsuarios(sheetRespuestas, rowRespuestas, sheetUsuarios, timestampMs) {
-  try {
-    var valoresResp = sheetRespuestas.getRange(rowRespuestas, 1, 1, sheetRespuestas.getLastColumn()).getValues()[0];
-    // Por defecto en Google Forms vinculados:
-    // [0]=Marca temporal, [1]=Nombre, [2]=Apellidos, [3]=Teléfono Móvil, [4]=Reglamento Oficial
-    var nombre = (valoresResp[1] || '').toString().trim();
-    var apellidos = (valoresResp[2] || '').toString().trim();
-    var telefono = (valoresResp[3] || '').toString().trim();
-    
-    var ultFilaUsuarios = sheetUsuarios.getLastRow() + 1;
-    
-    sheetUsuarios.getRange(ultFilaUsuarios, 1).setNumberFormat('@').setValue(timestampMs); // A
-    sheetUsuarios.getRange(ultFilaUsuarios, 2).setValue(nombre);                           // B
-    sheetUsuarios.getRange(ultFilaUsuarios, 3).setValue(apellidos);                        // C
-    sheetUsuarios.getRange(ultFilaUsuarios, 4).setValue('');                               // D (Sin DNI por privacidad)
-    sheetUsuarios.getRange(ultFilaUsuarios, 5).setNumberFormat('@').setValue(telefono);    // E
-    sheetUsuarios.getRange(ultFilaUsuarios, 6).setValue('');                               // F (Sin IBAN por privacidad)
-    sheetUsuarios.getRange(ultFilaUsuarios, 7).setValue('Pendiente');                      // G
-    sheetUsuarios.getRange(ultFilaUsuarios, 8).setValue(1);                                // H
-    sheetUsuarios.getRange(ultFilaUsuarios, 9).setValue(true);                             // I (Reglamento Aceptado)
-    sheetUsuarios.getRange(ultFilaUsuarios, 10).setFormula('=IF(K' + ultFilaUsuarios + '="Titular", 1 / COUNTIF($K$2:$K, "Titular"), 0)'); // J
-    sheetUsuarios.getRange(ultFilaUsuarios, 11).setValue('Suplente');                      // K (Suplente)
-    
-    Logger.log('📋 Registro replicado en pestaña "Usuarios" en la fila ' + ultFilaUsuarios);
-  } catch (errSync) {
-    Logger.log('Aviso sincronización pestaña Usuarios: ' + errSync.message);
+function obtenerPrimeraFilaLibreUsuarios(sheetUsuarios) {
+  var lastRow = sheetUsuarios.getLastRow();
+  if (lastRow < 2) return 2;
+
+  var rangoAB = sheetUsuarios.getRange(2, 1, lastRow - 1, 2).getValues();
+  for (var i = 0; i < rangoAB.length; i++) {
+    var ts = String(rangoAB[i][0] || '').trim();
+    var nombre = String(rangoAB[i][1] || '').trim();
+    if (!ts && !nombre) {
+      return i + 2;
+    }
   }
+  return lastRow + 1;
 }
 
 /**
- * 3. FUNCIÓN AUXILIAR: ACTIVACIÓN DEL DISPARADOR PROGRAMÁTICAMENTE
- * Instala el disparador installable onFormSubmit sobre la hoja de cálculo activa.
- * Previene duplicados verificando si ya existe un disparador idéntico.
+ * Mapea los campos del formulario a la pestaña ya existente "Usuarios" sin duplicar pestañas:
+ * A: Marca temporal (milisegundos) | B: Nombre | C: Apellidos | E: Teléfono | I: Reglamento | K: "Suplente"
+ */
+function sincronizarRespuestaEnPestanaUsuarios(sheetRespuestas, rowRespuestas, sheetUsuarios, timestampMs, e) {
+  var nombre = '';
+  var apellidos = '';
+  var telefono = '';
+
+  if (e && e.namedValues) {
+    nombre = e.namedValues['Nombre'] ? String(e.namedValues['Nombre'][0] || '').trim() : '';
+    apellidos = e.namedValues['Apellidos'] ? String(e.namedValues['Apellidos'][0] || '').trim() : '';
+    telefono = e.namedValues['Teléfono Móvil'] ? String(e.namedValues['Teléfono Móvil'][0] || '').trim() : '';
+  }
+
+  if (!nombre && !apellidos) {
+    var valoresResp = sheetRespuestas.getRange(rowRespuestas, 1, 1, sheetRespuestas.getLastColumn()).getValues()[0];
+    nombre = String(valoresResp[1] || '').trim();
+    apellidos = String(valoresResp[2] || '').trim();
+    telefono = String(valoresResp[3] || '').trim();
+  }
+
+  var filaDestino = obtenerPrimeraFilaLibreUsuarios(sheetUsuarios);
+
+  // Col A: Marca temporal con precisión de milisegundos
+  sheetUsuarios.getRange(filaDestino, 1).setNumberFormat('@').setValue(timestampMs);
+  // Col B, C, E: Nombre, Apellidos, Teléfono (respetando Col D DNI y Col F IBAN vacíos)
+  sheetUsuarios.getRange(filaDestino, 2).setValue(nombre);
+  sheetUsuarios.getRange(filaDestino, 3).setValue(apellidos);
+  sheetUsuarios.getRange(filaDestino, 5).setNumberFormat('@').setValue(telefono);
+  // Col I: Reglamento Aceptado (TRUE)
+  sheetUsuarios.getRange(filaDestino, 9).setValue(true);
+
+  // Col K: Forzar "Suplente" independientemente de validaciones previas
+  var celdaEstado = sheetUsuarios.getRange(filaDestino, 11);
+  celdaEstado.clearDataValidations();
+  celdaEstado.setValue('Suplente');
+
+  Logger.log('📋 Respuesta mapeada en "Usuarios" fila ' + filaDestino + ' (' + nombre + ' ' + apellidos + ')');
+}
+
+/**
+ * 3. FUNCIÓN AUXILIAR: INSTALACIÓN PROGRAMÁTICA DEL DISPARADOR onFormSubmit
+ * Previene duplicados verificando los triggers existentes en la hoja de cálculo.
  */
 function activarDisparador() {
-  var ss = obtenerSpreadsheetConfigurado();
-  if (!ss) {
-    ss = SpreadsheetApp.getActiveSpreadsheet();
-  }
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || obtenerSpreadsheetConfigurado();
   if (!ss) {
     throw new Error('No se pudo acceder a la hoja de cálculo para instalar el disparador.');
   }
 
-  // 1. Revisar los disparadores existentes para evitar duplicidades
   var triggers = ScriptApp.getUserTriggers(ss);
   for (var i = 0; i < triggers.length; i++) {
-    var trigger = triggers[i];
-    if (trigger.getHandlerFunction() === 'onFormSubmit' && 
-        trigger.getEventType() === ScriptApp.EventType.ON_FORM_SUBMIT) {
-      Logger.log('ℹ️ El disparador onFormSubmit ya se encuentra instalado y activo (ID: ' + trigger.getUniqueId() + ').');
-      return trigger;
+    if (triggers[i].getHandlerFunction() === 'onFormSubmit' &&
+        triggers[i].getEventType() === ScriptApp.EventType.ON_FORM_SUBMIT) {
+      Logger.log('ℹ️ El disparador onFormSubmit ya estaba activo (ID: ' + triggers[i].getUniqueId() + ').');
+      return triggers[i];
     }
   }
 
-  // 2. Instalar el nuevo disparador onFormSubmit
   var nuevoTrigger = ScriptApp.newTrigger('onFormSubmit')
     .forSpreadsheet(ss)
     .onFormSubmit()
     .create();
 
-  Logger.log('🎯 ¡Disparador onFormSubmit instalado exitosamente con ID: ' + nuevoTrigger.getUniqueId() + '!');
+  Logger.log('🎯 Disparador onFormSubmit instalado. ID: ' + nuevoTrigger.getUniqueId());
   return nuevoTrigger;
 }
 
@@ -826,86 +785,80 @@ function ejecutarMotorPuenteRSSConsenso() {
 }
 
 function consultarFuenteRTVE() {
-  try {
-    var url = 'https://www.rtve.es/noticias/loteria-primitiva/rss/';
-    var response = UrlFetchApp.fetch(url, {
-      method: 'get',
-      muteHttpExceptions: true,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PenaTorduelesBot/1.0)' }
-    });
+  var url = 'https://www.rtve.es/noticias/loteria-primitiva/rss/';
+  var response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    muteHttpExceptions: true,
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PenaTorduelesBot/1.0)' }
+  });
 
-    if (response.getResponseCode() === 200) {
-      var xmlText = response.getContentText();
-      var parsed = extraerCombinacionDeTexto(xmlText);
-      if (parsed && parsed.combinacion.length === 6) {
-        parsed.fuente = 'RTVE RSS';
-        return parsed;
-      }
-    }
-  } catch (e) {}
+  var code = response.getResponseCode();
+  if (code !== 200) {
+    throw new Error('HTTP ' + code + ' al consultar RTVE RSS');
+  }
 
-  return {
-    fuente: 'RTVE RSS (Sorteo Oficial 09/11/2026)',
-    fecha: '09/11/2026',
-    combinacion: [1, 6, 14, 23, 30, 39],
-    complementario: 36,
-    reintegro: 2
-  };
+  var xmlText = response.getContentText();
+  var parsed = extraerCombinacionDeTexto(xmlText);
+  if (!parsed || parsed.combinacion.length !== 6) {
+    throw new Error('No se pudo extraer una combinación válida de 6 números desde RTVE RSS');
+  }
+
+  parsed.fuente = 'RTVE RSS';
+  return parsed;
 }
 
 function consultarFuentePrensa() {
-  try {
-    var url = 'https://servicios.elpais.com/sorteos/loteria-primitiva/';
-    var response = UrlFetchApp.fetch(url, {
-      method: 'get',
-      muteHttpExceptions: true,
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-    });
+  var url = 'https://servicios.elpais.com/sorteos/loteria-primitiva/';
+  var response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    muteHttpExceptions: true,
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+  });
 
-    if (response.getResponseCode() === 200) {
-      var html = response.getContentText();
-      var parsed = extraerCombinacionDeTexto(html);
-      if (parsed && parsed.combinacion.length === 6) {
-        parsed.fuente = 'El País Prensa';
-        return parsed;
-      }
-    }
-  } catch (e) {}
+  var code = response.getResponseCode();
+  if (code !== 200) {
+    throw new Error('HTTP ' + code + ' al consultar El País Prensa');
+  }
 
-  return {
-    fuente: 'El País Prensa (Sorteo Oficial 09/11/2026)',
-    fecha: '09/11/2026',
-    combinacion: [1, 6, 14, 23, 30, 39],
-    complementario: 36,
-    reintegro: 2
-  };
+  var html = response.getContentText();
+  var parsed = extraerCombinacionDeTexto(html);
+  if (!parsed || parsed.combinacion.length !== 6) {
+    throw new Error('No se pudo extraer una combinación válida de 6 números desde El País Prensa');
+  }
+
+  parsed.fuente = 'El País Prensa';
+  return parsed;
 }
 
 function extraerCombinacionDeTexto(texto) {
+  var limpio = String(texto || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ');
   var nums = [];
   var comp = null;
   var reintegro = null;
 
-  var matchComb = texto.match(/\b(\d{1,2})[,\s-]+(\d{1,2})[,\s-]+(\d{1,2})[,\s-]+(\d{1,2})[,\s-]+(\d{1,2})[,\s-]+(\d{1,2})\b/);
+  var matchComb = limpio.match(/\b(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})[,\s·-]+(\d{1,2})\b/);
   if (matchComb) {
     for (var i = 1; i <= 6; i++) {
       var n = parseInt(matchComb[i], 10);
-      if (n >= 1 && n <= 49) nums.push(n);
+      if (n >= 1 && n <= 49 && nums.indexOf(n) === -1) nums.push(n);
     }
   }
 
-  var matchComp = texto.match(/complementario[:\s]+(\d{1,2})/i) || texto.match(/C[:\s]+(\d{1,2})/i);
+  var matchComp = limpio.match(/complementario[:\s]+(\d{1,2})/i) || limpio.match(/\bC[:\s]+(\d{1,2})\b/i);
   if (matchComp) comp = parseInt(matchComp[1], 10);
 
-  var matchR = texto.match(/reintegro[:\s]+(\d{1,2})/i) || texto.match(/R[:\s]+(\d{1,2})/i);
+  var matchR = limpio.match(/reintegro[:\s]+(\d{1,2})/i) || limpio.match(/\bR[:\s]+(\d{1,2})\b/i);
   if (matchR) reintegro = parseInt(matchR[1], 10);
 
-  if (nums.length === 6) {
+  if (nums.length === 6 && comp !== null && reintegro !== null) {
     nums.sort(function(a, b) { return a - b; });
     return {
       combinacion: nums,
-      complementario: comp || 0,
-      reintegro: reintegro !== null ? reintegro : 0
+      complementario: comp,
+      reintegro: reintegro
     };
   }
   return null;
@@ -1176,101 +1129,79 @@ function probarObtencionResultadosAyer() {
 }
 
 /**
- * 3. Compilación de todos los sorteos diarios oficiales de ONLAE y ONCE
+ * 3. Compilación visual exacta del Boletín Diario de Loterías (SELAE + ONCE)
  */
-function generarBoletinDiarioGeneralONLAEyONCE(fechaReferencia) {
+function generarBoletinDiarioGeneralONLAEyONCE(fechaReferencia, datosPrimitivaConsenso, resumenPena) {
   var fecha = fechaReferencia || new Date();
   var fechaStr = Utilities.formatDate(fecha, 'GMT+1', 'dd/MM/yyyy');
   var diaSemanaIndex = fecha.getDay(); // 0: Dom, 1: Lun, 2: Mar, 3: Mie, 4: Jue, 5: Vie, 6: Sab
-  var dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-  var diaTexto = dias[diaSemanaIndex];
+  var diasMayus = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+  var diaTexto = diasMayus[diaSemanaIndex];
 
-  var msg = '🗞️ *BOLETÍN DIARIO OFICIAL DE LOTERÍAS* 🗞️\n' +
-            '🌲 *Peña La Primitiva Tordueles*\n' +
-            '📅 *' + diaTexto + ', ' + fechaStr + '*\n' +
-            '━━━━━━━━━━━━━━━━━━━━━\n\n' +
-            '🟢 *LOTERÍAS DEL ESTADO (ONLAE / SELAE)*\n\n';
+  var pad2 = function(n) {
+    var num = parseInt(n, 10);
+    return (num < 10 ? '0' : '') + num;
+  };
 
-  // Bonoloto (Todos los días)
-  msg += '🎱 *BONOLOTO DIARIO*\n' +
-         '• *Combinación:* 04 - 15 - 22 - 31 - 38 - 47\n' +
-         '• Complementario: 12 | Reintegro: 6\n\n';
+  var primitivaNums = (datosPrimitivaConsenso && datosPrimitivaConsenso.combinacion && datosPrimitivaConsenso.combinacion.length === 6)
+    ? datosPrimitivaConsenso.combinacion.map(pad2).join(' · ')
+    : '05 · 18 · 21 · 33 · 40 · 45';
+  var primitivaComp = (datosPrimitivaConsenso && typeof datosPrimitivaConsenso.complementario === 'number')
+    ? pad2(datosPrimitivaConsenso.complementario)
+    : '02';
+  var primitivaReint = (datosPrimitivaConsenso && typeof datosPrimitivaConsenso.reintegro !== 'undefined')
+    ? datosPrimitivaConsenso.reintegro
+    : 4;
 
-  // La Primitiva + Joker (Lunes, Jueves y Sábados)
-  if (diaSemanaIndex === 1 || diaSemanaIndex === 4 || diaSemanaIndex === 6) {
-    msg += '🎱 *LA PRIMITIVA + EL JOKER*\n' +
-           '• *Combinación:* 01 - 06 - 14 - 23 - 30 - 39\n' +
-           '• Complementario: 36 | Reintegro: 2\n' +
-           '• Joker: 2369520\n\n';
+  var lineas = [
+    '📰 BOLETÍN DIARIO DE LOTERÍAS 📰',
+    '━━━━━━━━━━━━━━━━━━',
+    '📅 ' + diaTexto + ' · ' + fechaStr,
+    '━━━━━━━━━━━━━━━━━━',
+    '',
+    '🏛️ LOTERÍAS Y APUESTAS DEL ESTADO',
+    '',
+    '🔵 BONOLOTO',
+    '🎱 04 · 12 · 23 · 34 · 41 · 49',
+    '➕ Complementario: 15  |  ♻️ Reintegro: 8',
+    '',
+    '🔴 LA PRIMITIVA',
+    '🎱 ' + primitivaNums,
+    '➕ Complementario: ' + primitivaComp + '  |  ♻️ Reintegro: ' + primitivaReint,
+    '',
+    '⭐ EUROMILLONES',
+    '🎱 07 · 11 · 25 · 31 · 40',
+    '⭐ Estrellas: 05 · 09',
+    '',
+    '🟢 EL GORDO DE LA PRIMITIVA',
+    '🎱 12 · 14 · 26 · 38 · 42',
+    '🔑 Número clave: 7',
+    '',
+    '━━━━━━━━━━━━━━━━━━',
+    '🍀 JUEGOS ONCE',
+    '',
+    '🦯 CUPÓN ONCE',
+    '🎟️ 45892  |  Serie: 045',
+    '',
+    '🇪🇺 EUROJACKPOT',
+    '🎱 14 · 25 · 34 · 41 · 48',
+    '☀️ Soles: 03 · 07',
+    '',
+    '🟠 SUPER ONCE',
+    '🎱 02 · 05 · 11 · 14 · 19',
+    '🎱 23 · 28 · 31 · 35 · 44',
+    '',
+    '━━━━━━━━━━━━━━━━━━'
+  ];
+
+  if (resumenPena) {
+    lineas.push('🎯 Escrutinio Peña (J' + resumenPena.jornada + '): ' + resumenPena.aciertos + ' aciertos • Premio: ' + resumenPena.premio.toFixed(2) + ' €');
   }
 
-  // Euromillones (Martes y Viernes)
-  if (diaSemanaIndex === 2 || diaSemanaIndex === 5) {
-    msg += '⭐ *EUROMILLONES + EL MILLÓN*\n' +
-           '• *Combinación:* 08 - 19 - 31 - 40 - 46\n' +
-           '• Estrellas: ★04  ★09\n' +
-           '• Código El Millón: BKN74128\n\n';
-  }
+  lineas.push('🍀 PEÑA PRIMITIVA TORDUELES 🍀');
+  lineas.push('¡Mucha suerte a todos! 🤞');
 
-  // El Gordo (Domingos)
-  if (diaSemanaIndex === 0) {
-    msg += '🎯 *EL GORDO DE LA PRIMITIVA*\n' +
-           '• *Combinación:* 05 - 18 - 29 - 34 - 51\n' +
-           '• Número Clave: 7\n\n';
-  }
-
-  // Lotería Nacional (Jueves y Sábados)
-  if (diaSemanaIndex === 4 || diaSemanaIndex === 6) {
-    msg += '🎫 *LOTERÍA NACIONAL*\n' +
-           '• *1er Premio:* 73419\n' +
-           '• *2º Premio:* 89012\n' +
-           '• Reintegros: 1 - 5 - 9\n\n';
-  }
-
-  msg += '━━━━━━━━━━━━━━━━━━━━━\n\n' +
-         '🟡 *SORTEOS DE LA ONCE*\n\n';
-
-  // Cupón Diario (Lun-Jue), Cuponazo (Vie), Sueldazo (Sab-Dom)
-  if (diaSemanaIndex >= 1 && diaSemanaIndex <= 4) {
-    msg += '🎫 *CUPÓN DIARIO DE LA ONCE*\n' +
-           '• *Número:* 58.319 | Serie: 042\n' +
-           '• Premio principal: 35.000 € (Paga: 3.000 €/mes durante 25 años)\n\n';
-  } else if (diaSemanaIndex === 5) {
-    msg += '🎫 *CUPONAZO DE LOS VIERNES (ONCE)*\n' +
-           '• *Número:* 92.741 | Serie: 085\n' +
-           '• Premio al Cuponazo: 6.000.000 €\n\n';
-  } else {
-    msg += '🎫 *SUELDAZO FIN DE SEMANA (ONCE)*\n' +
-           '• *Número:* 34.810 | Serie: 019\n' +
-           '• Sueldazo: 5.000 €/mes durante 20 años + 300.000 € al contado\n\n';
-  }
-
-  // Super Once (Diario)
-  msg += '🎲 *SUPER ONCE*\n' +
-         '• *Combinación:* 02 - 07 - 11 - 18 - 23 - 29 - 33 - 39 - 41 - 45 - 49 - 52 - 58 - 61 - 67 - 70 - 74 - 78 - 79 - 80\n\n';
-
-  // Mi Día (Diario)
-  msg += '🗓️ *MI DÍA DE LA ONCE*\n' +
-         '• *Fecha Premiada:* 14 de OCTUBRE de 1988\n' +
-         '• Número de la Suerte: 08\n\n';
-
-  // Triplex (Diario)
-  msg += '🔢 *TRIPLEX DE LA ONCE*\n' +
-         '• *Número:* 4 - 8 - 2\n\n';
-
-  // Eurojackpot (Martes y Viernes)
-  if (diaSemanaIndex === 2 || diaSemanaIndex === 5) {
-    msg += '🌍 *EUROJACKPOT*\n' +
-           '• *Combinación:* 11 - 23 - 34 - 42 - 47\n' +
-           '• Soles: ☀️ 03  ☀️ 10\n\n';
-  }
-
-  msg += '━━━━━━━━━━━━━━━━━━━━━\n' +
-         '📱 *Portal oficial de la Peña Primitiva Tordueles:*\n' +
-         'https://torduelespueblo.github.io/Primitiva-Tordueles/\n' +
-         '_(Boletín diario automático oficial)_';
-
-  return msg;
+  return lineas.join('\n');
 }
 
 /**
@@ -1290,6 +1221,129 @@ function enviarBoletinDiarioWhatsApp(forzarEnvio) {
   var boletin = generarBoletinDiarioGeneralONLAEyONCE();
   enviarMensajeGreenApi(boletin);
   Logger.log('Boletín diario general (ONLAE + ONCE) enviado con éxito al grupo de WhatsApp.');
+}
+
+/**
+ * 4. ORQUESTADOR NOCTURNO UNIFICADO (22:00 - 23:00)
+ * Ejecuta el motor de consenso (en días de Primitiva o sorteo pendiente) y envía
+ * todos los resultados del día (y escrutinio de la peña si aplica) en UN SOLO mensaje de WhatsApp.
+ */
+function ejecutarOrquestadorNocturnoUnificado() {
+  Logger.log('🌙 Iniciando Orquestador Nocturno Unificado...');
+  var ss = obtenerSpreadsheetConfigurado();
+  var sheetConfig = ss.getSheetByName(PROYECTO_CONFIG.SHEET_CONFIGURACION);
+  var modoResumen = (sheetConfig ? sheetConfig.getRange('A2').getValue() : 'NO').toString().trim().toUpperCase();
+
+  var ahora = new Date();
+  var diaSemana = ahora.getDay(); // 1: Lunes, 4: Jueves, 6: Sábado
+  var esDiaPrimitiva = (diaSemana === 1 || diaSemana === 4 || diaSemana === 6);
+
+  var sheetSorteos = ss.getSheetByName(PROYECTO_CONFIG.SHEET_SORTEOS);
+  var lastRow = sheetSorteos ? sheetSorteos.getLastRow() : 0;
+  var sorteoPendiente = false;
+
+  if (lastRow >= 2) {
+    var combinacionGanadoraActual = (sheetSorteos.getRange(lastRow, 7).getValue() || '').toString().trim();
+    sorteoPendiente = (combinacionGanadoraActual === '');
+  }
+
+  var datosPrimitiva = null;
+  var resumenPena = null;
+
+  if (esDiaPrimitiva || sorteoPendiente) {
+    var resultadoConsenso = ejecutarMotorPuenteRSSConsenso();
+    if (!resultadoConsenso || !resultadoConsenso.consenso || !resultadoConsenso.datos) {
+      Logger.log('⛔ Orquestador: consenso fallido o fuentes caídas. Cálculos detenidos esperando override manual.');
+    } else {
+      datosPrimitiva = resultadoConsenso.datos;
+      if (lastRow >= 2) {
+        var fila = sheetSorteos.getRange(lastRow, 1, 1, 10).getValues()[0];
+        var jornada = fila[0];
+        var combinacionJugadaStr = (fila[5] || '').toString();
+        var jugados = combinacionJugadaStr.split(',').map(function(n) { return parseInt(n.trim(), 10); }).filter(function(n) { return !isNaN(n); });
+        var ganadores = datosPrimitiva.combinacion;
+
+        var aciertos = 0;
+        var acertados = [];
+        for (var i = 0; i < jugados.length; i++) {
+          if (ganadores.indexOf(jugados[i]) !== -1) {
+            aciertos++;
+            acertados.push(jugados[i]);
+          }
+        }
+
+        var premio = 0;
+        if (aciertos === 6) premio = 1500000;
+        else if (aciertos === 5) premio = 2450.50;
+        else if (aciertos === 4) premio = 78.20;
+        else if (aciertos === 3) premio = 8.00;
+        if (datosPrimitiva.reintegro === 4) premio += 44.0;
+
+        sheetSorteos.getRange(lastRow, 7).setValue(ganadores.join(', '));
+        sheetSorteos.getRange(lastRow, 8).setValue(aciertos);
+        sheetSorteos.getRange(lastRow, 9).setValue(premio);
+        sheetSorteos.getRange(lastRow, 10).setValue(premio <= 2000 ? premio : 0);
+
+        resumenPena = {
+          jornada: jornada,
+          aciertos: aciertos,
+          acertados: acertados,
+          premio: premio
+        };
+      }
+    }
+  }
+
+  // Envío de UN SOLO mensaje unificado a WhatsApp
+  if (modoResumen === 'SÍ') {
+    var mensajeUnificado = generarBoletinDiarioGeneralONLAEyONCE(ahora, datosPrimitiva, resumenPena);
+    enviarMensajeGreenApi(mensajeUnificado);
+    Logger.log('✅ Orquestador Nocturno Unificado: boletín multijuego enviado en 1 único mensaje.');
+    return { success: true, enviado: true, modo: 'BOLETIN_UNIFICADO', consensoPrimitiva: !!datosPrimitiva };
+  } else if (datosPrimitiva && resumenPena) {
+    var msgPena = '🏆 *RESULTADO OFICIAL DEL SORTEO - PEÑA TORDUELES* 🏆\n\n' +
+      '🎯 *Jornada:* ' + resumenPena.jornada + ' • *Fecha:* ' + (datosPrimitiva.fecha || Utilities.formatDate(ahora, 'GMT+1', 'dd/MM/yyyy')) + '\n' +
+      '✨ *Combinación Ganadora (Consenso 100%):* ' + datosPrimitiva.combinacion.join(' · ') + '\n' +
+      '🎱 *Complementario:* ' + datosPrimitiva.complementario + ' | *Reintegro:* ' + datosPrimitiva.reintegro + '\n\n' +
+      '🔍 *Aciertos de la Peña:* ' + resumenPena.aciertos + ' aciertos ' + (resumenPena.acertados.length > 0 ? '([' + resumenPena.acertados.join(', ') + '])' : '') + '\n' +
+      '💰 *Premio Obtenido:* ' + resumenPena.premio.toFixed(2) + ' €\n\n' +
+      (resumenPena.premio <= 2000 ? '📥 *Destino:* Añadido a la Bolsa de Premios Menores (Art. 5.1).' : '🏦 *Destino:* Tramitación bancaria individual para socios activos (Art. 5.2).');
+    enviarMensajeGreenApi(msgPena);
+    Logger.log('✅ Orquestador Nocturno Unificado: resultado de la Peña enviado en 1 único mensaje.');
+    return { success: true, enviado: true, modo: 'SOLO_PRIMITIVA', consensoPrimitiva: true };
+  }
+
+  Logger.log('ℹ️ Orquestador Nocturno Unificado finalizado sin envío (ModoResumen=NO y sin consenso Primitiva pendiente).');
+  return { success: true, enviado: false, modo: 'INACTIVO', consensoPrimitiva: !!datosPrimitiva };
+}
+
+/**
+ * Configura el disparador único nocturno entre las 22:00 y las 23:00 (22:30 aprox.)
+ * Eliminando duplicados o disparadores heredados de envío separado.
+ */
+function configurarTriggerOrquestadorNocturno() {
+  var handlersAReemplazar = [
+    'ejecutarOrquestadorNocturnoUnificado',
+    'procesarEscrutinioYWhatsApp',
+    'enviarBoletinDiarioWhatsApp'
+  ];
+
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (handlersAReemplazar.indexOf(triggers[i].getHandlerFunction()) !== -1) {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+
+  var nuevoTrigger = ScriptApp.newTrigger('ejecutarOrquestadorNocturnoUnificado')
+    .timeBased()
+    .everyDays(1)
+    .atHour(22)
+    .nearMinute(30)
+    .create();
+
+  Logger.log('🕙 Disparador único del Orquestador Nocturno Unificado instalado (22:00-23:00). ID: ' + nuevoTrigger.getUniqueId());
+  return nuevoTrigger;
 }
 
 /**
@@ -1423,7 +1477,6 @@ function registrarNuevoJugadorDesdeWeb(datos) {
     var nombreLimpio = String(datos.nombre).trim();
     var apellidosLimpio = String(datos.apellidos).trim();
     var telefonoLimpio = String(datos.telefono).trim();
-    var dniOpcional = datos.dni ? String(datos.dni).trim().toUpperCase() : '';
 
     // Contar suplentes actuales para calcular la posición exacta en lista de espera
     var lastRow = sheetUsuarios.getLastRow();
@@ -1444,7 +1497,7 @@ function registrarNuevoJugadorDesdeWeb(datos) {
     sheetUsuarios.getRange(nuevaFilaIdx, 1).setNumberFormat('@').setValue(timestampMs);
     sheetUsuarios.getRange(nuevaFilaIdx, 2).setValue(nombreLimpio);
     sheetUsuarios.getRange(nuevaFilaIdx, 3).setValue(apellidosLimpio);
-    sheetUsuarios.getRange(nuevaFilaIdx, 4).setNumberFormat('@').setValue(dniOpcional);
+    sheetUsuarios.getRange(nuevaFilaIdx, 4).setNumberFormat('@').setValue(''); // DNI vacío por privacidad (Art. 3.1)
     sheetUsuarios.getRange(nuevaFilaIdx, 5).setNumberFormat('@').setValue(telefonoLimpio);
     sheetUsuarios.getRange(nuevaFilaIdx, 6).setNumberFormat('@').setValue(''); // IBAN vacío por privacidad (Art. 3.1)
     sheetUsuarios.getRange(nuevaFilaIdx, 7).setValue('Pendiente');              // Estado de Pago por defecto
@@ -1817,11 +1870,13 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // 2. Si es acceso web estándar, desplegar la WebApp HTML completa
-  return HtmlService.createHtmlOutputFromFile('Index')
+  // 2. Si es acceso web estándar, desplegar la WebApp HTML modular (Index + Estilos + Logica)
+  return HtmlService.createTemplateFromFile('Index')
+    .evaluate()
     .setTitle('Peña Primitiva Tordueles | Portal Oficial')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
+    .addMetaTag('theme-color', '#0A2540');
 }
 
 function doPost(e) {
