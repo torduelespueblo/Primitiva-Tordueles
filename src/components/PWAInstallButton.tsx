@@ -24,7 +24,9 @@ export const PWAInstallButton: React.FC = () => {
         title="Instalar App en tu pantalla de inicio"
       >
         <Download className="w-4 h-4 shrink-0" />
-        <span>Instalar App</span>
+        <span>
+          Instalar<span className="hidden sm:inline"> App</span>
+        </span>
       </button>
     );
   }

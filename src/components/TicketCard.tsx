@@ -109,6 +109,23 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
                 </span>
               </div>
             </div>
+
+            {ticket.isScrutinized && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3.5 text-sm font-semibold text-slate-600">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-emerald-600 inline-block" />
+                  Acierto
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-[#FF6B00] inline-block" />
+                  Complementario
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-[#0A2540] inline-block" />
+                  No premiado
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Official Scrutiny Results if scrutinized */}

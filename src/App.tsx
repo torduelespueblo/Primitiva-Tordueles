@@ -17,7 +17,6 @@ import { TicketsHistory } from './components/TicketsHistory';
 import { MembersAndWaitlist } from './components/MembersAndWaitlist';
 import { OfficialRules } from './components/OfficialRules';
 import { AdminPanel } from './components/AdminPanel';
-import { GoogleWorkspacePanel } from './components/GoogleWorkspacePanel';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { ConformityModal } from './components/ConformityModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -208,17 +207,6 @@ export default function App() {
             )}
 
             {currentTab === 'rules' && <OfficialRules />}
-
-            {currentTab === 'workspace' && (
-              <GoogleWorkspacePanel
-                settings={settings}
-                onUpdateSettings={handleUpdateSettings}
-                players={players}
-                onUpdatePlayers={handleUpdatePlayers}
-                waitingList={waitingList}
-                tickets={tickets}
-              />
-            )}
 
             {currentTab === 'admin' && (
               <AdminPanel

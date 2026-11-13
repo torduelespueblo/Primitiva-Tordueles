@@ -10,8 +10,7 @@ import {
   Bell,
   Menu,
   X,
-  AlertTriangle,
-  HardDrive
+  AlertTriangle
 } from 'lucide-react';
 import { SyndicateSettings } from '../types/lottery';
 import { pushNotificationService } from '../services/pushNotifications';
@@ -55,7 +54,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'dashboard', shortLabel: 'Jugada', label: 'Mi Jugada', icon: LayoutDashboard },
     { id: 'tickets', shortLabel: 'Boletos', label: 'Historial Boletos', icon: Receipt },
     { id: 'members', shortLabel: 'Socios', label: 'Socios & Espera', icon: Users },
-    { id: 'workspace', shortLabel: 'Drive', label: 'Drive & Sheets', icon: HardDrive },
     { id: 'rules', shortLabel: 'Normas', label: 'Reglamento', icon: BookOpen },
   ];
 
@@ -84,14 +82,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 size={68}
                 variant="full"
                 theme="light"
-                className="w-16 h-16 sm:w-[74px] sm:h-[74px] shrink-0 transition-transform group-hover:scale-105"
+                className="w-14 h-14 sm:w-[74px] sm:h-[74px] shrink-0 transition-transform group-hover:scale-105"
               />
               <div className="min-w-0">
-                <span className="font-serif font-black text-lg sm:text-2xl tracking-tight text-[#0A2540] block leading-tight truncate">
-                  Primitiva Tordueles
+                <span className="font-serif font-black text-[17px] sm:text-2xl tracking-tight text-[#0A2540] block leading-[1.15]">
+                  Primitiva<span className="sm:hidden"> </span>Tordueles
                 </span>
-                <p className="text-sm sm:text-base font-bold text-[#FF6B00] tabular-nums leading-tight mt-0.5">
-                  Ciclo {settings.currentCycle} · Jornada {settings.currentJornada}/10
+                <p className="text-xs sm:text-base font-bold text-[#FF6B00] tabular-nums leading-tight mt-0.5 whitespace-nowrap">
+                  Ciclo {settings.currentCycle} · J{settings.currentJornada}/10
                 </p>
               </div>
             </button>
@@ -237,7 +235,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         aria-label="Navegación principal móvil"
         className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 pb-safe shadow-[0_-4px_20px_rgba(10,37,64,0.08)]"
       >
-        <div className="grid grid-cols-5 gap-1 px-1.5 py-1.5">
+        <div className="grid grid-cols-4 gap-1.5 px-2 py-1.5">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
