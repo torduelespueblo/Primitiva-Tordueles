@@ -24,7 +24,10 @@ import { PostConformityModal } from './components/PostConformityModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Footer } from './components/Footer';
 import { DualAccessRegistration } from './components/DualAccessRegistration';
-import { pushNotificationService } from './services/pushNotifications';
+import {
+  pushNotificationService,
+  solicitarPermisoYRegistrarToken
+} from './services/pushNotifications';
 import { isTicketPublishedNow } from './services/ticketPublishService';
 
 function hasRegistrationUrlFlag(): boolean {
@@ -46,6 +49,13 @@ export default function App() {
   const [isConformityAccepted, setIsConformityAccepted] = useState<boolean>(() => storageService.isConformityAccepted());
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [playerDni, setPlayerDni] = useState<string>(() => {
+    try {
+      return localStorage.getItem('primitiva_tordueles_player_dni') || '';
+    } catch {
+      return '';
+    }
+  });
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [adminPassword, setAdminPassword] = useState<string>('');
   const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
@@ -95,7 +105,7 @@ export default function App() {
 
     // Solicitar permiso de notificaciones push de inmediato tras el gesto del usuario
     if (pushNotificationService.isSupported()) {
-      pushNotificationService.subscribeUserToPush().then(result => {
+      pushNotificationService.subscribeUserToPush(playerDni, settings.googleAppsScriptUrl).then(result => {
         if (result.token) {
           storageService.savePushToken(result.token);
         }
@@ -389,7 +399,17 @@ export default function App() {
               initialMode={registrationInitialMode}
               googleAppsScriptUrl={settings.googleAppsScriptUrl}
               existingPlayers={players}
-              onAuthenticatedPlayer={() => {
+              onAuthenticatedPlayer={player => {
+                const dni = (player.dni || '').trim().toUpperCase();
+                if (dni) {
+                  setPlayerDni(dni);
+                  try {
+                    localStorage.setItem('primitiva_tordueles_player_dni', dni);
+                  } catch {
+                    // ignore storage errors
+                  }
+                  void solicitarPermisoYRegistrarToken(dni, settings.googleAppsScriptUrl);
+                }
                 handleCloseStandaloneRegistration();
                 setCurrentTab('dashboard');
               }}
@@ -417,7 +437,17 @@ export default function App() {
             <DualAccessRegistration
               googleAppsScriptUrl={settings.googleAppsScriptUrl}
               existingPlayers={players}
-              onAuthenticatedPlayer={() => {
+              onAuthenticatedPlayer={player => {
+                const dni = (player.dni || '').trim().toUpperCase();
+                if (dni) {
+                  setPlayerDni(dni);
+                  try {
+                    localStorage.setItem('primitiva_tordueles_player_dni', dni);
+                  } catch {
+                    // ignore storage errors
+                  }
+                  void solicitarPermisoYRegistrarToken(dni, settings.googleAppsScriptUrl);
+                }
                 handleAcceptConformity();
               }}
               onRegisteredNewPlayer={newReg => {
@@ -452,6 +482,8 @@ export default function App() {
                 tickets={tickets}
                 players={players}
                 prizeHistory={prizeHistory}
+                playerDni={playerDni}
+                googleAppsScriptUrl={settings.googleAppsScriptUrl}
                 onNavigateTab={tab => setCurrentTab(tab)}
               />
             )}

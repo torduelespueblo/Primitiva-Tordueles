@@ -155,6 +155,12 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'registrarTokenFCM') {
+      var resToken = registrarTokenFCMUsuario(contents);
+      return ContentService.createTextOutput(JSON.stringify(resToken))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ status: 'OK', received: true }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -969,5 +975,48 @@ function obtenerEscrutinioDelCiclo() {
  */
 function guardarPremioManual(cantidad, datosOpcionales) {
   return guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales);
+}
+
+/**
+ * Guarda o actualiza el Token FCM de notificaciones Push del dispositivo asociado al DNI del socio.
+ */
+function registrarTokenFCMUsuario(datos) {
+  try {
+    var dni = String((datos && (datos.dniUsuario || datos.dni)) || '').trim().toUpperCase().replace(/[\s-]/g, '');
+    var token = String((datos && datos.token) || '').trim();
+    var plataforma = String((datos && datos.plataforma) || 'PWA Web').trim();
+
+    if (!token) {
+      return { success: false, message: 'Token FCM vacío.' };
+    }
+
+    var ss = obtenerSpreadsheetPeña();
+    var sheetTokens = ss.getSheetByName('Tokens FCM');
+    if (!sheetTokens) {
+      sheetTokens = ss.insertSheet('Tokens FCM');
+      sheetTokens.getRange(1, 1, 1, 4).setValues([['Fecha Registro', 'DNI', 'Token FCM', 'Dispositivo']]);
+      sheetTokens.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#0A2540').setFontColor('#FFFFFF');
+      sheetTokens.setFrozenRows(1);
+    }
+
+    var ahoraStr = Utilities.formatDate(new Date(), 'Europe/Madrid', 'dd/MM/yyyy HH:mm:ss');
+    var lastRow = sheetTokens.getLastRow();
+    if (lastRow >= 2) {
+      var rows = sheetTokens.getRange(2, 1, lastRow - 1, 3).getValues();
+      for (var i = 0; i < rows.length; i++) {
+        var rowDni = String(rows[i][1] || '').trim().toUpperCase().replace(/[\s-]/g, '');
+        var rowToken = String(rows[i][2] || '').trim();
+        if (rowToken === token || (dni && rowDni === dni)) {
+          sheetTokens.getRange(i + 2, 1, 1, 4).setValues([[ahoraStr, dni || rowDni, token, plataforma]]);
+          return { success: true, updated: true, message: 'Token FCM actualizado correctamente.' };
+        }
+      }
+    }
+
+    sheetTokens.appendRow([ahoraStr, dni, token, plataforma]);
+    return { success: true, updated: false, message: 'Token FCM registrado correctamente.' };
+  } catch (err) {
+    return { success: false, message: 'Error registrando token FCM: ' + err.message };
+  }
 }
 

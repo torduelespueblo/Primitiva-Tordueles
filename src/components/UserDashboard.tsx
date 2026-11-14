@@ -14,14 +14,18 @@ import {
   MessageCircle,
   CheckCircle2,
   Receipt,
-  CalendarClock
+  CalendarClock,
+  BellRing
 } from 'lucide-react';
+import { solicitarPermisoYRegistrarToken } from '../services/pushNotifications';
 
 interface UserDashboardProps {
   settings: SyndicateSettings;
   tickets: TicketDraw[];
   players: Player[];
   prizeHistory: PrizeHistoryEntry[];
+  playerDni?: string;
+  googleAppsScriptUrl?: string;
   onNavigateTab: (tab: string) => void;
 }
 
@@ -29,8 +33,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   settings,
   tickets,
   prizeHistory,
+  playerDni = '',
+  googleAppsScriptUrl,
   onNavigateTab,
 }) => {
+  const [pushActivating, setPushActivating] = React.useState(false);
+  const [pushStatusMsg, setPushStatusMsg] = React.useState<string | null>(null);
+
+  const handleActivateMobilePush = async () => {
+    setPushActivating(true);
+    setPushStatusMsg(null);
+    const res = await solicitarPermisoYRegistrarToken(playerDni, googleAppsScriptUrl);
+    setPushActivating(false);
+    setPushStatusMsg(res.message);
+  };
   const pendingTicket = tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t));
   const scheduledTicket = tickets.find(t => !t.isScrutinized && !isTicketPublishedNow(t));
   const lastScrutinized = tickets.find(t => t.isScrutinized);
@@ -306,12 +322,29 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </div>
       </section>
 
-      {/* Nota de Transparencia de la Peña */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-5 text-base text-slate-700 flex items-start gap-3.5">
-        <Info className="w-6 h-6 text-[#0A2540] shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong className="text-[#0A2540]">Transparencia Primitiva Tordueles:</strong> Todos los resguardos se sellan por terminal aleatorio y se publican automáticamente antes de cada sorteo.
-        </p>
+      {/* Nota de Transparencia de la Peña + Activación Discreta de Avisos Push */}
+      <div className="rounded-2xl bg-white border border-slate-200 p-5 text-base text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <Info className="w-6 h-6 text-[#0A2540] shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="leading-relaxed">
+              <strong className="text-[#0A2540]">Transparencia Primitiva Tordueles:</strong> Todos los resguardos se sellan por terminal aleatorio y se publican automáticamente antes de cada sorteo.
+            </p>
+            {pushStatusMsg && (
+              <p className="text-sm font-semibold text-[#0A2540]">{pushStatusMsg}</p>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleActivateMobilePush}
+          disabled={pushActivating}
+          className="inline-flex items-center justify-center gap-2 px-4 min-h-[42px] rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-[#0A2540] text-sm font-bold transition cursor-pointer shrink-0 disabled:opacity-60"
+        >
+          <BellRing className="w-4 h-4 text-[#FF6B00]" />
+          <span>{pushActivating ? 'Activando...' : 'Activar Avisos en este Móvil'}</span>
+        </button>
       </div>
     </div>
   );
