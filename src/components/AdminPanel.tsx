@@ -54,6 +54,16 @@ import {
   Clock
 } from 'lucide-react';
 
+interface AppInstallationEntry {
+  deviceId: string;
+  primeraVisita: string;
+  ultimoAcceso: string;
+  modo: string;
+  plataforma: string;
+  dni: string;
+  nombre: string;
+}
+
 interface AdminPanelProps {
   settings: SyndicateSettings;
   onUpdateSettings: (newSettings: SyndicateSettings) => void;
@@ -100,6 +110,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Estados de gestión uncensored desde pestaña "Usuarios"
   const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false);
   const [adminUsersFeedback, setAdminUsersFeedback] = useState<string | null>(null);
+
+  // Estados de seguimiento de Instalaciones PWA ("Instalaciones App")
+  const [installations, setInstallations] = useState<AppInstallationEntry[]>([]);
+  const [installStats, setInstallStats] = useState<{
+    totalDispositivos: number;
+    totalInstaladas: number;
+    identificadas: number;
+  }>({ totalDispositivos: 0, totalInstaladas: 0, identificadas: 0 });
+  const [isLoadingInstallations, setIsLoadingInstallations] = useState(false);
+  const [installationsFeedback, setInstallationsFeedback] = useState<string | null>(null);
 
   // Estados de "Escrutinio del Ciclo" automático y premio manual
   const [cycleScrutiny, setCycleScrutiny] = useState<ScrutinyCycleResult | null>(null);
@@ -219,14 +239,51 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   }, [getCleanGasUrl]);
 
+  const fetchAdminInstallations = useCallback(async () => {
+    const endpoint = getCleanGasUrl();
+    const pass = (adminPassword || '').trim();
+    if (!endpoint || !pass) return;
+
+    setIsLoadingInstallations(true);
+    setInstallationsFeedback(null);
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'adminInstalaciones', password: pass }),
+      });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.instalaciones)) {
+        const list = data.instalaciones as AppInstallationEntry[];
+        setInstallations(list);
+        setInstallStats({
+          totalDispositivos: Number(data.totalDispositivos) || list.length,
+          totalInstaladas: Number(data.totalInstaladas) || 0,
+          identificadas: Number(data.identificadas) || 0,
+        });
+      } else {
+        setInstallationsFeedback(
+          data?.error || 'No se pudo cargar la pestaña "Instalaciones App".'
+        );
+      }
+    } catch {
+      setInstallationsFeedback(
+        'No se pudo conectar con Google Apps Script para leer "Instalaciones App".'
+      );
+    } finally {
+      setIsLoadingInstallations(false);
+    }
+  }, [adminPassword, getCleanGasUrl]);
+
   useEffect(() => {
     if (activeSection === 'USERS' && adminPassword) {
       fetchUncensoredAdminUsers();
+      fetchAdminInstallations();
     }
     if (activeSection === 'SCRUTINY') {
       fetchCycleScrutiny();
     }
-  }, [activeSection, adminPassword, fetchUncensoredAdminUsers, fetchCycleScrutiny]);
+  }, [activeSection, adminPassword, fetchUncensoredAdminUsers, fetchAdminInstallations, fetchCycleScrutiny]);
 
   // Estados de Notificaciones Push Preprogramadas
   const [pushTitle, setPushTitle] = useState(
@@ -1212,6 +1269,128 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               false,
               'No hay bajas definitivas registradas en la pestaña "Usuarios".'
             )}
+
+            {/* BLOQUE DE SEGUIMIENTO DE INSTALACIONES PWA */}
+            <div className="pt-6 mt-6 border-t border-slate-200 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-extrabold text-lg sm:text-xl text-[#0A2540] flex items-center gap-2">
+                    <Smartphone className="w-5 h-5 text-[#FF6B00]" />
+                    Instalaciones de la App
+                  </h3>
+                  <p className="text-sm text-slate-600 mt-0.5">
+                    Dispositivos con la App instalada (PWA) o acceso web, vinculados al socio cuando inicia sesión.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchAdminInstallations}
+                  disabled={isLoadingInstallations}
+                  className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-[#0A2540] text-sm font-bold cursor-pointer self-start sm:self-auto"
+                >
+                  {isLoadingInstallations && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{isLoadingInstallations ? 'Cargando...' : 'Actualizar instalaciones'}</span>
+                </button>
+              </div>
+
+              {installationsFeedback && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm font-semibold text-amber-900">
+                  {installationsFeedback}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 tabular-nums">
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <span className="text-xs font-bold uppercase text-emerald-800 block">
+                    Apps Instaladas (PWA)
+                  </span>
+                  <span className="text-2xl font-black text-emerald-950">
+                    {installStats.totalInstaladas}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200">
+                  <span className="text-xs font-bold uppercase text-[#0A2540] block">
+                    Socios Identificados
+                  </span>
+                  <span className="text-2xl font-black text-[#0A2540]">
+                    {installStats.identificadas}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-[#F4F6F9] border border-slate-200">
+                  <span className="text-xs font-bold uppercase text-slate-600 block">
+                    Total Dispositivos
+                  </span>
+                  <span className="text-2xl font-black text-[#0A2540]">
+                    {installStats.totalDispositivos}
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-left text-sm sm:text-base text-slate-800">
+                  <thead className="bg-[#0A2540] text-white uppercase text-xs sm:text-sm tracking-wider">
+                    <tr>
+                      <th className="py-3.5 px-4">Nombre / DNI</th>
+                      <th className="py-3.5 px-4">Modo</th>
+                      <th className="py-3.5 px-4">Dispositivo</th>
+                      <th className="py-3.5 px-4">Último Acceso</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {installations.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-6 px-4 text-center text-slate-500">
+                          {isLoadingInstallations
+                            ? 'Cargando registros desde "Instalaciones App"...'
+                            : 'Todavía no hay dispositivos registrados en la pestaña "Instalaciones App".'}
+                        </td>
+                      </tr>
+                    ) : (
+                      installations.map(item => {
+                        const isPwa = item.modo === 'App Instalada (PWA)';
+                        return (
+                          <tr key={item.deviceId} className="hover:bg-slate-50">
+                            <td className="py-3.5 px-4">
+                              {item.nombre || item.dni ? (
+                                <div>
+                                  <div className="font-bold text-[#0A2540]">
+                                    {item.nombre || 'Socio identificado'}
+                                  </div>
+                                  {item.dni && (
+                                    <div className="text-xs font-mono text-slate-500 tabular-nums">
+                                      {item.dni}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 italic">Anónimo (sin iniciar sesión)</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
+                                  isPwa
+                                    ? 'bg-emerald-100 text-emerald-900'
+                                    : 'bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                {item.modo}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">
+                              {item.plataforma || '—'}
+                            </td>
+                            <td className="py-3.5 px-4 font-mono text-xs sm:text-sm text-slate-600 tabular-nums whitespace-nowrap">
+                              {item.ultimoAcceso || item.primeraVisita || '—'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         );
       })()}

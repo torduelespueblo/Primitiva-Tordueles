@@ -161,6 +161,18 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'registrarInstalacionPWA') {
+      var resInst = registrarInstalacionPWADesdeWeb(contents);
+      return ContentService.createTextOutput(JSON.stringify(resInst))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'adminInstalaciones') {
+      var resAdminInst = obtenerInstalacionesAdmin(contents.password);
+      return ContentService.createTextOutput(JSON.stringify(resAdminInst))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ status: 'OK', received: true }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -1046,4 +1058,145 @@ function registrarTokenFCMUsuario(datos) {
     return { success: false, message: 'Error registrando token FCM: ' + err.message };
   }
 }
+
+/**
+ * Registra o actualiza un dispositivo en la pestaña 'Instalaciones App' para que el Admin
+ * sepa cuántas personas tienen instalada la PWA y quiénes están identificados.
+ */
+function registrarInstalacionPWADesdeWeb(datos) {
+  try {
+    var deviceId = String((datos && datos.deviceId) || '').trim();
+    if (!deviceId) {
+      return { success: false, message: 'deviceId requerido.' };
+    }
+
+    var modoRaw = String((datos && datos.modo) || 'Navegador Web').trim();
+    var esInstalada = modoRaw.toLowerCase().indexOf('instalada') !== -1 || modoRaw.toLowerCase().indexOf('pwa') !== -1;
+    var modoNormalizado = esInstalada ? 'App Instalada (PWA)' : 'Navegador Web';
+    var plataforma = String((datos && datos.plataforma) || 'Desconocido').trim();
+    var dni = String((datos && datos.dni) || '').trim().toUpperCase().replace(/[\s-]/g, '');
+    var nombre = String((datos && datos.nombre) || '').trim();
+
+    var ss = obtenerSpreadsheetPeña();
+
+    // Si viene DNI sin nombre, intentar completar el nombre automáticamente desde 'Usuarios'
+    if (dni && !nombre) {
+      var sheetUsuarios = ss.getSheetByName('Usuarios');
+      if (sheetUsuarios && sheetUsuarios.getLastRow() >= 2) {
+        var uRows = sheetUsuarios.getRange(2, 2, sheetUsuarios.getLastRow() - 1, 3).getValues();
+        for (var u = 0; u < uRows.length; u++) {
+          var uDni = String(uRows[u][2] || '').trim().toUpperCase().replace(/[\s-]/g, '');
+          if (uDni && uDni === dni) {
+            nombre = (String(uRows[u][0] || '').trim() + ' ' + String(uRows[u][1] || '').trim()).trim();
+            break;
+          }
+        }
+      }
+    }
+
+    var sheetInst = ss.getSheetByName('Instalaciones App');
+    if (!sheetInst) {
+      sheetInst = ss.insertSheet('Instalaciones App');
+      sheetInst.getRange(1, 1, 1, 7).setValues([[
+        'ID Dispositivo', 'Primera Instalación / Visita', 'Último Acceso', 'Modo', 'Plataforma', 'DNI', 'Nombre'
+      ]]);
+      sheetInst.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#0A2540').setFontColor('#FFFFFF');
+      sheetInst.setFrozenRows(1);
+    }
+
+    var ahoraStr = Utilities.formatDate(new Date(), 'Europe/Madrid', 'dd/MM/yyyy HH:mm:ss');
+    var lastRow = sheetInst.getLastRow();
+
+    if (lastRow >= 2) {
+      var rows = sheetInst.getRange(2, 1, lastRow - 1, 7).getValues();
+      for (var i = 0; i < rows.length; i++) {
+        if (String(rows[i][0] || '').trim() === deviceId) {
+          var fila = i + 2;
+          var modoActual = String(rows[i][3] || '').trim();
+          var modoFinal = (modoActual === 'App Instalada (PWA)' || esInstalada)
+            ? 'App Instalada (PWA)'
+            : modoNormalizado;
+          var dniFinal = dni || String(rows[i][5] || '').trim();
+          var nombreFinal = nombre || String(rows[i][6] || '').trim();
+
+          sheetInst.getRange(fila, 3, 1, 5).setValues([[
+            ahoraStr,
+            modoFinal,
+            plataforma || String(rows[i][4] || ''),
+            dniFinal,
+            nombreFinal
+          ]]);
+          return { success: true, updated: true, modo: modoFinal };
+        }
+      }
+    }
+
+    sheetInst.appendRow([deviceId, ahoraStr, ahoraStr, modoNormalizado, plataforma, dni, nombre]);
+    return { success: true, updated: false, modo: modoNormalizado };
+  } catch (err) {
+    return { success: false, message: 'Error registrando instalación: ' + err.message };
+  }
+}
+
+/**
+ * Devuelve al Panel Admin la lista completa de instalaciones y dispositivos registrados.
+ */
+function obtenerInstalacionesAdmin(password) {
+  if (!validarPasswordAdmin(password)) {
+    return { success: false, error: 'Acceso denegado.' };
+  }
+
+  try {
+    var ss = obtenerSpreadsheetPeña();
+    var sheetInst = ss.getSheetByName('Instalaciones App');
+    if (!sheetInst || sheetInst.getLastRow() < 2) {
+      return {
+        success: true,
+        totalDispositivos: 0,
+        totalInstaladas: 0,
+        identificadas: 0,
+        instalaciones: []
+      };
+    }
+
+    var lastRow = sheetInst.getLastRow();
+    var rows = sheetInst.getRange(2, 1, lastRow - 1, 7).getValues();
+    var lista = [];
+    var totalInstaladas = 0;
+    var identificadas = 0;
+
+    for (var i = rows.length - 1; i >= 0; i--) {
+      var r = rows[i];
+      var idDisp = String(r[0] || '').trim();
+      if (!idDisp) continue;
+
+      var modo = String(r[3] || 'Navegador Web').trim();
+      var dni = String(r[5] || '').trim();
+      var nombre = String(r[6] || '').trim();
+      if (modo === 'App Instalada (PWA)') totalInstaladas++;
+      if (dni || nombre) identificadas++;
+
+      lista.push({
+        deviceId: idDisp,
+        primeraVisita: String(r[1] || ''),
+        ultimoAcceso: String(r[2] || ''),
+        modo: modo,
+        plataforma: String(r[4] || ''),
+        dni: dni,
+        nombre: nombre
+      });
+    }
+
+    return {
+      success: true,
+      totalDispositivos: lista.length,
+      totalInstaladas: totalInstaladas,
+      identificadas: identificadas,
+      instalaciones: lista
+    };
+  } catch (err) {
+    return { success: false, error: 'Error leyendo instalaciones: ' + err.message };
+  }
+}
+
 

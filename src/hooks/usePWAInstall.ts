@@ -33,6 +33,11 @@ export function usePWAInstall() {
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      try {
+        localStorage.setItem('primitiva_tordueles_pwa_installed', 'true');
+      } catch {
+        // ignore
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -51,6 +56,11 @@ export function usePWAInstall() {
     if (outcome === 'accepted') {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      try {
+        localStorage.setItem('primitiva_tordueles_pwa_installed', 'true');
+      } catch {
+        // ignore
+      }
       return true;
     }
     return false;

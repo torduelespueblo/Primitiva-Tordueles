@@ -29,6 +29,7 @@ import {
   solicitarPermisoYRegistrarToken
 } from './services/pushNotifications';
 import { isTicketPublishedNow } from './services/ticketPublishService';
+import { reportPWAInstallOrVisit } from './services/installTrackingService';
 
 function hasRegistrationUrlFlag(): boolean {
   if (typeof window === 'undefined') return false;
@@ -139,6 +140,25 @@ export default function App() {
       }
     }
   }, [isConformityAccepted]);
+
+  // Registro automático de dispositivos e instalaciones PWA en Google Sheets ("Instalaciones App")
+  useEffect(() => {
+    void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
+      dni: playerDni || undefined,
+    });
+
+    const handleAppInstalled = () => {
+      void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
+        installedNow: true,
+        dni: playerDni || undefined,
+      });
+    };
+
+    window.addEventListener('appinstalled', handleAppInstalled);
+    return () => {
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, [settings.googleAppsScriptUrl, playerDni]);
 
   // Comprobación automática de boletos programados (al abrir o cada 30s)
   useEffect(() => {
@@ -410,6 +430,10 @@ export default function App() {
                   }
                   void solicitarPermisoYRegistrarToken(dni, settings.googleAppsScriptUrl);
                 }
+                void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
+                  dni: dni || undefined,
+                  nombre: player.name,
+                });
                 handleCloseStandaloneRegistration();
                 setCurrentTab('dashboard');
               }}
@@ -425,6 +449,9 @@ export default function App() {
                 handleUpdateWaitingList([...waitingList, newEntry]);
                 setIsConformityAccepted(true);
                 storageService.setConformityAccepted(true);
+                void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
+                  nombre: newReg.name,
+                });
               }}
               onBackToApp={() => {
                 handleCloseStandaloneRegistration();
@@ -448,6 +475,10 @@ export default function App() {
                   }
                   void solicitarPermisoYRegistrarToken(dni, settings.googleAppsScriptUrl);
                 }
+                void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
+                  dni: dni || undefined,
+                  nombre: player.name,
+                });
                 handleAcceptConformity();
               }}
               onRegisteredNewPlayer={newReg => {
@@ -460,6 +491,9 @@ export default function App() {
                   status: 'ESPERANDO',
                 };
                 handleUpdateWaitingList([...waitingList, newEntry]);
+                void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
+                  nombre: newReg.name,
+                });
                 handleAcceptConformity();
               }}
               onOpenRulesModal={() => setShowConformityReview(true)}
