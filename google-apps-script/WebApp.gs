@@ -907,18 +907,41 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
     var jornadaNum = parseInt(datos.jornada, 10) || 1;
     var fechaTarget = String(datos.fechaSorteo);
 
-    var nuevaFila = sheetSorteos.getLastRow() + 1;
-    if (sheetSorteos.getLastRow() >= 2) {
-      var existentes = sheetSorteos.getRange(2, 1, sheetSorteos.getLastRow() - 1, 2).getValues();
+    var lastRowS = sheetSorteos.getLastRow();
+    var nuevaFila = lastRowS + 1;
+    var primeraFilaLibre = null;
+
+    if (lastRowS >= 2) {
+      var existentes = sheetSorteos.getRange(2, 1, lastRowS - 1, 10).getValues();
       for (var rIdx = 0; rIdx < existentes.length; rIdx++) {
-        var jExist = parseInt(existentes[rIdx][0], 10);
-        var fExist = existentes[rIdx][1] instanceof Date
-          ? Utilities.formatDate(existentes[rIdx][1], 'Europe/Madrid', 'yyyy-MM-dd')
-          : String(existentes[rIdx][1] || '').trim();
+        var jRaw = String(existentes[rIdx][0] || '').trim();
+        var fRaw = existentes[rIdx][1];
+        var combRaw = String(existentes[rIdx][5] || '').trim();
+        var jExist = parseInt(jRaw, 10);
+        var fExist = fRaw instanceof Date
+          ? Utilities.formatDate(fRaw, 'Europe/Madrid', 'yyyy-MM-dd')
+          : String(fRaw || '').trim();
+
+        var filaVacia = !jRaw && !fExist && !combRaw;
+        if (filaVacia) {
+          // Limpiar restos de fórmulas #ERROR! en columna J de filas vacías
+          if (existentes[rIdx][9] !== '' && existentes[rIdx][9] !== null) {
+            sheetSorteos.getRange(rIdx + 2, 10).clearContent();
+          }
+          if (primeraFilaLibre === null) {
+            primeraFilaLibre = rIdx + 2;
+          }
+          continue;
+        }
+
         if (jExist === jornadaNum && fExist === fechaTarget) {
           nuevaFila = rIdx + 2;
+          primeraFilaLibre = null;
           break;
         }
+      }
+      if (primeraFilaLibre !== null) {
+        nuevaFila = primeraFilaLibre;
       }
     }
 
@@ -930,7 +953,11 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
     }
     sheetSorteos.getRange(nuevaFila, 5).setValue(parseFloat(datos.importe) || 0);
     sheetSorteos.getRange(nuevaFila, 6).setValue(String(datos.combinacion));
-    sheetSorteos.getRange(nuevaFila, 10).setFormula('=IF(I' + nuevaFila + '<>"", IF(I' + nuevaFila + '<=2000, I' + nuevaFila + ', 0), 0)');
+    var premioExistenteI = parseFloat(sheetSorteos.getRange(nuevaFila, 9).getValue());
+    var valorPremioMenor = !isNaN(premioExistenteI)
+      ? (premioExistenteI <= 2000 ? premioExistenteI : 0)
+      : 0;
+    sheetSorteos.getRange(nuevaFila, 10).setValue(valorPremioMenor).setNumberFormat('#,##0.00 €');
     sheetSorteos.getRange(nuevaFila, 11).setValue(estadoPub);
     sheetSorteos.getRange(nuevaFila, 12).setNumberFormat('@').setValue(fechaHoraPub);
     sheetSorteos.getRange(nuevaFila, 13).setValue(publicarAhora ? 'SÍ' : 'NO');

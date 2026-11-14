@@ -238,7 +238,7 @@ export default function App() {
 
                 if (rawEstado === 'TITULAR') {
                   syncedPlayers.push({
-                    id: `sheet-u-${u.id || idx + 1}`,
+                    id: `sheet-u-${idx}-${u.id || idx + 1}`,
                     memberNumber: syncedPlayers.length + 1,
                     name: fullName,
                     firstName,
@@ -254,7 +254,7 @@ export default function App() {
                   });
                 } else if (rawEstado === 'SUPLENTE') {
                   syncedWaiting.push({
-                    id: `sheet-w-${u.id || idx + 1}`,
+                    id: `sheet-w-${idx}-${u.id || idx + 1}`,
                     name: fullName,
                     email: '',
                     phone: '',

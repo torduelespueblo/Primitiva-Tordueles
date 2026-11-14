@@ -1926,9 +1926,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {cycleScrutiny?.consensoDisponible && cycleScrutiny.combinacionGanadora?.length === 6 ? (
                   <>
                     <div className="flex flex-wrap gap-2">
-                      {cycleScrutiny.combinacionGanadora.map(n => (
+                      {cycleScrutiny.combinacionGanadora.map((n, idx) => (
                         <span
-                          key={n}
+                          key={`win-${n}-${idx}`}
                           className="w-10 h-10 rounded-full bg-[#0A2540] border-2 border-[#FF6B00] text-white font-mono font-extrabold text-base flex items-center justify-center tabular-nums"
                         >
                           {n < 10 ? `0${n}` : n}
@@ -1954,11 +1954,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {cycleScrutiny?.apuestaPena && cycleScrutiny.apuestaPena.length > 0 ? (
                   <>
                     <div className="flex flex-wrap gap-2">
-                      {cycleScrutiny.apuestaPena.map(n => {
+                      {cycleScrutiny.apuestaPena.map((n, idx) => {
                         const isHit = cycleScrutiny.aciertosNumeros?.includes(n);
                         return (
                           <span
-                            key={n}
+                            key={`pena-${n}-${idx}`}
                             className={`w-10 h-10 rounded-full border-2 font-mono font-extrabold text-base flex items-center justify-center tabular-nums ${
                               isHit
                                 ? 'bg-emerald-700 border-emerald-400 text-white'
@@ -2168,8 +2168,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     return (
                       <div className="flex flex-wrap items-center gap-2">
                         {hits.length > 0 ? (
-                          hits.map(h => (
-                            <span key={h} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-mono font-bold text-sm">
+                          hits.map((h, idx) => (
+                            <span key={`hit-${h}-${idx}`} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-mono font-bold text-sm">
                               {h}
                             </span>
                           ))

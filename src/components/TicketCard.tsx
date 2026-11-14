@@ -97,12 +97,12 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
               Combinación Jugada Oficial
             </span>
             <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-              {ticket.playedNumbers.map((num) => {
+              {ticket.playedNumbers.map((num, idx) => {
                 const matched = isMatched(num);
                 const comp = isComplementario(num);
                 return (
                   <span
-                    key={num}
+                    key={`${num}-${idx}`}
                     className={`flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13 rounded-full font-extrabold text-lg sm:text-xl tabular-nums shadow-sm transition ${
                       matched
                         ? 'bg-emerald-600 text-white ring-4 ring-emerald-200 scale-105'

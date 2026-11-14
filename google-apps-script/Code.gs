@@ -175,10 +175,6 @@ function configurarPestanaSorteos(ss) {
   sheet.getRange('I2:I100').setNumberFormat('#,##0.00 €');
   sheet.getRange('J2:J100').setNumberFormat('#,##0.00 €');
 
-  for (var r = 2; r <= 20; r++) {
-    sheet.getRange(r, 10).setFormula('=IF(I' + r + '<>"", IF(I' + r + '<=2000, I' + r + ', 0), 0)');
-  }
-
   sheet.autoResizeColumns(1, headers.length);
   return sheet;
 }
@@ -2153,10 +2149,9 @@ function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
       sheetSorteos.getRange(filaObjetivo, 8).setValue(aciertosGuardar);
     }
 
+    var premioMenor = importe <= 2000 ? importe : 0;
     sheetSorteos.getRange(filaObjetivo, 9).setValue(importe).setNumberFormat('#,##0.00 €');
-    sheetSorteos.getRange(filaObjetivo, 10)
-      .setFormula('=IF(I' + filaObjetivo + '<>"", IF(I' + filaObjetivo + '<=2000, I' + filaObjetivo + ', 0), 0)')
-      .setNumberFormat('#,##0.00 €');
+    sheetSorteos.getRange(filaObjetivo, 10).setValue(premioMenor).setNumberFormat('#,##0.00 €');
 
     SpreadsheetApp.flush();
 
