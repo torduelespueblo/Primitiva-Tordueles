@@ -138,8 +138,8 @@ export async function submitRegistrationToSheet(
 
 export function getPublicRegistrationShareUrl(): string {
   if (typeof window === 'undefined') {
-    return 'https://torduelespueblo.github.io/Primitiva-Tordueles/?inscripcion=1';
+    return 'https://torduelespueblo.github.io/Primitiva-Tordueles/inscripcion.html';
   }
-  const base = `${window.location.origin}${window.location.pathname}`;
-  return `${base}?inscripcion=1`;
+  const url = new URL('./inscripcion.html', window.location.href);
+  return url.toString();
 }

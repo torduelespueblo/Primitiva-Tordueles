@@ -52,6 +52,7 @@ export default defineConfig(() => {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
           navigateFallback: 'index.html',
+          navigateFallbackDenylist: [/\/inscripcion\.html$/, /\/firebase-messaging-sw\.js$/],
         },
         devOptions: {
           enabled: true,
