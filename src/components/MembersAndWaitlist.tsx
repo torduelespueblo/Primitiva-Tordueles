@@ -8,7 +8,9 @@ import {
   Copy,
   Check,
   UserPlus,
-  Link2
+  Link2,
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import { formatTimestampWithCentiseconds } from '../utils/dateFormat';
 import { getPublicRegistrationShareUrl } from '../services/registrationService';
@@ -17,19 +19,33 @@ interface MembersAndWaitlistProps {
   players: Player[];
   waitingList: WaitingListEntry[];
   settings: SyndicateSettings;
+  accessLevel?: 'VISITOR' | 'SUPLENTE' | 'TITULAR';
+  titularesCount?: number;
+  suplentesCount?: number;
   onOpenRegistration: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
   players,
   waitingList,
   settings,
+  accessLevel = 'VISITOR',
+  titularesCount,
+  suplentesCount,
   onOpenRegistration,
+  onOpenLogin,
 }) => {
   const [activeTab, setActiveTab] = useState<'MEMBERS' | 'WAITING_LIST'>('MEMBERS');
   const [copiedLink, setCopiedLink] = useState(false);
 
   const activePlayers = players.filter(p => p.status === 'TITULAR');
+  const displayTitularesCount =
+    typeof titularesCount === 'number' ? titularesCount : activePlayers.length;
+  const displaySuplentesCount =
+    typeof suplentesCount === 'number' ? suplentesCount : waitingList.length;
+  const canViewNominalLists = accessLevel === 'SUPLENTE' || accessLevel === 'TITULAR';
+
   const hasExternalForm = Boolean(settings.googleFormUrl && settings.googleFormUrl.startsWith('http'));
   const shareUrl = getPublicRegistrationShareUrl();
 
@@ -100,34 +116,109 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab('MEMBERS')}
-          className={`flex items-center justify-center gap-2.5 px-5 min-h-[52px] rounded-2xl text-base font-bold transition cursor-pointer ${
-            activeTab === 'MEMBERS'
-              ? 'bg-[#0A2540] text-white shadow-sm'
-              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <Users className="w-5 h-5 text-[#FF6B00]" />
-          <span>Socios Titulares ({activePlayers.length})</span>
-        </button>
+      {/* Contadores Globales de Participación (visibles también para visitantes) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 tabular-nums">
+        <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-[#0A2540] text-white flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 text-[#FF6B00]" />
+            </div>
+            <div>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
+                Socios Titulares Activos
+              </span>
+              <span className="text-2xl font-black text-[#0A2540]">
+                {displayTitularesCount} {displayTitularesCount === 1 ? 'jugador' : 'jugadores'}
+              </span>
+            </div>
+          </div>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('WAITING_LIST')}
-          className={`flex items-center justify-center gap-2.5 px-5 min-h-[52px] rounded-2xl text-base font-bold transition cursor-pointer ${
-            activeTab === 'WAITING_LIST'
-              ? 'bg-[#0A2540] text-white shadow-sm'
-              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <Clock className="w-5 h-5 text-[#FF6B00]" />
-          <span>Lista de Espera ({waitingList.length})</span>
-        </button>
+        <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-orange-50 text-[#FF6B00] border border-orange-200 flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
+                Aspirantes en Lista de Espera
+              </span>
+              <span className="text-2xl font-black text-[#0A2540]">
+                {displaySuplentesCount} {displaySuplentesCount === 1 ? 'suplente' : 'suplentes'}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {!canViewNominalLists ? (
+        <div className="rounded-3xl bg-white border-2 border-slate-200 p-7 sm:p-10 text-center shadow-xs space-y-5">
+          <div className="w-16 h-16 rounded-2xl bg-[#0A2540] text-white mx-auto flex items-center justify-center shadow-md">
+            <Lock className="w-8 h-8 text-[#FF6B00]" />
+          </div>
+          <div className="space-y-2 max-w-xl mx-auto">
+            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider text-[#FF6B00]">
+              Privacidad de los Participantes
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black font-serif text-[#0A2540]">
+              Listas reservadas a usuarios registrados
+            </h2>
+            <p className="text-base text-slate-600 leading-relaxed">
+              Actualmente participan <strong>{displayTitularesCount} titulares</strong> y hay{' '}
+              <strong>{displaySuplentesCount} personas en lista de espera</strong>. Por privacidad de nuestros vecinos y socios, los nombres y el orden exacto solo pueden verse tras apuntarse o iniciar sesión.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onOpenRegistration}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-extrabold text-base shadow-sm transition cursor-pointer"
+            >
+              <UserPlus className="w-5 h-5" />
+              <span>Apuntarme en Lista de Espera</span>
+            </button>
+            {onOpenLogin && (
+              <button
+                type="button"
+                onClick={onOpenLogin}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white font-bold text-base shadow-sm transition cursor-pointer"
+              >
+                <KeyRound className="w-5 h-5 text-[#FF6B00]" />
+                <span>Ya estoy apuntado (DNI o Teléfono)</span>
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Tabs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab('MEMBERS')}
+              className={`flex items-center justify-center gap-2.5 px-5 min-h-[52px] rounded-2xl text-base font-bold transition cursor-pointer ${
+                activeTab === 'MEMBERS'
+                  ? 'bg-[#0A2540] text-white shadow-sm'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Users className="w-5 h-5 text-[#FF6B00]" />
+              <span>Socios Titulares ({activePlayers.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('WAITING_LIST')}
+              className={`flex items-center justify-center gap-2.5 px-5 min-h-[52px] rounded-2xl text-base font-bold transition cursor-pointer ${
+                activeTab === 'WAITING_LIST'
+                  ? 'bg-[#0A2540] text-white shadow-sm'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Clock className="w-5 h-5 text-[#FF6B00]" />
+              <span>Lista de Espera ({waitingList.length})</span>
+            </button>
+          </div>
 
       {/* TAB 1: MEMBERS (Solo Nombre y Fecha de inscripción) */}
       {activeTab === 'MEMBERS' && (
@@ -241,6 +332,8 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
             </>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

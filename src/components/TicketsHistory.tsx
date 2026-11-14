@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TicketDraw, PrizeHistoryEntry } from '../types/lottery';
 import { TicketCard } from './TicketCard';
-import { Receipt, Trophy, Layers, ArrowUpDown, Calendar } from 'lucide-react';
+import { Receipt, Trophy, Layers, ArrowUpDown, Calendar, Lock, UserPlus, KeyRound } from 'lucide-react';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
 import { MAX_STORED_TICKETS } from '../services/storage';
 
@@ -9,22 +9,34 @@ interface TicketsHistoryProps {
   tickets: TicketDraw[];
   prizeHistory: PrizeHistoryEntry[];
   currentCycle: number;
+  prizeFundBalance?: number;
+  accessLevel?: 'VISITOR' | 'SUPLENTE' | 'TITULAR';
+  onOpenRegister?: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
   tickets,
   prizeHistory,
   currentCycle,
+  prizeFundBalance = 0,
+  accessLevel = 'VISITOR',
+  onOpenRegister,
+  onOpenLogin,
 }) => {
   const [filter, setFilter] = useState<'ALL' | 'CURRENT_CYCLE' | 'PRIZES_ONLY'>('ALL');
   const [showMultiplesGuide, setShowMultiplesGuide] = useState(false);
   const [prizeSortOrder, setPrizeSortOrder] = useState<'DESC' | 'ASC'>('DESC');
 
+  const isTitular = accessLevel === 'TITULAR';
+
   // Solo los últimos 4 boletos ya jugados/escrutados (excluye el boleto pendiente de «Mi Jugada»)
-  const playedTickets = tickets
-    .filter(t => t.isScrutinized)
-    .sort((a, b) => new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime())
-    .slice(0, MAX_STORED_TICKETS);
+  const playedTickets = isTitular
+    ? tickets
+        .filter(t => t.isScrutinized)
+        .sort((a, b) => new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime())
+        .slice(0, MAX_STORED_TICKETS)
+    : [];
 
   const filteredTickets = playedTickets.filter(t => {
     if (filter === 'CURRENT_CYCLE') return t.cycleNumber === currentCycle;
@@ -33,13 +45,18 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
   });
 
   // Histórico completo de premios obtenidos ordenado por fecha del sorteo
-  const sortedPrizes = [...prizeHistory].sort((a, b) => {
-    const timeA = new Date(a.drawDate).getTime();
-    const timeB = new Date(b.drawDate).getTime();
-    return prizeSortOrder === 'DESC' ? timeB - timeA : timeA - timeB;
-  });
+  const sortedPrizes = isTitular
+    ? [...prizeHistory].sort((a, b) => {
+        const timeA = new Date(a.drawDate).getTime();
+        const timeB = new Date(b.drawDate).getTime();
+        return prizeSortOrder === 'DESC' ? timeB - timeA : timeA - timeB;
+      })
+    : [];
 
-  const totalPrizesAllTime = sortedPrizes.reduce((sum, p) => sum + (p.prizeAmount || 0), 0);
+  const totalPrizesAllTime =
+    sortedPrizes.length > 0
+      ? sortedPrizes.reduce((sum, p) => sum + (p.prizeAmount || 0), 0)
+      : prizeFundBalance;
 
   return (
     <div className="space-y-6">
@@ -79,8 +96,55 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
 
       {showMultiplesGuide && <MultipleBetsGuide />}
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center gap-2.5">
+      {!isTitular ? (
+        <div className="rounded-3xl bg-white border-2 border-slate-200 p-7 sm:p-10 text-center shadow-xs space-y-5">
+          <div className="w-16 h-16 rounded-2xl bg-[#0A2540] text-white mx-auto flex items-center justify-center shadow-md">
+            <Lock className="w-8 h-8 text-[#FF6B00]" />
+          </div>
+          <div className="space-y-2 max-w-xl mx-auto">
+            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider text-[#FF6B00]">
+              {accessLevel === 'SUPLENTE'
+                ? 'Acceso exclusivo para Socios Titulares'
+                : 'Contenido Protegido'}
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black font-serif text-[#0A2540]">
+              Boletos y resguardos reservados a Titulares
+            </h2>
+            <p className="text-base text-slate-600 leading-relaxed">
+              {accessLevel === 'SUPLENTE'
+                ? 'Tu ficha consta como Suplente en lista de espera. Las combinaciones jugadas, imágenes de resguardos y escrutinios detallados están reservados a los Titulares activos de la peña.'
+                : 'Para consultar los resguardos sellados, combinaciones jugadas y detalle de sorteos es necesario ser Socio Titular activo de la peña.'}
+            </p>
+          </div>
+          {accessLevel === 'VISITOR' && (onOpenRegister || onOpenLogin) && (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
+              {onOpenRegister && (
+                <button
+                  type="button"
+                  onClick={onOpenRegister}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-extrabold text-base shadow-sm transition cursor-pointer"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  <span>Apuntarme en Lista de Espera</span>
+                </button>
+              )}
+              {onOpenLogin && (
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white font-bold text-base shadow-sm transition cursor-pointer"
+                >
+                  <KeyRound className="w-5 h-5 text-[#FF6B00]" />
+                  <span>Ya soy Titular (Entrar con DNI)</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-2.5">
         <button
           type="button"
           onClick={() => setFilter('ALL')}
@@ -244,6 +308,8 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
           </div>
         )}
       </section>
+        </>
+      )}
     </div>
   );
 };

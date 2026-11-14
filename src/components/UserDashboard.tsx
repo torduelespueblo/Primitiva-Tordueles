@@ -15,7 +15,13 @@ import {
   CheckCircle2,
   Receipt,
   CalendarClock,
-  BellRing
+  BellRing,
+  UserPlus,
+  KeyRound,
+  Lock,
+  Clover,
+  Users,
+  LogOut
 } from 'lucide-react';
 import { solicitarPermisoYRegistrarToken } from '../services/pushNotifications';
 
@@ -25,20 +31,50 @@ interface UserDashboardProps {
   players: Player[];
   prizeHistory: PrizeHistoryEntry[];
   playerDni?: string;
+  accessLevel?: 'VISITOR' | 'SUPLENTE' | 'TITULAR';
+  memberName?: string;
+  titularesCount?: number;
+  suplentesCount?: number;
+  ticketSummary?: {
+    hayBoleto: boolean;
+    programado: boolean;
+    jornada?: number;
+    fecha?: string;
+  };
   googleAppsScriptUrl?: string;
   onNavigateTab: (tab: string) => void;
+  onOpenRegister?: () => void;
+  onOpenLogin?: () => void;
+  onLogoutMember?: () => void;
 }
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({
   settings,
   tickets,
+  players,
   prizeHistory,
   playerDni = '',
+  accessLevel = 'VISITOR',
+  memberName = '',
+  titularesCount,
+  suplentesCount,
+  ticketSummary,
   googleAppsScriptUrl,
   onNavigateTab,
+  onOpenRegister,
+  onOpenLogin,
+  onLogoutMember,
 }) => {
   const [pushActivating, setPushActivating] = React.useState(false);
   const [pushStatusMsg, setPushStatusMsg] = React.useState<string | null>(null);
+
+  const isTitular = accessLevel === 'TITULAR';
+  const displayTitulares =
+    typeof titularesCount === 'number'
+      ? titularesCount
+      : players.filter(p => p.status === 'TITULAR').length;
+  const displaySuplentes =
+    typeof suplentesCount === 'number' ? suplentesCount : 0;
 
   const handleActivateMobilePush = async () => {
     setPushActivating(true);
@@ -61,23 +97,168 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   return (
     <div className="space-y-8">
-      {/* 1. LO PRIMERO: LA APUESTA QUE SE VA A JUGAR (SOLO PENDIENTE) */}
+      {/* AVISO DISCRETO PARA VISITANTES O FICHA DE IDENTIFICACIÓN ACTIVA */}
+      {accessLevel === 'VISITOR' && (onOpenRegister || onOpenLogin) ? (
+        <div className="rounded-2xl bg-gradient-to-r from-[#0A2540] to-[#13375B] p-4 sm:p-5 text-white shadow-sm border border-[#0A2540] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-[#FF6B00]">
+              Modo Visitante · Acceso restringido
+            </span>
+            <p className="text-sm sm:text-base text-slate-100 leading-snug">
+              Por privacidad de la peña, los números jugados y las listas están ocultos. Apúntate o entra con tu ficha para desbloquear tu acceso.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {onOpenRegister && (
+              <button
+                type="button"
+                onClick={onOpenRegister}
+                className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white text-sm font-extrabold shadow-xs transition cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Apuntarme ahora</span>
+              </button>
+            )}
+            {onOpenLogin && (
+              <button
+                type="button"
+                onClick={onOpenLogin}
+                className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl bg-white/15 hover:bg-white/25 text-white text-sm font-bold transition cursor-pointer"
+              >
+                <KeyRound className="w-4 h-4 text-[#FF6B00]" />
+                <span>Ya estoy registrado</span>
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl bg-white border border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 text-sm sm:text-base">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span className="text-slate-700">
+              Conectado como{' '}
+              <strong className="text-[#0A2540]">{memberName || 'Socio'}</strong>{' '}
+              <span
+                className={`ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
+                  isTitular
+                    ? 'bg-emerald-100 text-emerald-900'
+                    : 'bg-orange-100 text-[#FF6B00]'
+                }`}
+              >
+                {isTitular ? 'Titular' : 'Suplente (Lista de Espera)'}
+              </span>
+            </span>
+          </div>
+          {onLogoutMember && (
+            <button
+              type="button"
+              onClick={onLogoutMember}
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-500 hover:text-[#0A2540] cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Cambiar / Salir</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 1. LO PRIMERO: LA APUESTA QUE SE VA A JUGAR (SOLO VISIBLE PARA TITULARES) */}
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
             <p className="text-sm font-extrabold uppercase tracking-wider text-[#FF6B00] tabular-nums">
-              Sorteo en Curso · Jornada {pendingTicket?.jornadaNumber || settings.currentJornada} de {settings.cycleLength}
+              Sorteo en Curso · Jornada {(isTitular ? pendingTicket?.jornadaNumber : ticketSummary?.jornada) || settings.currentJornada} de {settings.cycleLength}
             </p>
             <h1 className="text-2xl sm:text-3xl font-black font-serif text-[#0A2540] mt-1">
               Apuesta Oficial de la Peña
             </h1>
             <p className="text-base text-slate-600 mt-1 max-w-2xl leading-relaxed">
-              Combinación múltiple sellada por terminal oficial de SELAE pendiente de sorteo para todos los socios activos.
+              {isTitular
+                ? 'Combinación múltiple sellada por terminal oficial de SELAE pendiente de sorteo para todos los socios activos.'
+                : 'Combinación múltiple oficial de La Primitiva sellada por terminal de SELAE para los socios titulares del ciclo.'}
             </p>
           </div>
         </div>
 
-        {pendingTicket ? (
+        {!isTitular ? (
+          /* TARJETA OCULTA CON ICONO DE LA PRIMITIVA PARA VISITANTES Y SUPLENTES */
+          <div className="max-w-2xl rounded-3xl bg-white border-2 border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="flex items-center gap-3.5">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                  <Clover className="w-8 h-8" />
+                </div>
+                <div>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-[#FF6B00]">
+                    <Lock className="w-3.5 h-3.5" /> Combinación Reservada
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-black font-serif text-[#0A2540]">
+                    {ticketSummary?.hayBoleto
+                      ? ticketSummary.programado
+                        ? `Resguardo Programado · Jornada ${ticketSummary.jornada || settings.currentJornada}`
+                        : `Boleto Oficial Sellado · Jornada ${ticketSummary.jornada || settings.currentJornada}`
+                      : `Próximo Sorteo · Jornada ${settings.currentJornada}/${settings.cycleLength}`}
+                  </h2>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 self-start sm:self-center px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
+                <Lock className="w-3.5 h-3.5 text-[#FF6B00]" />
+                Solo Titulares
+              </span>
+            </div>
+
+            {/* Bolas ocultas con ? representando el juego de La Primitiva */}
+            <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-5 text-center space-y-3">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+                Números y Resguardo Protegidos
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
+                {[1, 2, 3, 4, 5, 6].map(slot => (
+                  <div
+                    key={`masked-ball-${slot}`}
+                    className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#0A2540] text-white font-black text-lg flex items-center justify-center shadow-xs border-2 border-white"
+                  >
+                    ?
+                  </div>
+                ))}
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#FF6B00] text-white font-black text-base flex items-center justify-center shadow-xs border-2 border-white ml-1">
+                  R?
+                </div>
+              </div>
+            </div>
+
+            <p className="text-sm sm:text-base text-slate-600 leading-relaxed text-center">
+              {accessLevel === 'SUPLENTE'
+                ? 'Estás apuntado en la lista de espera como Suplente. Los números jugados cada semana y la imagen del resguardo están reservados exclusivamente a los Socios Titulares activos.'
+                : 'Por privacidad, los números que se juegan cada semana y la foto del resguardo solo son visibles para los Socios Titulares. Puedes apuntarte en la lista de espera o entrar con tu ficha.'}
+            </p>
+
+            {accessLevel === 'VISITOR' && (onOpenRegister || onOpenLogin) && (
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
+                {onOpenRegister && (
+                  <button
+                    type="button"
+                    onClick={onOpenRegister}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[46px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-extrabold text-sm sm:text-base shadow-sm transition cursor-pointer"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Apuntarme en Lista</span>
+                  </button>
+                )}
+                {onOpenLogin && (
+                  <button
+                    type="button"
+                    onClick={onOpenLogin}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[46px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white font-bold text-sm sm:text-base shadow-sm transition cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4 text-[#FF6B00]" />
+                    <span>Ya soy socio (DNI / Móvil)</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : pendingTicket ? (
           <div className="max-w-2xl">
             <TicketCard ticket={pendingTicket} />
           </div>
@@ -192,6 +373,32 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         </div>
 
+        {/* Cifras globales de jugadores (sin nombres) */}
+        <div className="grid grid-cols-2 gap-3 pt-1 tabular-nums">
+          <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-3.5 sm:p-4 flex items-center gap-3">
+            <Users className="w-5 h-5 text-[#0A2540] shrink-0" />
+            <div>
+              <span className="text-xs font-bold uppercase text-slate-500 block">
+                Titulares Activos
+              </span>
+              <span className="text-lg sm:text-xl font-black text-[#0A2540]">
+                {displayTitulares}
+              </span>
+            </div>
+          </div>
+          <div className="rounded-2xl bg-orange-50/70 border border-orange-200 p-3.5 sm:p-4 flex items-center gap-3">
+            <Clock className="w-5 h-5 text-[#FF6B00] shrink-0" />
+            <div>
+              <span className="text-xs font-bold uppercase text-slate-600 block">
+                Lista de Espera
+              </span>
+              <span className="text-lg sm:text-xl font-black text-[#0A2540]">
+                {displaySuplentes}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Aviso de renovación & WhatsApp */}
         <div className="pt-4 border-t border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <p className="text-base text-slate-700 max-w-xl leading-relaxed">
@@ -206,21 +413,23 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             )}
           </p>
 
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center justify-center gap-2.5 px-5 min-h-[52px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base shadow-sm transition text-center shrink-0"
-            title="Avisar al administrador tras realizar el ingreso o Bizum"
-          >
-            <MessageCircle className="w-5 h-5 text-white shrink-0" />
-            <span>Comunicar pago por WhatsApp</span>
-          </a>
+          {isTitular && (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-2.5 px-5 min-h-[52px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base shadow-sm transition text-center shrink-0"
+              title="Avisar al administrador tras realizar el ingreso o Bizum"
+            >
+              <MessageCircle className="w-5 h-5 text-white shrink-0" />
+              <span>Comunicar pago por WhatsApp</span>
+            </a>
+          )}
         </div>
       </section>
 
-      {/* 3. ÚLTIMO ESCRUTINIO OFICIAL (SOLO SI EXISTE UN SORTEO REAL ESCRUTADO) */}
-      {lastScrutinized && (
+      {/* 3. ÚLTIMO ESCRUTINIO OFICIAL (SOLO PARA TITULARES) */}
+      {isTitular && lastScrutinized && (
         <section className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-sm space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
             <div className="flex items-center gap-3">

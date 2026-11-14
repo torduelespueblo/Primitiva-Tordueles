@@ -12,14 +12,26 @@ import {
 } from 'lucide-react';
 import { Player } from '../types/lottery';
 import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
-import { submitRegistrationToSheet } from '../services/registrationService';
+import {
+  submitRegistrationToSheet,
+  validateMemberAccess,
+  MemberAccessResponse,
+  PublicListRow
+} from '../services/registrationService';
 import { downloadOfficialRulesPdf } from '../services/pdfService';
 
 interface DualAccessRegistrationProps {
   initialMode?: 'ACCESS' | 'REGISTER';
   googleAppsScriptUrl?: string;
-  onAuthenticatedPlayer?: (player: Player) => void;
-  onRegisteredNewPlayer?: (newPlayer: { name: string; phone: string; timestamp: string }) => void;
+  onAuthenticatedPlayer?: (player: Player, accessData?: MemberAccessResponse) => void;
+  onRegisteredNewPlayer?: (newPlayer: {
+    name: string;
+    phone: string;
+    timestamp: string;
+    listaPublica?: PublicListRow[];
+    conteoTitulares?: number;
+    conteoSuplentes?: number;
+  }) => void;
   existingPlayers?: Player[];
   onOpenRulesModal?: () => void;
   onBackToApp?: () => void;
@@ -57,32 +69,68 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
     syncedToSheet: boolean;
   } | null>(null);
 
-  const handleCheckDni = (e: React.FormEvent) => {
+  const handleCheckDni = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanDni = dniInput.trim().toUpperCase().replace(/[\s-]/g, '');
+    const rawInput = dniInput.trim();
+    const cleanDni = rawInput.toUpperCase().replace(/[\s-]/g, '');
+    const digitsOnly = rawInput.replace(/\D/g, '');
 
-    if (!cleanDni) {
-      setAccessError('Por favor, introduce tu DNI o NIE.');
+    if (!cleanDni || (cleanDni.length < 5 && digitsOnly.length < 9)) {
+      setAccessError('Introduce un DNI/NIE o un número de teléfono móvil válido.');
       return;
     }
 
     setAccessError(null);
     setIsSearching(true);
 
-    setTimeout(() => {
-      setIsSearching(false);
-      const found = existingPlayers.find(
-        p => p.dni && p.dni.trim().toUpperCase().replace(/[\s-]/g, '') === cleanDni
-      );
+    const res = await validateMemberAccess(googleAppsScriptUrl, rawInput);
+    setIsSearching(false);
 
-      if (found) {
-        if (onAuthenticatedPlayer) {
-          onAuthenticatedPlayer(found);
-        }
-      } else {
-        setScreenMode('REGISTER');
+    if (res.success && res.user) {
+      const roleStatus: Player['status'] =
+        res.rol === 'TITULAR' ? 'TITULAR' : 'SUPLENTE';
+      const playerObj: Player = {
+        id: `sheet-auth-${res.user.filaIndex || Date.now()}`,
+        memberNumber: 0,
+        name: res.user.nombreCompleto || `${res.user.nombre} ${res.user.apellidos}`.trim(),
+        firstName: res.user.nombre,
+        lastName: res.user.apellidos,
+        email: '',
+        phone: res.user.telefono || '',
+        dni: res.user.dni || '',
+        registrationTimestamp: '',
+        status: roleStatus,
+        currentCyclePaid: res.user.estadoPago?.toLowerCase() === 'pagado',
+        paidUntilCycle: res.user.cicloActual || 1,
+        renewalStatus:
+          res.user.estadoPago?.toLowerCase() === 'pagado' ? 'RENOVADO' : 'PENDIENTE',
+      };
+
+      if (onAuthenticatedPlayer) {
+        onAuthenticatedPlayer(playerObj, res);
       }
-    }, 400);
+      return;
+    }
+
+    if (res.networkError) {
+      const phoneTail = digitsOnly.length >= 9 ? digitsOnly.slice(-9) : '';
+      const foundLocal = existingPlayers.find(p => {
+        const pDni = (p.dni || '').trim().toUpperCase().replace(/[\s-]/g, '');
+        const pTel = (p.phone || '').replace(/\D/g, '');
+        const pTelTail = pTel.length >= 9 ? pTel.slice(-9) : '';
+        return (pDni && pDni === cleanDni) || (phoneTail && pTelTail === phoneTail);
+      });
+
+      if (foundLocal && onAuthenticatedPlayer) {
+        onAuthenticatedPlayer(foundLocal);
+        return;
+      }
+    }
+
+    setAccessError(
+      res.message ||
+        'No encontramos ningún socio activo con ese DNI o teléfono. Verifica los datos o apúntate en la lista de espera.'
+    );
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
@@ -121,6 +169,9 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
         name: newRegistration.name,
         phone: newRegistration.phone,
         timestamp: newRegistration.timestamp,
+        listaPublica: response.listaPublica,
+        conteoTitulares: response.conteoTitulares,
+        conteoSuplentes: response.conteoSuplentes,
       });
     }
   };
@@ -171,13 +222,13 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 Acceso al Área de Socios
               </h3>
               <p className="text-base text-slate-600 mt-1.5 leading-relaxed">
-                Introduce tu DNI o NIE para acceder, o inscríbete directamente en la lista de espera.
+                Introduce tu <strong>DNI / NIE</strong> (si eres Titular) o tu <strong>Teléfono Móvil</strong> (si estás en Lista de Espera).
               </p>
             </div>
 
             {accessError && (
-              <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-base flex items-center gap-2.5">
-                <AlertCircle className="w-5 h-5 shrink-0" />
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm sm:text-base flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <span>{accessError}</span>
               </div>
             )}
@@ -185,14 +236,14 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
             <form onSubmit={handleCheckDni} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  DNI o NIE del Titular
+                  DNI / NIE o Teléfono Móvil
                 </label>
                 <input
                   type="text"
                   value={dniInput}
                   onChange={e => setDniInput(e.target.value)}
-                  placeholder="12345678Z"
-                  maxLength={10}
+                  placeholder="Ej. 12345678Z o 612345678"
+                  maxLength={18}
                   className="w-full px-4 min-h-[54px] rounded-xl border-2 border-slate-300 focus:border-[#0A2540] text-xl font-mono font-bold tracking-wider uppercase text-slate-900 transition outline-hidden"
                   autoFocus
                   required
@@ -205,7 +256,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 className="w-full min-h-[54px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] active:scale-[0.99] text-white font-bold text-base shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {isSearching ? (
-                  <span>Consultando base de datos...</span>
+                  <span>Comprobando tu ficha...</span>
                 ) : (
                   <>
                     <span>Entrar a Mi Área</span>
@@ -217,7 +268,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
 
             <div className="bg-[#F4F6F9] border border-slate-200 rounded-2xl p-4 text-center space-y-3">
               <p className="text-base text-slate-700 leading-relaxed">
-                <strong>¿Quieres apuntarte a la peña?</strong> Registrarte no te obliga a participar hasta que se decida la lista definitiva, pero ya te da antigüedad en la lista de espera.
+                <strong>¿Aún no estás apuntado?</strong> Registrarte no te obliga a jugar todavía, pero ya te otorga antigüedad oficial en la lista de espera.
               </p>
               <button
                 type="button"
@@ -225,7 +276,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 className="w-full min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-bold text-base shadow-sm transition inline-flex items-center justify-center gap-2 cursor-pointer"
               >
                 <UserPlus className="w-5 h-5" />
-                <span>Registrarse en Lista de Espera</span>
+                <span>Apuntarme en Lista de Espera</span>
               </button>
             </div>
           </div>

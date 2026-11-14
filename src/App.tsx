@@ -30,6 +30,7 @@ import {
 } from './services/pushNotifications';
 import { isTicketPublishedNow } from './services/ticketPublishService';
 import { reportPWAInstallOrVisit } from './services/installTrackingService';
+import { MemberAccessResponse, PublicListRow } from './services/registrationService';
 
 function hasRegistrationUrlFlag(): boolean {
   if (typeof window === 'undefined') return false;
@@ -57,6 +58,49 @@ export default function App() {
       return '';
     }
   });
+  const [memberIdentifier, setMemberIdentifier] = useState<string>(() => {
+    try {
+      return (
+        localStorage.getItem('primitiva_tordueles_member_id') ||
+        localStorage.getItem('primitiva_tordueles_player_dni') ||
+        ''
+      );
+    } catch {
+      return '';
+    }
+  });
+  const [memberRole, setMemberRole] = useState<'TITULAR' | 'SUPLENTE' | ''>(() => {
+    try {
+      const savedRole = localStorage.getItem('primitiva_tordueles_member_role');
+      if (savedRole === 'TITULAR' || savedRole === 'SUPLENTE') return savedRole;
+      if (localStorage.getItem('primitiva_tordueles_player_dni')) return 'TITULAR';
+      if (localStorage.getItem('primitiva_tordueles_visitor_registered') === 'true') return 'SUPLENTE';
+      return '';
+    } catch {
+      return '';
+    }
+  });
+  const [memberName, setMemberName] = useState<string>(() => {
+    try {
+      return localStorage.getItem('primitiva_tordueles_member_name') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [hasRegisteredOnDevice, setHasRegisteredOnDevice] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('primitiva_tordueles_visitor_registered') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [counts, setCounts] = useState<{ titulares?: number; suplentes?: number }>({});
+  const [ticketSummary, setTicketSummary] = useState<{
+    hayBoleto: boolean;
+    programado: boolean;
+    jornada?: number;
+    fecha?: string;
+  }>();
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [adminPassword, setAdminPassword] = useState<string>('');
   const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
@@ -66,6 +110,13 @@ export default function App() {
   const [showStandaloneRegistration, setShowStandaloneRegistration] = useState<boolean>(() =>
     hasRegistrationUrlFlag()
   );
+
+  const effectiveAccessLevel: 'VISITOR' | 'SUPLENTE' | 'TITULAR' =
+    isAdminAuthenticated || memberRole === 'TITULAR'
+      ? 'TITULAR'
+      : memberRole === 'SUPLENTE' || hasRegisteredOnDevice
+      ? 'SUPLENTE'
+      : 'VISITOR';
 
   // Guardar en almacenamiento cada vez que cambien
   const handleUpdateSettings = (newSettings: SyndicateSettings) => {
@@ -125,6 +176,215 @@ export default function App() {
       }
       window.history.replaceState({}, '', url.toString());
     }
+  };
+
+  const applyPublicListFromServer = (rows: PublicListRow[], cicloNum: number) => {
+    const parseTsMs = (rawTs: string, rawMs?: number) => {
+      if (typeof rawMs === 'number' && !isNaN(rawMs)) return rawMs;
+      const str = String(rawTs || '').trim();
+      const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/);
+      if (m) {
+        const ms = m[7] ? parseInt((m[7] + '000').slice(0, 3), 10) : 0;
+        return new Date(
+          parseInt(m[3], 10),
+          parseInt(m[2], 10) - 1,
+          parseInt(m[1], 10),
+          parseInt(m[4], 10),
+          parseInt(m[5], 10),
+          parseInt(m[6], 10),
+          ms
+        ).getTime();
+      }
+      const parsed = Date.parse(str);
+      return isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+    };
+
+    const syncedPlayers: Player[] = [];
+    const syncedWaiting: WaitingListEntry[] = [];
+
+    rows.forEach((u, idx) => {
+      const firstName = String(u.nombre || '').trim();
+      const lastName = String(u.apellidos || '').trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      if (!fullName) return;
+      const rawEstado = String(u.estado || 'Suplente').trim().toUpperCase();
+      const ts = String(u.timestamp || '').trim();
+      const tsMs = parseTsMs(ts, typeof u.timestampMs === 'number' ? u.timestampMs : undefined);
+
+      if (rawEstado === 'TITULAR') {
+        syncedPlayers.push({
+          id: `sheet-u-${idx}-${u.id || idx + 1}`,
+          memberNumber: syncedPlayers.length + 1,
+          name: fullName,
+          firstName,
+          lastName,
+          email: '',
+          phone: '',
+          registrationTimestamp: ts,
+          timestampMs: tsMs,
+          status: 'TITULAR',
+          currentCyclePaid: true,
+          paidUntilCycle: cicloNum || 1,
+          renewalStatus: 'RENOVADO',
+        });
+      } else if (rawEstado === 'SUPLENTE') {
+        syncedWaiting.push({
+          id: `sheet-w-${idx}-${u.id || idx + 1}`,
+          name: fullName,
+          email: '',
+          phone: '',
+          registrationTimestamp: ts,
+          status: 'ESPERANDO',
+        });
+      }
+    });
+
+    syncedWaiting.sort((a, b) => parseTsMs(a.registrationTimestamp) - parseTsMs(b.registrationTimestamp));
+
+    setPlayers(prev => {
+      if (prev.some(p => p.sheetRow !== undefined)) return prev;
+      storageService.savePlayers(syncedPlayers);
+      return syncedPlayers;
+    });
+    setWaitingList(syncedWaiting);
+    storageService.saveWaitingList(syncedWaiting);
+    setCounts({ titulares: syncedPlayers.length, suplentes: syncedWaiting.length });
+  };
+
+  const applyActiveTicketFromServer = (b: NonNullable<MemberAccessResponse['boletoActivo']>) => {
+    if (!b.combinacionJugada) return;
+    const nums = String(b.combinacionJugada)
+      .split(/[,;\s-]+/)
+      .map((s: string) => parseInt(s.trim(), 10))
+      .filter((n: number) => !isNaN(n) && n >= 1 && n <= 49);
+
+    if (nums.length === 0) return;
+
+    setTickets(prev => {
+      const alreadyExists = prev.some(
+        t =>
+          !t.isScrutinized &&
+          t.jornadaNumber === Number(b.jornada) &&
+          t.drawDate === String(b.fecha)
+      );
+      if (alreadyExists) return prev;
+
+      const syncedTicket: TicketDraw = {
+        id: `gas-${b.fecha}-${b.jornada}`,
+        cycleNumber: Number(b.ciclo) || 1,
+        jornadaNumber: Number(b.jornada) || 1,
+        drawDate: String(b.fecha),
+        receiptImageUrl: String(b.fotoResguardo || ''),
+        betType:
+          nums.length === 5
+            ? 'MULTIPLE_5'
+            : nums.length === 7
+            ? 'MULTIPLE_7'
+            : nums.length === 8
+            ? 'MULTIPLE_8'
+            : nums.length === 9
+            ? 'MULTIPLE_9'
+            : nums.length === 10
+            ? 'MULTIPLE_10'
+            : 'COMBINADA',
+        numbersPlayedCount: nums.length,
+        cost: Number(b.importeJugado) || 0,
+        activePlayersCount: Number(b.jugadoresActivos) || 0,
+        costPerPlayer: 1.0,
+        playedNumbers: nums,
+        playedReintegro: Number(b.reintegro) || 0,
+        jokerPlayed: true,
+        isScrutinized: false,
+        totalPrize: 0,
+        prizeType: 'NINGUNO',
+        publishStatus: 'PUBLICADO',
+        scheduledNotificationSent: true,
+      };
+      const next = capTicketsKeepingPlayed([syncedTicket, ...prev]);
+      storageService.saveTickets(next);
+      return next;
+    });
+  };
+
+  const handleLogoutMember = () => {
+    setPlayerDni('');
+    setMemberIdentifier('');
+    setMemberRole('');
+    setMemberName('');
+    setHasRegisteredOnDevice(false);
+    setPlayers([]);
+    setWaitingList([]);
+    setTickets([]);
+    storageService.savePlayers([]);
+    storageService.saveWaitingList([]);
+    storageService.saveTickets([]);
+    try {
+      localStorage.removeItem('primitiva_tordueles_player_dni');
+      localStorage.removeItem('primitiva_tordueles_member_id');
+      localStorage.removeItem('primitiva_tordueles_member_role');
+      localStorage.removeItem('primitiva_tordueles_member_name');
+      localStorage.removeItem('primitiva_tordueles_visitor_registered');
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleMemberAuthenticated = (player: Player, accessData?: MemberAccessResponse) => {
+    const dni = (player.dni || '').trim().toUpperCase();
+    const idUsed = dni || (player.phone || '').replace(/\s+/g, '');
+    const resolvedRole: 'TITULAR' | 'SUPLENTE' =
+      accessData?.rol === 'TITULAR' || player.status === 'TITULAR'
+        ? 'TITULAR'
+        : 'SUPLENTE';
+
+    if (dni) {
+      setPlayerDni(dni);
+      try {
+        localStorage.setItem('primitiva_tordueles_player_dni', dni);
+      } catch {
+        // ignore storage errors
+      }
+      void solicitarPermisoYRegistrarToken(dni, settings.googleAppsScriptUrl);
+    }
+
+    if (idUsed) {
+      setMemberIdentifier(idUsed);
+      try {
+        localStorage.setItem('primitiva_tordueles_member_id', idUsed);
+      } catch {
+        // ignore
+      }
+    }
+
+    setMemberRole(resolvedRole);
+    setMemberName(player.name);
+    try {
+      localStorage.setItem('primitiva_tordueles_member_role', resolvedRole);
+      localStorage.setItem('primitiva_tordueles_member_name', player.name);
+    } catch {
+      // ignore
+    }
+
+    if (typeof accessData?.conteoTitulares === 'number' || typeof accessData?.conteoSuplentes === 'number') {
+      setCounts({
+        titulares: accessData.conteoTitulares,
+        suplentes: accessData.conteoSuplentes,
+      });
+    }
+    if (Array.isArray(accessData?.listaPublica)) {
+      applyPublicListFromServer(accessData.listaPublica, settings.currentCycle);
+    }
+    if (resolvedRole === 'TITULAR' && accessData?.boletoActivo) {
+      applyActiveTicketFromServer(accessData.boletoActivo);
+    } else if (resolvedRole === 'SUPLENTE') {
+      setTickets([]);
+      storageService.saveTickets([]);
+    }
+
+    void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
+      dni: dni || undefined,
+      nombre: player.name,
+    });
   };
 
   // Servicio de suscripción de notificaciones push en el useEffect principal al aceptar la conformidad
@@ -202,6 +462,9 @@ export default function App() {
       if (!url.searchParams.has('format')) {
         url.searchParams.set('format', 'json');
       }
+      if (memberIdentifier) {
+        url.searchParams.set('identificador', memberIdentifier);
+      }
       fetch(url.toString())
         .then(res => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -209,6 +472,7 @@ export default function App() {
         })
         .then(data => {
           if (data && data.status === 'OK') {
+            const cicloNum = Number(data.ciclo) || settings.currentCycle;
             setSettings(prev => ({
               ...prev,
               currentCycle: Number(data.ciclo) || prev.currentCycle,
@@ -223,132 +487,55 @@ export default function App() {
                   : prev.sendDailyGeneralSummary,
             }));
 
-            if (Array.isArray(data.listaPublica)) {
-              const parseTsMs = (rawTs: string, rawMs?: number) => {
-                if (typeof rawMs === 'number' && !isNaN(rawMs)) return rawMs;
-                const str = String(rawTs || '').trim();
-                const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/);
-                if (m) {
-                  const ms = m[7] ? parseInt((m[7] + '000').slice(0, 3), 10) : 0;
-                  return new Date(
-                    parseInt(m[3], 10),
-                    parseInt(m[2], 10) - 1,
-                    parseInt(m[1], 10),
-                    parseInt(m[4], 10),
-                    parseInt(m[5], 10),
-                    parseInt(m[6], 10),
-                    ms
-                  ).getTime();
-                }
-                const parsed = Date.parse(str);
-                return isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
-              };
-
-              const syncedPlayers: Player[] = [];
-              const syncedWaiting: WaitingListEntry[] = [];
-
-              data.listaPublica.forEach((u: Record<string, unknown>, idx: number) => {
-                const firstName = String(u.nombre || '').trim();
-                const lastName = String(u.apellidos || '').trim();
-                const fullName = `${firstName} ${lastName}`.trim();
-                if (!fullName) return;
-                const rawEstado = String(u.estado || 'Suplente').trim().toUpperCase();
-                const ts = String(u.timestamp || '').trim();
-                const tsMs = parseTsMs(ts, typeof u.timestampMs === 'number' ? u.timestampMs : undefined);
-
-                if (rawEstado === 'TITULAR') {
-                  syncedPlayers.push({
-                    id: `sheet-u-${idx}-${u.id || idx + 1}`,
-                    memberNumber: syncedPlayers.length + 1,
-                    name: fullName,
-                    firstName,
-                    lastName,
-                    email: '',
-                    phone: '',
-                    registrationTimestamp: ts,
-                    timestampMs: tsMs,
-                    status: 'TITULAR',
-                    currentCyclePaid: true,
-                    paidUntilCycle: Number(data.ciclo) || 1,
-                    renewalStatus: 'RENOVADO',
-                  });
-                } else if (rawEstado === 'SUPLENTE') {
-                  syncedWaiting.push({
-                    id: `sheet-w-${idx}-${u.id || idx + 1}`,
-                    name: fullName,
-                    email: '',
-                    phone: '',
-                    registrationTimestamp: ts,
-                    status: 'ESPERANDO',
-                  });
-                }
+            if (
+              typeof data.conteoTitulares === 'number' ||
+              typeof data.conteoSuplentes === 'number'
+            ) {
+              setCounts({
+                titulares: data.conteoTitulares,
+                suplentes: data.conteoSuplentes,
               });
-
-              syncedWaiting.sort((a, b) => parseTsMs(a.registrationTimestamp) - parseTsMs(b.registrationTimestamp));
-
-              setPlayers(prev => {
-                // Conservar datos completos si ya se cargaron como administrador en esta sesión
-                if (prev.some(p => p.sheetRow !== undefined)) return prev;
-                storageService.savePlayers(syncedPlayers);
-                return syncedPlayers;
-              });
-              setWaitingList(syncedWaiting);
-              storageService.saveWaitingList(syncedWaiting);
             }
 
-            if (data.boletoActivo && data.boletoActivo.combinacionJugada) {
-              const b = data.boletoActivo;
-              const nums = String(b.combinacionJugada)
-                .split(/[,;\s-]+/)
-                .map((s: string) => parseInt(s.trim(), 10))
-                .filter((n: number) => !isNaN(n) && n >= 1 && n <= 49);
+            if (data.boletoResumen && typeof data.boletoResumen === 'object') {
+              setTicketSummary(data.boletoResumen);
+            }
 
-              if (nums.length > 0) {
-                setTickets(prev => {
-                  const alreadyExists = prev.some(
-                    t =>
-                      !t.isScrutinized &&
-                      t.jornadaNumber === Number(b.jornada) &&
-                      t.drawDate === String(b.fecha)
-                  );
-                  if (alreadyExists) return prev;
+            const serverAuthorized = Boolean(data.acceso?.autorizado);
+            const serverRole = data.acceso?.rol as 'TITULAR' | 'SUPLENTE' | undefined;
 
-                  const syncedTicket: TicketDraw = {
-                    id: `gas-${b.fecha}-${b.jornada}`,
-                    cycleNumber: Number(b.ciclo) || 1,
-                    jornadaNumber: Number(b.jornada) || 1,
-                    drawDate: String(b.fecha),
-                    receiptImageUrl: String(b.fotoResguardo || ''),
-                    betType:
-                      nums.length === 5
-                        ? 'MULTIPLE_5'
-                        : nums.length === 7
-                        ? 'MULTIPLE_7'
-                        : nums.length === 8
-                        ? 'MULTIPLE_8'
-                        : nums.length === 9
-                        ? 'MULTIPLE_9'
-                        : nums.length === 10
-                        ? 'MULTIPLE_10'
-                        : 'COMBINADA',
-                    numbersPlayedCount: nums.length,
-                    cost: Number(b.importeJugado) || 0,
-                    activePlayersCount: Number(b.jugadoresActivos) || 0,
-                    costPerPlayer: 1.0,
-                    playedNumbers: nums,
-                    playedReintegro: Number(b.reintegro) || 0,
-                    jokerPlayed: true,
-                    isScrutinized: false,
-                    totalPrize: 0,
-                    prizeType: 'NINGUNO',
-                    publishStatus: 'PUBLICADO',
-                    scheduledNotificationSent: true,
-                  };
-                  const next = capTicketsKeepingPlayed([syncedTicket, ...prev]);
-                  storageService.saveTickets(next);
-                  return next;
-                });
+            if (serverAuthorized && serverRole) {
+              setMemberRole(serverRole);
+              const fullName = String(data.acceso?.user?.nombreCompleto || '').trim();
+              if (fullName) {
+                setMemberName(fullName);
               }
+              try {
+                localStorage.setItem('primitiva_tordueles_member_role', serverRole);
+                if (fullName) {
+                  localStorage.setItem('primitiva_tordueles_member_name', fullName);
+                }
+              } catch {
+                // ignore
+              }
+            }
+
+            const canHydrateLists =
+              serverAuthorized ||
+              isAdminAuthenticated ||
+              hasRegisteredOnDevice ||
+              memberRole === 'TITULAR' ||
+              memberRole === 'SUPLENTE';
+
+            if (canHydrateLists && Array.isArray(data.listaPublica) && data.listaPublica.length > 0) {
+              applyPublicListFromServer(data.listaPublica as PublicListRow[], cicloNum);
+            }
+
+            const canHydrateTicket =
+              serverRole === 'TITULAR' || (!data.acceso && memberRole === 'TITULAR');
+
+            if (canHydrateTicket && data.boletoActivo && data.boletoActivo.combinacionJugada) {
+              applyActiveTicketFromServer(data.boletoActivo);
             }
           }
         })
@@ -357,7 +544,7 @@ export default function App() {
           console.debug('Apps Script Sync Note:', err.message || err);
         });
     }
-  }, [settings.googleAppsScriptUrl]);
+  }, [settings.googleAppsScriptUrl, memberIdentifier, isAdminAuthenticated, hasRegisteredOnDevice, memberRole]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F4F6F9] text-slate-900">
@@ -367,13 +554,19 @@ export default function App() {
       {/* Condición de Acceso Obligatoria (Modal Bloqueante si no está abierto el enlace directo de inscripción) */}
       <ConformityModal
         isOpen={(!showStandaloneRegistration && !isConformityAccepted) || showConformityReview}
+        isReviewMode={isConformityAccepted}
         onAccept={handleAcceptConformity}
       />
 
-      {/* Ventana posterior a la primera aceptación del reglamento */}
+      {/* Ventana Paso 2 de 2 posterior a la primera aceptación del reglamento */}
       <PostConformityModal
         isOpen={showPostConformityPrompt}
-        onGoToRegistration={() => {
+        onGoToRegister={() => {
+          setShowPostConformityPrompt(false);
+          setRegistrationInitialMode('REGISTER');
+          setShowStandaloneRegistration(true);
+        }}
+        onGoToAccess={() => {
           setShowPostConformityPrompt(false);
           setRegistrationInitialMode('ACCESS');
           setShowStandaloneRegistration(true);
@@ -419,21 +612,8 @@ export default function App() {
               initialMode={registrationInitialMode}
               googleAppsScriptUrl={settings.googleAppsScriptUrl}
               existingPlayers={players}
-              onAuthenticatedPlayer={player => {
-                const dni = (player.dni || '').trim().toUpperCase();
-                if (dni) {
-                  setPlayerDni(dni);
-                  try {
-                    localStorage.setItem('primitiva_tordueles_player_dni', dni);
-                  } catch {
-                    // ignore storage errors
-                  }
-                  void solicitarPermisoYRegistrarToken(dni, settings.googleAppsScriptUrl);
-                }
-                void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
-                  dni: dni || undefined,
-                  nombre: player.name,
-                });
+              onAuthenticatedPlayer={(player, accessData) => {
+                handleMemberAuthenticated(player, accessData);
                 handleCloseStandaloneRegistration();
                 setCurrentTab('dashboard');
               }}
@@ -446,9 +626,29 @@ export default function App() {
                   registrationTimestamp: newReg.timestamp,
                   status: 'ESPERANDO',
                 };
-                handleUpdateWaitingList([...waitingList, newEntry]);
+                if (Array.isArray(newReg.listaPublica)) {
+                  applyPublicListFromServer(newReg.listaPublica, settings.currentCycle);
+                } else {
+                  handleUpdateWaitingList([...waitingList, newEntry]);
+                }
                 setIsConformityAccepted(true);
                 storageService.setConformityAccepted(true);
+                setHasRegisteredOnDevice(true);
+                setMemberRole('SUPLENTE');
+                setMemberName(newReg.name);
+                if (newReg.phone) {
+                  setMemberIdentifier(newReg.phone.replace(/\s+/g, ''));
+                }
+                try {
+                  localStorage.setItem('primitiva_tordueles_visitor_registered', 'true');
+                  localStorage.setItem('primitiva_tordueles_member_role', 'SUPLENTE');
+                  localStorage.setItem('primitiva_tordueles_member_name', newReg.name);
+                  if (newReg.phone) {
+                    localStorage.setItem('primitiva_tordueles_member_id', newReg.phone.replace(/\s+/g, ''));
+                  }
+                } catch {
+                  // ignore storage errors
+                }
                 void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
                   nombre: newReg.name,
                 });
@@ -464,21 +664,8 @@ export default function App() {
             <DualAccessRegistration
               googleAppsScriptUrl={settings.googleAppsScriptUrl}
               existingPlayers={players}
-              onAuthenticatedPlayer={player => {
-                const dni = (player.dni || '').trim().toUpperCase();
-                if (dni) {
-                  setPlayerDni(dni);
-                  try {
-                    localStorage.setItem('primitiva_tordueles_player_dni', dni);
-                  } catch {
-                    // ignore storage errors
-                  }
-                  void solicitarPermisoYRegistrarToken(dni, settings.googleAppsScriptUrl);
-                }
-                void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
-                  dni: dni || undefined,
-                  nombre: player.name,
-                });
+              onAuthenticatedPlayer={(player, accessData) => {
+                handleMemberAuthenticated(player, accessData);
                 handleAcceptConformity();
               }}
               onRegisteredNewPlayer={newReg => {
@@ -490,7 +677,27 @@ export default function App() {
                   registrationTimestamp: newReg.timestamp,
                   status: 'ESPERANDO',
                 };
-                handleUpdateWaitingList([...waitingList, newEntry]);
+                if (Array.isArray(newReg.listaPublica)) {
+                  applyPublicListFromServer(newReg.listaPublica, settings.currentCycle);
+                } else {
+                  handleUpdateWaitingList([...waitingList, newEntry]);
+                }
+                setHasRegisteredOnDevice(true);
+                setMemberRole('SUPLENTE');
+                setMemberName(newReg.name);
+                if (newReg.phone) {
+                  setMemberIdentifier(newReg.phone.replace(/\s+/g, ''));
+                }
+                try {
+                  localStorage.setItem('primitiva_tordueles_visitor_registered', 'true');
+                  localStorage.setItem('primitiva_tordueles_member_role', 'SUPLENTE');
+                  localStorage.setItem('primitiva_tordueles_member_name', newReg.name);
+                  if (newReg.phone) {
+                    localStorage.setItem('primitiva_tordueles_member_id', newReg.phone.replace(/\s+/g, ''));
+                  }
+                } catch {
+                  // ignore storage errors
+                }
                 void reportPWAInstallOrVisit(settings.googleAppsScriptUrl, {
                   nombre: newReg.name,
                 });
@@ -517,8 +724,22 @@ export default function App() {
                 players={players}
                 prizeHistory={prizeHistory}
                 playerDni={playerDni}
+                accessLevel={effectiveAccessLevel}
+                memberName={memberName}
+                titularesCount={counts.titulares}
+                suplentesCount={counts.suplentes}
+                ticketSummary={ticketSummary}
                 googleAppsScriptUrl={settings.googleAppsScriptUrl}
                 onNavigateTab={tab => setCurrentTab(tab)}
+                onOpenRegister={() => {
+                  setRegistrationInitialMode('REGISTER');
+                  setShowStandaloneRegistration(true);
+                }}
+                onOpenLogin={() => {
+                  setRegistrationInitialMode('ACCESS');
+                  setShowStandaloneRegistration(true);
+                }}
+                onLogoutMember={handleLogoutMember}
               />
             )}
 
@@ -527,6 +748,16 @@ export default function App() {
                 tickets={tickets}
                 prizeHistory={prizeHistory}
                 currentCycle={settings.currentCycle}
+                prizeFundBalance={settings.prizeFundBalance}
+                accessLevel={effectiveAccessLevel}
+                onOpenRegister={() => {
+                  setRegistrationInitialMode('REGISTER');
+                  setShowStandaloneRegistration(true);
+                }}
+                onOpenLogin={() => {
+                  setRegistrationInitialMode('ACCESS');
+                  setShowStandaloneRegistration(true);
+                }}
               />
             )}
 
@@ -535,8 +766,15 @@ export default function App() {
                 players={players}
                 waitingList={waitingList}
                 settings={settings}
+                accessLevel={effectiveAccessLevel}
+                titularesCount={counts.titulares}
+                suplentesCount={counts.suplentes}
                 onOpenRegistration={() => {
                   setRegistrationInitialMode('REGISTER');
+                  setShowStandaloneRegistration(true);
+                }}
+                onOpenLogin={() => {
+                  setRegistrationInitialMode('ACCESS');
                   setShowStandaloneRegistration(true);
                 }}
               />

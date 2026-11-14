@@ -59,8 +59,25 @@ function doGet(e) {
           bolsa = isNaN(rawBolsa) ? 0 : rawBolsa;
         }
 
-        var boletoActivo = obtenerBoletoActivoPublico(ss);
-        var listaPublica = obtenerListaJugadoresPublica();
+        var conteo = obtenerConteoJugadoresPublico(ss);
+        var boletoResumen = obtenerResumenBoletoSinCombinacion(ss);
+        var identificador = String(e.parameter.identificador || '').trim();
+        var acceso = { autorizado: false, rol: 'VISITOR' };
+        var listaPublica = [];
+        var boletoActivo = null;
+
+        if (identificador) {
+          var validacion = validarAccesoSocioWeb(identificador);
+          if (validacion && validacion.success) {
+            acceso = {
+              autorizado: true,
+              rol: validacion.rol,
+              user: validacion.user
+            };
+            listaPublica = validacion.listaPublica || [];
+            boletoActivo = validacion.rol === 'TITULAR' ? validacion.boletoActivo : null;
+          }
+        }
 
         payload = {
           status: 'OK',
@@ -71,6 +88,10 @@ function doGet(e) {
           esPeriodoRenovacion: jornadaInfo.esPeriodoRenovacion,
           bolsaPremios: bolsa,
           boletinDiarioActivo: sheetConfig ? (String(sheetConfig.getRange('A2').getValue()).trim().toUpperCase() === 'SÍ') : true,
+          conteoTitulares: conteo.titulares,
+          conteoSuplentes: conteo.suplentes,
+          boletoResumen: boletoResumen,
+          acceso: acceso,
           boletoActivo: boletoActivo,
           listaPublica: listaPublica,
           timestamp: new Date().toISOString()
@@ -106,6 +127,12 @@ function doPost(e) {
     if (action === 'registro') {
       var res = registrarNuevoJugadorDesdeWeb(contents.datos);
       return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'validarAccesoSocio') {
+      var resAcceso = validarAccesoSocioWeb(contents.identificador || contents.dni || contents.telefono);
+      return ContentService.createTextOutput(JSON.stringify(resAcceso))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -342,12 +369,18 @@ function registrarNuevoJugadorDesdeWeb(datos) {
     celdaEstado.clearDataValidations();
     celdaEstado.setValue('Suplente');
 
+    var conteoActualizado = obtenerConteoJugadoresPublico(ss);
+    var listaPublicaActualizada = obtenerListaJugadoresPublica();
+
     return {
       success: true,
       timestamp: timestampMs,
       nombre: (nombreLimpio + ' ' + apellidosLimpio).trim(),
       estado: 'Suplente',
       posicionEspera: posicionEspera,
+      conteoTitulares: conteoActualizado.titulares,
+      conteoSuplentes: conteoActualizado.suplentes,
+      listaPublica: listaPublicaActualizada,
       user: {
         filaIndex: nuevaFila,
         dni: '',
@@ -467,6 +500,167 @@ function obtenerListaJugadoresPublica() {
   } catch (err) {
     Logger.log('Error en obtenerListaJugadoresPublica: ' + err.message);
     return [];
+  }
+}
+
+/**
+ * Devuelve únicamente las cifras globales (Titulares y Suplentes), sin nombres ni datos personales.
+ */
+function obtenerConteoJugadoresPublico(ss) {
+  try {
+    var sheetUsuarios = ss.getSheetByName('Usuarios');
+    if (!sheetUsuarios || sheetUsuarios.getLastRow() < 2) {
+      return { titulares: 0, suplentes: 0 };
+    }
+    var lastRow = sheetUsuarios.getLastRow();
+    var rows = sheetUsuarios.getRange(2, 2, lastRow - 1, 10).getValues();
+    var titulares = 0;
+    var suplentes = 0;
+
+    for (var i = 0; i < rows.length; i++) {
+      var nombre = String(rows[i][0] || '').trim();
+      var estado = String(rows[i][9] || 'Suplente').trim().toUpperCase();
+      if (!nombre || estado === 'BAJA' || estado === 'BAJA DEFINITIVA') continue;
+      if (estado === 'TITULAR') {
+        titulares++;
+      } else {
+        suplentes++;
+      }
+    }
+    return { titulares: titulares, suplentes: suplentes };
+  } catch (e) {
+    return { titulares: 0, suplentes: 0 };
+  }
+}
+
+/**
+ * Indica si existe un boleto sellado/programado para la jornada actual sin revelar números ni imagen.
+ */
+function obtenerResumenBoletoSinCombinacion(ss) {
+  try {
+    var sheetSorteos = ss.getSheetByName('Sorteos');
+    if (!sheetSorteos || sheetSorteos.getLastRow() < 2) {
+      return { hayBoleto: false, programado: false };
+    }
+    var lastRow = sheetSorteos.getLastRow();
+    var numCols = Math.max(16, sheetSorteos.getLastColumn());
+    var rows = sheetSorteos.getRange(2, 1, lastRow - 1, numCols).getValues();
+    var zona = 'Europe/Madrid';
+
+    for (var i = rows.length - 1; i >= 0; i--) {
+      var r = rows[i];
+      var combJugada = String(r[5] || '').trim();
+      var combGanadora = String(r[6] || '').trim();
+      if (!combJugada || combGanadora) continue;
+
+      var estadoPub = String(r[10] || 'PUBLICADO').trim().toUpperCase();
+      var fechaStr = r[1] instanceof Date
+        ? Utilities.formatDate(r[1], zona, 'yyyy-MM-dd')
+        : String(r[1] || '');
+
+      return {
+        hayBoleto: true,
+        programado: estadoPub === 'PROGRAMADO',
+        jornada: parseInt(r[0], 10) || 1,
+        ciclo: parseInt(r[13], 10) || 1,
+        fecha: fechaStr
+      };
+    }
+    return { hayBoleto: false, programado: false };
+  } catch (e) {
+    return { hayBoleto: false, programado: false };
+  }
+}
+
+/**
+ * Valida a un socio existente por DNI/NIE (Titulares) o Teléfono Móvil (Titulares y Suplentes)
+ * y devuelve su nivel de acceso según la Opción B (Titular vs Suplente).
+ */
+function validarAccesoSocioWeb(identificadorInput) {
+  try {
+    var raw = String(identificadorInput || '').trim();
+    if (!raw || raw.length < 5) {
+      return { success: false, notFound: false, message: 'Introduce un DNI/NIE o un teléfono válido.' };
+    }
+
+    var idUpper = raw.toUpperCase().replace(/[\s-]/g, '');
+    var digitsOnly = raw.replace(/\D/g, '');
+    var phoneTail = digitsOnly.length >= 9 ? digitsOnly.slice(-9) : digitsOnly;
+
+    var ss = obtenerSpreadsheetPeña();
+    var sheetUsuarios = ss.getSheetByName('Usuarios');
+    if (!sheetUsuarios || sheetUsuarios.getLastRow() < 2) {
+      return { success: false, notFound: true, message: 'No hay socios registrados aún en el censo.' };
+    }
+
+    var lastRow = sheetUsuarios.getLastRow();
+    var datos = sheetUsuarios.getRange(2, 1, lastRow - 1, 11).getValues();
+
+    for (var i = 0; i < datos.length; i++) {
+      var fila = datos[i];
+      var nombre = String(fila[1] || '').trim();
+      if (!nombre) continue;
+
+      var apellidos = String(fila[2] || '').trim();
+      var dniFila = String(fila[3] || '').trim().toUpperCase().replace(/[\s-]/g, '');
+      var telDigits = String(fila[4] || '').replace(/\D/g, '');
+      var telTail = telDigits.length >= 9 ? telDigits.slice(-9) : telDigits;
+
+      var coincideDni = Boolean(dniFila && dniFila === idUpper);
+      var coincideTel = Boolean(phoneTail.length >= 9 && telTail && telTail === phoneTail);
+
+      if (coincideDni || coincideTel) {
+        var estadoRaw = String(fila[10] || 'Suplente').trim();
+        var estadoUpper = estadoRaw.toUpperCase();
+        if (estadoUpper.indexOf('BAJA') !== -1) {
+          return {
+            success: false,
+            notFound: false,
+            baja: true,
+            message: 'Tu ficha figura como BAJA definitiva conforme al Artículo 4 del Reglamento.'
+          };
+        }
+
+        var rol = estadoUpper === 'TITULAR' ? 'TITULAR' : 'SUPLENTE';
+        var estadoPago = String(fila[6] || 'Pendiente').trim();
+        var cicloActual = parseInt(fila[7], 10) || 1;
+        var reglamentoAceptado = fila[8] === true || fila[8] === 'TRUE' || fila[8] === 1 || fila[8] === 'SÍ';
+        var conteo = obtenerConteoJugadoresPublico(ss);
+        var listaPublica = obtenerListaJugadoresPublica();
+        var boletoActivo = rol === 'TITULAR' ? obtenerBoletoActivoPublico(ss) : null;
+
+        return {
+          success: true,
+          notFound: false,
+          rol: rol,
+          conteoTitulares: conteo.titulares,
+          conteoSuplentes: conteo.suplentes,
+          listaPublica: listaPublica,
+          boletoActivo: boletoActivo,
+          user: {
+            filaIndex: i + 2,
+            dni: dniFila,
+            telefono: String(fila[4] || '').trim(),
+            nombre: nombre,
+            apellidos: apellidos,
+            nombreCompleto: (nombre + ' ' + apellidos).trim(),
+            estadoPago: estadoPago,
+            pago: estadoPago,
+            cicloActual: cicloActual,
+            reglamentoAceptado: reglamentoAceptado,
+            estado: estadoRaw
+          }
+        };
+      }
+    }
+
+    return {
+      success: false,
+      notFound: true,
+      message: 'No encontramos ningún socio activo con ese DNI o teléfono. Si aún no te has apuntado, puedes hacerlo en el formulario.'
+    };
+  } catch (err) {
+    return { success: false, notFound: false, message: 'Error al comprobar tu acceso: ' + err.message };
   }
 }
 
