@@ -79,7 +79,7 @@ export function downloadOfficialRulesPdf(): PdfDownloadResult {
 
   const pageWidth = doc.internal.pageSize.getWidth(); // 210 mm
   const pageHeight = doc.internal.pageSize.getHeight(); // 297 mm
-  const marginX = 16;
+  const marginX = 17;
   const contentWidth = pageWidth - marginX * 2;
   const bottomLimit = pageHeight - 18;
 
@@ -121,79 +121,114 @@ export function downloadOfficialRulesPdf(): PdfDownloadResult {
   const ensureSpace = (neededMm: number) => {
     if (y + neededMm > bottomLimit) {
       doc.addPage();
-      y = 18;
+      y = 19;
     }
   };
 
   for (let sIdx = 0; sIdx < OFFICIAL_RULES_SECTIONS.length; sIdx++) {
     const section = OFFICIAL_RULES_SECTIONS[sIdx];
 
-    // Cabecera de artículo (evitar que quede huérfano al final de la página)
-    ensureSpace(22);
+    // Separación visual y salto de página inteligente para evitar títulos huérfanos
+    if (sIdx > 0) {
+      ensureSpace(30);
+      if (y > 24) {
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.35);
+        doc.line(marginX, y + 0.5, pageWidth - marginX, y + 0.5);
+        y += 6;
+      }
+    } else {
+      ensureSpace(26);
+    }
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
+    doc.setFontSize(13.5);
     doc.setTextColor(10, 37, 64);
     const titleLines = doc.splitTextToSize(
       `${section.articleNumber}. ${section.title}`,
       contentWidth
     );
     doc.text(titleLines, marginX, y);
-    y += titleLines.length * 5.6 + 1;
+    y += titleLines.length * 6.0 + 1.5;
 
     doc.setDrawColor(255, 107, 0);
-    doc.setLineWidth(0.5);
-    doc.line(marginX, y, marginX + 26, y);
-    y += 5;
+    doc.setLineWidth(0.7);
+    doc.line(marginX, y, marginX + 28, y);
+    y += 5.0;
 
     for (let pIdx = 0; pIdx < section.paragraphs.length; pIdx++) {
       const p = section.paragraphs[pIdx];
-      const fullParagraph = p.code ? `${p.code} ${p.heading || ''} ${p.text}` : p.text;
+      const bodyFontSize = 11.5;
+      const lineHeight = 5.45;
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(30, 41, 59);
+      if (p.code) {
+        const headingLabel = `${p.code} ${p.heading || ''}`.trim();
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(bodyFontSize);
+        const headingLines = doc.splitTextToSize(headingLabel, contentWidth);
 
-      const lines = doc.splitTextToSize(fullParagraph, contentWidth);
-      const lineHeight = 4.9;
+        // Asegurar que el título del apartado vaya acompañado al menos de las 2 primeras líneas
+        ensureSpace(headingLines.length * lineHeight + lineHeight * 2 + 2);
 
-      // Imprimir línea a línea con salto de página limpio si un párrafo largo cruza el borde
-      for (let lIdx = 0; lIdx < lines.length; lIdx++) {
-        ensureSpace(lineHeight + 2);
-        doc.text(lines[lIdx], marginX, y);
-        y += lineHeight;
-      }
+        doc.setTextColor(10, 37, 64);
+        doc.text(headingLines, marginX, y);
+        y += headingLines.length * lineHeight + 0.6;
 
-      y += 2.2;
-
-      if (p.subText) {
-        const subLines = doc.splitTextToSize(p.subText, contentWidth);
-        for (let sLineIdx = 0; sLineIdx < subLines.length; sLineIdx++) {
-          ensureSpace(lineHeight + 2);
-          doc.text(subLines[sLineIdx], marginX, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(bodyFontSize);
+        doc.setTextColor(30, 41, 59);
+        const textLines = doc.splitTextToSize(p.text, contentWidth);
+        for (let lIdx = 0; lIdx < textLines.length; lIdx++) {
+          ensureSpace(lineHeight + 1.2);
+          doc.text(textLines[lIdx], marginX, y);
           y += lineHeight;
         }
-        y += 1.8;
+      } else {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(bodyFontSize);
+        doc.setTextColor(30, 41, 59);
+        const textLines = doc.splitTextToSize(p.text, contentWidth);
+        for (let lIdx = 0; lIdx < textLines.length; lIdx++) {
+          ensureSpace(lineHeight + 1.2);
+          doc.text(textLines[lIdx], marginX, y);
+          y += lineHeight;
+        }
+      }
+
+      y += 2.8;
+
+      if (p.subText) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(51, 65, 85);
+        const subLines = doc.splitTextToSize(p.subText, contentWidth);
+        ensureSpace(subLines.length * 5.2 + 2);
+        doc.text(subLines, marginX, y);
+        y += subLines.length * 5.2 + 2.0;
       }
 
       if (p.bullets && p.bullets.length > 0) {
         for (let bIdx = 0; bIdx < p.bullets.length; bIdx++) {
-          const bulletText = `•  ${p.bullets[bIdx]}`;
+          const bulletText = p.bullets[bIdx];
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9.5);
-          doc.setTextColor(15, 23, 42);
+          doc.setFontSize(10.8);
 
           const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 8);
-          const bLineHeight = 4.6;
-          ensureSpace(bulletLines.length * bLineHeight + 2);
-          doc.text(bulletLines, marginX + 5, y);
-          y += bulletLines.length * bLineHeight + 1.5;
+          const bLineHeight = 5.1;
+          ensureSpace(bulletLines.length * bLineHeight + 2.0);
+
+          doc.setFillColor(255, 107, 0);
+          doc.circle(marginX + 3.2, y - 1.3, 0.9, 'F');
+
+          doc.setTextColor(15, 23, 42);
+          doc.text(bulletLines, marginX + 8, y);
+          y += bulletLines.length * bLineHeight + 2.0;
         }
-        y += 2;
+        y += 1.8;
       }
     }
 
-    y += 4;
+    y += 2.5;
   }
 
   // Pie de página en todas las hojas

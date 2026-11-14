@@ -260,7 +260,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         ) : pendingTicket ? (
           <div className="max-w-2xl">
-            <TicketCard ticket={pendingTicket} />
+            <TicketCard ticket={pendingTicket} googleAppsScriptUrl={googleAppsScriptUrl} />
           </div>
         ) : scheduledTicket ? (
           <div className="p-7 sm:p-8 text-center bg-white rounded-3xl border border-amber-200 text-slate-700 space-y-3">

@@ -145,3 +145,102 @@ export async function syncTicketWithAppsScript(
     };
   }
 }
+
+/**
+ * Extrae el ID de archivo de cualquier URL de Google Drive
+ * (uc?export=view, uc?export=download, /file/d/ID/view, open?id=, thumbnail?id=, lh3/d/ID).
+ */
+export function extractGoogleDriveFileId(rawUrl: string | undefined | null): string | null {
+  const url = String(rawUrl || '').trim();
+  if (!url || url.startsWith('data:')) return null;
+
+  const isDriveOrGoogleUser =
+    /drive\.google\.com|drive\.usercontent\.google\.com|lh\d+\.googleusercontent\.com/i.test(url);
+  if (!isDriveOrGoogleUser) return null;
+
+  const matchPath = url.match(/\/(?:file\/)?d\/([a-zA-Z0-9_-]{10,})/);
+  if (matchPath && matchPath[1]) return matchPath[1];
+
+  const matchQuery = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (matchQuery && matchQuery[1]) return matchQuery[1];
+
+  return null;
+}
+
+/**
+ * Convierte enlaces antiguos o de vista de Google Drive (/uc?export=view, /file/d/.../view)
+ * a una URL directa compatible con <img> en navegadores móviles modernos.
+ */
+export function normalizeReceiptImageUrl(rawUrl: string | undefined | null): string {
+  const url = String(rawUrl || '').trim();
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId) {
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+  }
+  return url;
+}
+
+/**
+ * Devuelve la lista ordenada de URLs candidatas para cargar un resguardo alojado en Google Drive.
+ */
+export function getReceiptImageCandidates(rawUrl: string | undefined | null): string[] {
+  const url = String(rawUrl || '').trim();
+  if (!url) return [];
+  if (url.startsWith('data:')) return [url];
+
+  const fileId = extractGoogleDriveFileId(url);
+  if (!fileId) return [url];
+
+  const candidates = [
+    `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`,
+    `https://lh3.googleusercontent.com/d/${fileId}=w1600`,
+    `https://drive.usercontent.google.com/download?id=${fileId}&export=view`,
+    `https://drive.google.com/uc?export=view&id=${fileId}`,
+    url,
+  ];
+
+  return Array.from(new Set(candidates));
+}
+
+export function getGoogleDriveViewerUrl(rawUrl: string | undefined | null): string {
+  const url = String(rawUrl || '').trim();
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId) {
+    return `https://drive.google.com/file/d/${fileId}/view`;
+  }
+  return url;
+}
+
+/**
+ * Solicita al backend de Apps Script el data URI Base64 de un resguardo en Drive
+ * como último respaldo si el navegador bloquea la carga directa desde googleusercontent/drive.
+ */
+export async function fetchReceiptImageViaAppsScript(
+  googleAppsScriptUrl: string | undefined,
+  fileId: string
+): Promise<string | null> {
+  const endpoint = (googleAppsScriptUrl || '').trim();
+  if (!endpoint || !fileId) return null;
+  const cleanEndpoint = endpoint.endsWith('/exe') ? `${endpoint}c` : endpoint;
+
+  try {
+    const url = new URL(cleanEndpoint);
+    url.searchParams.set('api', 'true');
+    url.searchParams.set('action', 'imagenResguardo');
+    url.searchParams.set('id', fileId);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json && json.success && typeof json.dataUrl === 'string' && json.dataUrl.startsWith('data:')) {
+      return json.dataUrl;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+

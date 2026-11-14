@@ -47,6 +47,22 @@ function doGet(e) {
         payload = ejecutarMotorPuenteRSSConsenso();
       } else if (accion === 'escrutinioCiclo') {
         payload = obtenerEscrutinioDelCiclo();
+      } else if (accion === 'imagenResguardo') {
+        var fileIdParam = String(e.parameter.id || '').trim();
+        if (!fileIdParam || !/^[a-zA-Z0-9_-]{10,}$/.test(fileIdParam)) {
+          payload = { success: false, message: 'ID de resguardo no válido.' };
+        } else {
+          var driveFile = DriveApp.getFileById(fileIdParam);
+          var blob = driveFile.getBlob();
+          var mime = blob.getContentType() || 'image/jpeg';
+          var b64 = Utilities.base64Encode(blob.getBytes());
+          payload = {
+            success: true,
+            id: fileIdParam,
+            mimeType: mime,
+            dataUrl: 'data:' + mime + ';base64,' + b64
+          };
+        }
       } else {
         var ss = obtenerSpreadsheetPeña();
         var sheetTesoreria = ss.getSheetByName('Tesorería');
@@ -942,7 +958,7 @@ function obtenerDatosDashboard(dniInput) {
           jornada: parseInt(filaS[0], 10) || (s + 1),
           fecha: fechaStr,
           resguardo: (filaS[2] || '').toString(),
-          fotoResguardo: (filaS[3] || '').toString(),
+          fotoResguardo: normalizarUrlImagenDrive(filaS[3]),
           importeJugado: parseFloat(filaS[4]) || 0,
           combinacionJugada: (filaS[5] || '').toString(),
           combinacionGanadora: (filaS[6] || '').toString(),
@@ -1012,6 +1028,27 @@ function obtenerSpreadsheetPeña() {
 }
 
 /**
+ * Convierte cualquier URL de Google Drive (/file/d/..., /uc?export=view&id=...) en una URL directa de miniatura de alta resolución
+ * compatible con etiquetas <img> en navegadores móviles y WhatsApp.
+ */
+function normalizarUrlImagenDrive(rawUrl) {
+  var str = String(rawUrl || '').trim();
+  if (!str) return '';
+  if (str.indexOf('data:') === 0) return str;
+  var matchFile = str.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
+  var matchId = str.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  var matchLh3 = str.match(/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]{10,})/);
+  var fileId = (matchFile && matchFile[1]) || (matchId && matchId[1]) || (matchLh3 && matchLh3[1]) || '';
+  if (!fileId && /^[a-zA-Z0-9_-]{20,}$/.test(str)) {
+    fileId = str;
+  }
+  if (fileId) {
+    return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1600';
+  }
+  return str;
+}
+
+/**
  * Devuelve el último boleto pendiente de escrutinio solo si ya alcanzó su fecha/hora de publicación.
  */
 function obtenerBoletoActivoPublico(ss) {
@@ -1049,7 +1086,7 @@ function obtenerBoletoActivoPublico(ss) {
       return {
         jornada: parseInt(r[0], 10) || 1,
         fecha: fechaStr,
-        fotoResguardo: String(r[3] || ''),
+        fotoResguardo: normalizarUrlImagenDrive(r[3]),
         importeJugado: parseFloat(r[4]) || 0,
         combinacionJugada: combJugada,
         ciclo: parseInt(r[13], 10) || 1,
@@ -1085,7 +1122,7 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
       ]]);
     }
 
-    var driveImageUrl = String(datos.imagenUrl || '').trim();
+    var driveImageUrl = normalizarUrlImagenDrive(datos.imagenUrl);
     if (datos.imagenBase64 && String(datos.imagenBase64).indexOf('data:') === 0) {
       try {
         var partes = String(datos.imagenBase64).split(',');
@@ -1100,7 +1137,7 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
         var folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
         var file = folder.createFile(blob);
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        driveImageUrl = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+        driveImageUrl = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w1600';
       } catch (eDrive) {
         Logger.log('Aviso subiendo resguardo a Drive: ' + eDrive.message);
       }

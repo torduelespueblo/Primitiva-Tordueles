@@ -1,4 +1,5 @@
 import { Player, WaitingListEntry, TicketDraw, SyndicateSettings, PrizeHistoryEntry } from '../types/lottery';
+import { normalizeReceiptImageUrl } from './ticketPublishService';
 
 const STORAGE_KEYS = {
   SETTINGS: 'primitiva_tordueles_settings',
@@ -15,8 +16,12 @@ const STORAGE_KEYS = {
 export const MAX_STORED_TICKETS = 4;
 
 export function capTicketsKeepingPlayed(tickets: TicketDraw[]): TicketDraw[] {
-  const pending = tickets.filter(t => !t.isScrutinized);
-  const played = tickets.filter(t => t.isScrutinized).slice(0, MAX_STORED_TICKETS);
+  const normalized = tickets.map(t => ({
+    ...t,
+    receiptImageUrl: normalizeReceiptImageUrl(t.receiptImageUrl),
+  }));
+  const pending = normalized.filter(t => !t.isScrutinized);
+  const played = normalized.filter(t => t.isScrutinized).slice(0, MAX_STORED_TICKETS);
   return [...pending, ...played];
 }
 
@@ -203,7 +208,11 @@ export const storageService = {
 
   saveTickets(tickets: TicketDraw[]): void {
     const capped = capTicketsKeepingPlayed(tickets);
-    localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(capped));
+    try {
+      localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(capped));
+    } catch {
+      // Ignorar si supera la cuota local manteniendo el estado en memoria
+    }
   },
 
   getPrizeHistory(): PrizeHistoryEntry[] {

@@ -21,7 +21,9 @@ import {
   getNextPrimitivaDrawDate,
   isTicketPublishedNow,
   formatScheduledDateTimeLabel,
-  syncTicketWithAppsScript
+  syncTicketWithAppsScript,
+  normalizeReceiptImageUrl,
+  getReceiptImageCandidates
 } from '../services/ticketPublishService';
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
 import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
@@ -325,6 +327,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSuccessMessage, setScanSuccessMessage] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [previewCandidateIdx, setPreviewCandidateIdx] = useState(0);
+  const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
+
+  const previewCandidates = getReceiptImageCandidates(newTicketImage);
+  const activePreviewSrc = previewCandidates[previewCandidateIdx] || normalizeReceiptImageUrl(newTicketImage);
+
+  useEffect(() => {
+    setPreviewCandidateIdx(0);
+    setPreviewLoadFailed(false);
+  }, [newTicketImage]);
 
   const handleFileUploadAndScan = async (file: File) => {
     setSelectedFileName(file.name);
@@ -482,12 +494,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     const activePlayersCount = players.filter(p => p.status === 'TITULAR').length;
 
+    const normalizedInputImage = normalizeReceiptImageUrl(newTicketImage);
+
     const newTicket: TicketDraw = {
       id: `t-${Date.now()}`,
       cycleNumber: settings.currentCycle,
       jornadaNumber: newTicketJornada,
       drawDate: drawDateClean,
-      receiptImageUrl: newTicketImage,
+      receiptImageUrl: normalizedInputImage,
       betType: inferredBetType,
       numbersPlayedCount: nums.length,
       cost: newTicketCost,
@@ -520,13 +534,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       importe: newTicketCost,
       jugadoresActivos: activePlayersCount,
       imagenBase64: newTicketImage.startsWith('data:') ? newTicketImage : undefined,
-      imagenUrl: !newTicketImage.startsWith('data:') ? newTicketImage : undefined,
+      imagenUrl: !newTicketImage.startsWith('data:') ? normalizedInputImage : undefined,
       fileName: selectedFileName || `resguardo_j${newTicketJornada}_${drawDateClean}.jpg`,
     });
 
     const ticketToStore: TicketDraw = {
       ...newTicket,
-      receiptImageUrl: syncRes.driveImageUrl || newTicket.receiptImageUrl,
+      receiptImageUrl: normalizeReceiptImageUrl(syncRes.driveImageUrl || newTicket.receiptImageUrl),
     };
 
     onUpdateTickets(capTicketsKeepingPlayed([ticketToStore, ...tickets]));
@@ -1669,12 +1683,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </span>
                       <span className="text-sm text-slate-600">Documento PDF listo para publicar</span>
                     </div>
-                  ) : newTicketImage ? (
+                  ) : newTicketImage && !previewLoadFailed ? (
                     <img
-                      src={newTicketImage}
+                      src={activePreviewSrc}
                       alt="Boleto sellado"
+                      referrerPolicy="no-referrer"
                       className="max-h-72 w-auto max-w-full object-contain"
+                      onError={() => {
+                        if (previewCandidateIdx + 1 < previewCandidates.length) {
+                          setPreviewCandidateIdx(prev => prev + 1);
+                        } else {
+                          setPreviewLoadFailed(true);
+                        }
+                      }}
                     />
+                  ) : newTicketImage ? (
+                    <div className="p-4 text-center text-slate-600 space-y-1.5">
+                      <AlertTriangle className="w-9 h-9 text-amber-500 mx-auto" />
+                      <span className="text-sm font-bold text-[#0A2540] block">
+                        Imagen guardada (vista previa bloqueada por el navegador)
+                      </span>
+                      <span className="text-xs text-slate-500 block">
+                        Al guardar, la App aplicará la ruta segura de Google Drive / Apps Script.
+                      </span>
+                    </div>
                   ) : (
                     <div className="p-4 text-center text-slate-600">
                       <Upload className="w-10 h-10 text-slate-400 mx-auto mb-1.5" />

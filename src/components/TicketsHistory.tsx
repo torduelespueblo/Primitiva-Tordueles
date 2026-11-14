@@ -11,6 +11,7 @@ interface TicketsHistoryProps {
   currentCycle: number;
   prizeFundBalance?: number;
   accessLevel?: 'VISITOR' | 'SUPLENTE' | 'TITULAR';
+  googleAppsScriptUrl?: string;
   onOpenRegister?: () => void;
   onOpenLogin?: () => void;
 }
@@ -21,6 +22,7 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
   currentCycle,
   prizeFundBalance = 0,
   accessLevel = 'VISITOR',
+  googleAppsScriptUrl,
   onOpenRegister,
   onOpenLogin,
 }) => {
@@ -201,7 +203,11 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredTickets.map(ticket => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+            <TicketCard
+              key={ticket.id}
+              ticket={ticket}
+              googleAppsScriptUrl={googleAppsScriptUrl}
+            />
           ))}
         </div>
       )}

@@ -28,7 +28,10 @@ import {
   pushNotificationService,
   solicitarPermisoYRegistrarToken
 } from './services/pushNotifications';
-import { isTicketPublishedNow } from './services/ticketPublishService';
+import {
+  isTicketPublishedNow,
+  normalizeReceiptImageUrl
+} from './services/ticketPublishService';
 import { reportPWAInstallOrVisit } from './services/installTrackingService';
 import { MemberAccessResponse, PublicListRow } from './services/registrationService';
 
@@ -260,21 +263,40 @@ export default function App() {
 
     if (nums.length === 0) return;
 
+    const normalizedImg = normalizeReceiptImageUrl(String(b.fotoResguardo || ''));
+
     setTickets(prev => {
-      const alreadyExists = prev.some(
-        t =>
+      let updatedExisting = false;
+      const updatedPrev = prev.map(t => {
+        if (
           !t.isScrutinized &&
           t.jornadaNumber === Number(b.jornada) &&
           t.drawDate === String(b.fecha)
-      );
-      if (alreadyExists) return prev;
+        ) {
+          updatedExisting = true;
+          const nextImg =
+            normalizedImg && !t.receiptImageUrl.startsWith('data:')
+              ? normalizedImg
+              : normalizeReceiptImageUrl(t.receiptImageUrl);
+          if (nextImg && nextImg !== t.receiptImageUrl) {
+            return { ...t, receiptImageUrl: nextImg };
+          }
+        }
+        return t;
+      });
+
+      if (updatedExisting) {
+        const nextUpdated = capTicketsKeepingPlayed(updatedPrev);
+        storageService.saveTickets(nextUpdated);
+        return nextUpdated;
+      }
 
       const syncedTicket: TicketDraw = {
         id: `gas-${b.fecha}-${b.jornada}`,
         cycleNumber: Number(b.ciclo) || 1,
         jornadaNumber: Number(b.jornada) || 1,
         drawDate: String(b.fecha),
-        receiptImageUrl: String(b.fotoResguardo || ''),
+        receiptImageUrl: normalizedImg,
         betType:
           nums.length === 5
             ? 'MULTIPLE_5'
@@ -750,6 +772,7 @@ export default function App() {
                 currentCycle={settings.currentCycle}
                 prizeFundBalance={settings.prizeFundBalance}
                 accessLevel={effectiveAccessLevel}
+                googleAppsScriptUrl={settings.googleAppsScriptUrl}
                 onOpenRegister={() => {
                   setRegistrationInitialMode('REGISTER');
                   setShowStandaloneRegistration(true);

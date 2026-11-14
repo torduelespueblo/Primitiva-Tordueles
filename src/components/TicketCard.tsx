@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { TicketDraw } from '../types/lottery';
+import {
+  extractGoogleDriveFileId,
+  fetchReceiptImageViaAppsScript,
+  getGoogleDriveViewerUrl,
+  getReceiptImageCandidates
+} from '../services/ticketPublishService';
+import { storageService } from '../services/storage';
 import {
   Trophy,
   Calendar,
@@ -10,15 +17,79 @@ import {
   FileDown,
   FileText,
   ImageOff,
-  ZoomIn
+  ZoomIn,
+  ExternalLink,
+  RotateCcw
 } from 'lucide-react';
 
 interface TicketCardProps {
   ticket: TicketDraw;
+  googleAppsScriptUrl?: string;
 }
 
-export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
+export const TicketCard: React.FC<TicketCardProps> = ({ ticket, googleAppsScriptUrl }) => {
   const [showModal, setShowModal] = useState(false);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [proxyDataUrl, setProxyDataUrl] = useState<string | null>(null);
+  const [isTryingProxy, setIsTryingProxy] = useState(false);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
+
+  const imageCandidates = useMemo(
+    () => getReceiptImageCandidates(ticket.receiptImageUrl),
+    [ticket.receiptImageUrl]
+  );
+  const driveFileId = useMemo(
+    () => extractGoogleDriveFileId(ticket.receiptImageUrl),
+    [ticket.receiptImageUrl]
+  );
+  const viewerUrl = useMemo(
+    () => getGoogleDriveViewerUrl(ticket.receiptImageUrl),
+    [ticket.receiptImageUrl]
+  );
+
+  useEffect(() => {
+    setCandidateIndex(0);
+    setProxyDataUrl(null);
+    setIsTryingProxy(false);
+    setImageLoadFailed(false);
+  }, [ticket.receiptImageUrl]);
+
+  const activeImageSrc = proxyDataUrl || imageCandidates[candidateIndex] || '';
+
+  const handleImageError = async () => {
+    if (proxyDataUrl) {
+      setImageLoadFailed(true);
+      return;
+    }
+
+    const nextIdx = candidateIndex + 1;
+    if (nextIdx < imageCandidates.length) {
+      setCandidateIndex(nextIdx);
+      return;
+    }
+
+    if (driveFileId && !isTryingProxy) {
+      setIsTryingProxy(true);
+      const endpoint = googleAppsScriptUrl || storageService.getSettings().googleAppsScriptUrl;
+      const fetched = await fetchReceiptImageViaAppsScript(endpoint, driveFileId);
+      setIsTryingProxy(false);
+      if (fetched) {
+        setProxyDataUrl(fetched);
+        setImageLoadFailed(false);
+        return;
+      }
+    }
+
+    setImageLoadFailed(true);
+  };
+
+  const handleRetryImage = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setCandidateIndex(0);
+    setProxyDataUrl(null);
+    setIsTryingProxy(false);
+    setImageLoadFailed(false);
+  };
 
   const isMatched = (num: number) => {
     return ticket.isScrutinized && ticket.winningNumbers?.includes(num);
@@ -151,13 +222,13 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
 
           {/* Vista previa real del resguardo subido por el administrador */}
           {hasReceipt && !isPdfReceipt && (
-            <button
-              type="button"
-              onClick={() => setShowModal(true)}
-              className="group relative w-full rounded-2xl border border-slate-200 bg-[#F4F6F9] p-3 text-left hover:border-[#0A2540] transition cursor-pointer"
-              title="Pulsa para ampliar el resguardo real"
-            >
-              <div className="flex items-center justify-between mb-2">
+            <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-3 text-left space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowModal(true)}
+                className="w-full flex items-center justify-between cursor-pointer"
+                title="Pulsa para ampliar el resguardo real"
+              >
                 <span className="text-xs font-extrabold uppercase tracking-wider text-[#0A2540]">
                   Resguardo Real Subido por Administración
                 </span>
@@ -165,15 +236,51 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
                   <ZoomIn className="w-3.5 h-3.5" />
                   Ampliar
                 </span>
-              </div>
-              <div className="w-full max-h-56 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-2">
-                <img
-                  src={ticket.receiptImageUrl}
-                  alt={`Resguardo oficial Jornada ${ticket.jornadaNumber}`}
-                  className="max-h-52 w-auto max-w-full object-contain"
-                />
-              </div>
-            </button>
+              </button>
+
+              {!imageLoadFailed && activeImageSrc ? (
+                <button
+                  type="button"
+                  onClick={() => setShowModal(true)}
+                  className="w-full max-h-56 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-2 hover:border-[#0A2540] transition cursor-pointer"
+                >
+                  <img
+                    src={activeImageSrc}
+                    alt={`Resguardo oficial Jornada ${ticket.jornadaNumber}`}
+                    referrerPolicy="no-referrer"
+                    onError={handleImageError}
+                    className="max-h-52 w-auto max-w-full object-contain"
+                  />
+                </button>
+              ) : (
+                <div className="w-full rounded-xl bg-white border border-dashed border-slate-300 p-4 text-center space-y-2.5">
+                  <p className="text-xs sm:text-sm font-semibold text-slate-600">
+                    La vista previa directa está bloqueada por tu navegador o pendiente de permisos en Drive.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRetryImage}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#0A2540] text-xs font-bold cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reintentar</span>
+                    </button>
+                    {viewerUrl && viewerUrl.startsWith('http') && (
+                      <a
+                        href={viewerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0A2540] text-white text-xs font-bold"
+                      >
+                        <span>Abrir en Drive</span>
+                        <ExternalLink className="w-3.5 h-3.5 text-[#FF6B00]" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {hasReceipt && isPdfReceipt && (
@@ -308,13 +415,46 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
                       <span>Descargar Resguardo PDF</span>
                     </a>
                   </div>
-                ) : (
+                ) : !imageLoadFailed && activeImageSrc ? (
                   <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-3 flex flex-col items-center">
                     <img
-                      src={ticket.receiptImageUrl}
+                      src={activeImageSrc}
                       alt={`Resguardo sellado Jornada ${ticket.jornadaNumber}`}
+                      referrerPolicy="no-referrer"
+                      onError={handleImageError}
                       className="w-full h-auto max-h-[60vh] object-contain rounded-xl bg-white shadow-xs"
                     />
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-[#F4F6F9] p-6 text-center space-y-3">
+                    <ImageOff className="w-10 h-10 text-slate-400 mx-auto" />
+                    <p className="text-base font-bold text-[#0A2540]">
+                      No se pudo mostrar la imagen directamente aquí
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      El archivo puede tener acceso restringido en Google Drive o estar bloqueado por tu navegador.
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleRetryImage}
+                        className="inline-flex items-center gap-2 px-4 min-h-[42px] rounded-xl border border-slate-300 bg-white text-[#0A2540] text-sm font-bold cursor-pointer"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        <span>Reintentar</span>
+                      </button>
+                      {viewerUrl && viewerUrl.startsWith('http') && (
+                        <a
+                          href={viewerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 min-h-[42px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white text-sm font-bold"
+                        >
+                          <span>Abrir Resguardo en Drive</span>
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 )
               ) : (
@@ -363,14 +503,16 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
             </div>
 
             <div className="bg-slate-50 px-5 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              {hasReceipt && !isPdfReceipt && (
+              {hasReceipt && !isPdfReceipt && (activeImageSrc || viewerUrl) && (
                 <a
-                  href={ticket.receiptImageUrl}
-                  download={`Resguardo_Ciclo${ticket.cycleNumber}_J${ticket.jornadaNumber}.jpg`}
+                  href={activeImageSrc || viewerUrl}
+                  target={activeImageSrc.startsWith('data:') ? undefined : '_blank'}
+                  rel={activeImageSrc.startsWith('data:') ? undefined : 'noopener noreferrer'}
+                  download={activeImageSrc.startsWith('data:') ? `Resguardo_Ciclo${ticket.cycleNumber}_J${ticket.jornadaNumber}.jpg` : undefined}
                   className="inline-flex items-center justify-center gap-2 px-4 min-h-[48px] rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-[#0A2540] font-bold text-base transition"
                 >
                   <FileDown className="w-5 h-5 text-[#FF6B00]" />
-                  <span>Guardar Imagen</span>
+                  <span>{activeImageSrc.startsWith('data:') ? 'Guardar Imagen' : 'Abrir / Guardar'}</span>
                 </a>
               )}
               <button
