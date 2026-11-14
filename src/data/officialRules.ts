@@ -69,22 +69,22 @@ export const OFFICIAL_RULES_SECTIONS: RuleSection[] = [
       {
         code: '3.2.',
         heading: 'Orden Cronológico Inalterable:',
-        text: 'Las vacantes se asignarán por estricto orden de antigüedad basado en el sello de tiempo (timestamp con fecha, hora, minutos, segundos y milisegundos) registrado al completar la inscripción para dirimir cualquier coincidencia y fijar la prelación exacta en la lista de espera.',
+        text: 'Las vacantes se asignarán por estricto orden de antigüedad según la fecha y hora exacta registrada al completar la inscripción para fijar la prelación en la lista de espera.',
       },
       {
         code: '3.3.',
-        heading: 'Exclusión por Falta de Pago:',
-        text: 'Si un integrante titular no abona la cuota antes de finalizar la jornada 9, la jornada 10 será su última jugada del ciclo y será excluido definitivamente de la peña, procediéndose de inmediato a avisar al primer suplente de la lista.',
+        heading: 'Exclusión por Falta de Pago y Aviso de Bajas:',
+        text: 'Si un integrante titular no abona la cuota antes de finalizar la jornada 9, la jornada 10 será su última jugada del ciclo y será excluido definitivamente de la peña. Se avisará en el grupo de WhatsApp a los suplentes de que va a haber una o varias bajas y se les avisará de forma individual a quienes corresponda según el orden de la lista de suplentes.',
       },
       {
         code: '3.4.',
-        heading: 'Plazo Estricto de 24 Horas para Suplentes:',
-        text: 'El aspirante notificado dispondrá de 24 horas exactas para abonar los 10,00 € correspondientes al nuevo ciclo. Transcurrido dicho plazo sin justificante de ingreso, decaerá en su derecho y se avisará al siguiente suplente.',
+        heading: 'Plazo de 48 Horas para Suplentes:',
+        text: 'El aspirante avisado de forma individual dispondrá de 48 horas para abonar los 10,00 € correspondientes al nuevo ciclo. Transcurrido dicho plazo sin justificante de ingreso, decaerá en su derecho y se avisará al siguiente suplente de la lista.',
       },
       {
         code: '3.5.',
         heading: 'Ampliación de la Peña y Salto de Nivel:',
-        text: 'Si la lista de espera ("Suplentes") crece lo suficiente como para sumar, junto con los titulares actuales, el número exacto de participantes requerido para alcanzar el siguiente bloque oficial de apuestas múltiples, el ascenso de categoría no se realizará de forma automática. El Administrador recibirá un aviso del sistema y deberá evaluar y aprobar manualmente este salto de nivel antes de finalizar el ciclo vigente. Una vez aprobado el salto oficial por la administración, se notificará en bloque a los suplentes correspondientes, quienes dispondrán del plazo reglamentario para abonar su cuota. Solo tras la confirmación de estos pagos, los suplentes adquirirán la condición de "Titular" y la peña al completo pasará a jugar el nuevo bloque en el siguiente ciclo.',
+        text: 'Si la lista de espera ("Suplentes") crece lo suficiente como para sumar, junto con los titulares actuales, el número exacto de participantes requerido para alcanzar el siguiente bloque oficial de apuestas múltiples, el ascenso de categoría no se realizará de forma automática. El Administrador recibirá un aviso del sistema y deberá evaluar y aprobar manualmente este salto de nivel antes de finalizar el ciclo vigente. Una vez aprobado el salto oficial por la administración, se notificará en bloque a los suplentes correspondientes, quienes dispondrán del plazo reglamentario de 48 horas para abonar su cuota. Solo tras la confirmación de estos pagos, los suplentes adquirirán la condición de "Titular" y la peña al completo pasará a jugar el nuevo bloque en el siguiente ciclo.',
       },
     ],
   },
@@ -105,7 +105,7 @@ export const OFFICIAL_RULES_SECTIONS: RuleSection[] = [
       {
         code: '4.3.',
         heading: 'Liquidación a Herederos Legales:',
-        text: 'La plaza vacante pasará al primer suplente tras finalizar el ciclo de 10 jornadas que el socio fallecido tuviera previamente abonado. La parte proporcional neta de cualquier premio obtenido durante dicho ciclo vigente se entregará formalmente a sus legítimos herederos legales.',
+        text: 'La plaza vacante pasará al suplente que corresponda por orden tras finalizar el ciclo de 10 jornadas que el socio fallecido tuviera previamente abonado. La parte proporcional neta de cualquier premio obtenido durante dicho ciclo vigente se entregará formalmente a sus legítimos herederos legales.',
       },
     ],
   },

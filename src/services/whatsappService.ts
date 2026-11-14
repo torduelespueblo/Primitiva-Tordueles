@@ -217,14 +217,14 @@ export const whatsappService = {
       `Recordatorio reglamentario (Art. 1 y Art. 3):\n` +
       `El plazo obligatorio para renovar la cuota de 10€ (1€ semanal para las próximas 10 jornadas) está abierto entre la jornada 7 y la 9.\n\n` +
       `• Socios con renovación pendiente: *${pendingCount}*\n` +
-      `• *Atención:* Todo socio que no haya ingresado la cuota antes de finalizar la jornada 9 jugará la jornada 10 como última y causará *baja definitiva*, perdiendo antigüedad y pasando la vacante al primer suplente con 24h para pagar.\n\n` +
+      `• *Atención:* Todo socio que no haya ingresado la cuota antes de finalizar la jornada 9 jugará la jornada 10 como última y causará *baja definitiva*, perdiendo antigüedad. Se avisará en el grupo de WhatsApp de las bajas y se contactará de forma individual con los suplentes correspondientes, quienes tendrán *48 horas* para pagar.\n\n` +
       `Por favor, confirma tu abono lo antes posible.`;
 
     return this.sendTextMessage(msg, customConfig);
   },
 
   /**
-   * Aviso de vacante disponible al primer suplente con límite de 24 horas (Art. 3)
+   * Aviso en grupo de WhatsApp sobre próximas bajas y notificación individual al suplente correspondiente (plazo 48h)
    */
   async sendSubstituteOpportunityAlert(
     substituteName: string,
@@ -232,12 +232,13 @@ export const whatsappService = {
     customConfig?: Partial<WhatsAppServiceConfig>
   ): Promise<SendResult> {
     const msg =
-      `📢 *VACANTE DISPONIBLE EN PEÑA TORDUELES (Art. 3)* 📢\n\n` +
-      `Se ha generado una vacante por falta de renovación en el ciclo.\n` +
-      `Conforme al orden cronológico del Formulario de Google, se avisa al primer suplente:\n` +
-      `👤 *Aspirante:* ${substituteName}\n` +
-      `⏰ *Plazo improrrogable:* Dispone de *24 horas exactas* (hasta ${deadlineFormatted}) para abonar los 10€ del ciclo completo de 10 jornadas.\n\n` +
-      `Si transcurre el plazo sin justificante, la plaza pasará automáticamente al siguiente suplente de la lista.`;
+      `📢 *AVISO DE VACANTES EN PEÑA TORDUELES (Art. 3)* 📢\n\n` +
+      `Se informa a los suplentes en el grupo de WhatsApp de que va a haber una o varias bajas en el próximo ciclo y que se avisará de forma individual a quien corresponda según la lista de suplentes.\n\n` +
+      (substituteName ? `👤 *Suplente avisado:* ${substituteName}\n` : '') +
+      `⏰ *Plazo para pagar:* Quien corresponda dispone de *48 horas*` +
+      (deadlineFormatted ? ` (hasta ${deadlineFormatted})` : '') +
+      ` para abonar los 10€ del ciclo completo de 10 jornadas.\n\n` +
+      `Si transcurre el plazo de 48 horas sin justificante, la plaza pasará al siguiente suplente de la lista.`;
 
     return this.sendTextMessage(msg, customConfig);
   },

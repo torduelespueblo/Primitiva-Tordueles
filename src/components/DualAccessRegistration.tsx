@@ -267,7 +267,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                 <strong className="block text-[#0A2540] font-bold mb-0.5">
                   Privacidad en el Alta Inicial (Art. 3.1):
                 </strong>
-                Por privacidad y seguridad, <strong>NO solicitamos DNI ni IBAN</strong> de entrada. Estos solo se pedirán en caso de cobro de premios mayores a 2.000 €. Tus datos quedarán guardados en el registro oficial con sello de tiempo exacto (milisegundos).
+                Por privacidad y seguridad, <strong>NO solicitamos DNI ni IBAN</strong> de entrada. Estos solo se pedirán en caso de cobro de premios mayores a 2.000 €. Tus datos quedarán guardados en el registro oficial por estricto orden de inscripción.
               </div>
             </div>
 
@@ -320,7 +320,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                   required
                 />
                 <span className="text-sm text-slate-600 block mt-1.5">
-                  Necesario para el grupo de WhatsApp y avisos de vacante con plazo de 24 horas.
+                  Necesario para el grupo de WhatsApp y avisos individuales de vacante con plazo de 48 horas para pagar.
                 </span>
               </div>
 

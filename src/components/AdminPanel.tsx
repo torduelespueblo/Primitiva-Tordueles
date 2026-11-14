@@ -1599,10 +1599,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             body: 'Hoy finaliza el plazo obligatorio para abonar los 10,00 € del próximo ciclo. Quien no haya confirmado el pago causará baja tras la Jornada 10 según el Art. 3.3.',
           },
           {
-            id: 'vacante-24h',
-            tag: 'Lista de Espera · 24h',
-            title: '🔔 Vacante Disponible · Plazo 24 horas',
-            body: 'Se ha liberado una plaza de Titular en la Peña Primitiva Tordueles. El primer suplente dispone de 24 horas exactas para abonar los 10,00 € y confirmar su alta.',
+            id: 'vacante-48h',
+            tag: 'Lista de Espera · 48h',
+            title: '🔔 Aviso de Bajas · Plazo 48 horas',
+            body: 'Se avisa en el grupo de WhatsApp a los suplentes de que va a haber una o varias bajas. Se contactará de forma individual con quien corresponda según la lista de suplentes, disponiendo de 48 horas para abonar los 10,00 €.',
           },
           {
             id: 'escrutinio-premio',
