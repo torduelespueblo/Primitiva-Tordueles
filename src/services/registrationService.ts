@@ -136,10 +136,24 @@ export async function submitRegistrationToSheet(
   }
 }
 
+const PRODUCTION_REGISTRATION_URL = 'https://torduelespueblo.github.io/Primitiva-Tordueles/inscripcion.html';
+
 export function getPublicRegistrationShareUrl(): string {
   if (typeof window === 'undefined') {
-    return 'https://torduelespueblo.github.io/Primitiva-Tordueles/inscripcion.html';
+    return PRODUCTION_REGISTRATION_URL;
   }
+  const host = window.location.hostname || '';
+  const isDevOrPreviewHost =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host.startsWith('ais-dev-') ||
+    host.startsWith('ais-pre-') ||
+    host.endsWith('.run.app');
+
+  if (isDevOrPreviewHost) {
+    return PRODUCTION_REGISTRATION_URL;
+  }
+
   const url = new URL('./inscripcion.html', window.location.href);
   return url.toString();
 }
