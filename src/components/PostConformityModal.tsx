@@ -102,7 +102,7 @@ export const PostConformityModal: React.FC<PostConformityModalProps> = ({
                   3. Solo quiero mirar por ahora
                 </span>
                 <span className="block text-xs sm:text-sm text-slate-700 mt-0.5 leading-snug">
-                  Entra a ver los boletos, el bote y la lista pública. Tendrás un botón visible arriba por si decides apuntarte después.
+                  Entra a ver el bote actual, los participantes globales y el reglamento. Tendrás un botón visible arriba por si decides apuntarte después.
                 </span>
               </div>
             </div>

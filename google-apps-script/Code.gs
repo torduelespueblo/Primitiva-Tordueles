@@ -269,6 +269,7 @@ function crearFormulario() {
   var form = FormApp.create('Inscripción - Peña Primitiva Tordueles');
   form.setDescription(
     'Formulario oficial de inscripción en la Peña Primitiva Tordueles.\n\n' +
+    'REQUISITO DE EDAD: La participación está estrictamente reservada a personas mayores de 18 años.\n\n' +
     'POLÍTICA DE PRIVACIDAD: Por seguridad y privacidad, en este paso NO se solicitará DNI ni número de cuenta (IBAN). ' +
     'Estos datos solo se pedirán de forma obligatoria en caso de cobro de premios mayores a 2.000€.'
   );

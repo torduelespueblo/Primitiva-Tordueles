@@ -179,11 +179,12 @@
       background: #F8FAFC;
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 14px;
+      padding: 16px;
       margin-bottom: 16px;
-      max-height: 240px;
+      max-height: 320px;
       overflow-y: auto;
-      font-size: 0.86rem;
+      font-size: 0.98rem;
+      line-height: 1.65;
       color: #334155;
     }
 
@@ -191,14 +192,30 @@
       display: block;
     }
 
-    .rules-drawer h3 {
+    .rules-drawer h3,
+    .rules-drawer h4 {
       color: var(--navy);
-      font-size: 0.94rem;
-      margin: 10px 0 4px;
+      font-size: 1.04rem;
+      font-weight: 800;
+      margin: 14px 0 6px;
     }
 
-    .rules-drawer h3:first-child {
+    .rules-drawer h3:first-child,
+    .rules-drawer h4:first-child {
       margin-top: 0;
+    }
+
+    .rules-drawer p {
+      margin-bottom: 8px;
+    }
+
+    .rules-drawer ul {
+      padding-left: 18px;
+      margin: 6px 0 10px;
+    }
+
+    .rules-drawer li {
+      margin-bottom: 6px;
     }
 
     .check-wrap {
@@ -373,11 +390,11 @@
         <!-- VISTA DEL FORMULARIO -->
         <div id="formContainer">
           <div class="notice-box">
-            <strong>Sin compromiso inicial:</strong> Apuntarte aquí no te obliga a participar hasta que se decida la lista definitiva, pero ya te asigna <strong>antigüedad oficial</strong> en la lista de espera.
+            <strong>Sin compromiso inicial (+18 años):</strong> La participación está estrictamente reservada a personas <strong>mayores de 18 años</strong>. Apuntarte aquí no te obliga a jugar todavía, pero ya te asigna <strong>antigüedad oficial</strong> en la lista de espera.
           </div>
 
           <div class="privacy-box">
-            <strong>Privacidad RGPD:</strong> En este formulario solo pedimos Nombre, Apellidos y Teléfono Móvil. No se solicita DNI ni IBAN en este paso.
+            <strong>Privacidad RGPD:</strong> En este formulario solo pedimos Nombre, Apellidos y Teléfono Móvil. No se solicita DNI ni IBAN en este paso; solo serán obligatorios en caso de cobrar premios mayores (&gt; 2.000,00 €).
           </div>
 
           <div id="errorAlert" class="alert-error"></div>
@@ -399,18 +416,56 @@
             </div>
 
             <button type="button" id="toggleRulesBtn" class="rules-toggle">
-              Leer resumen del Reglamento Oficial
+              Leer Reglamento Oficial Completo
             </button>
 
             <div id="rulesDrawer" class="rules-drawer" aria-live="polite">
-              <h3>Artículo 1 · Cuotas y Ciclos</h3>
-              <p>Cuota fija de 1,00 €/semana en bloques indivisibles de 10 jornadas (10,00 € por ciclo). Renovación obligatoria entre las jornadas 7 y 9.</p>
-              <h3>Artículo 2 · Apuestas Múltiples</h3>
-              <p>El tamaño de la apuesta múltiple (7, 28, 44, 84, 210 o 462 apuestas) se adapta exactamente al número de titulares al corriente de pago con combinaciones aleatorias de terminal SELAE.</p>
-              <h3>Artículo 3 · Lista de Espera y Antigüedad</h3>
-              <p>El orden de suplentes es estrictamente cronológico según la fecha y hora exacta de registro. Si va a haber una o varias bajas, se avisará en el grupo de WhatsApp y se contactará de forma individual a quien corresponda según la lista de suplentes, disponiendo de 48 horas para abonar la cuota.</p>
-              <h3>Artículo 5 · Premios</h3>
-              <p>Los premios menores (&le; 2.000 €) se acumulan en la bolsa común de la peña. Los premios mayores (&gt; 2.000 €) se reparten equitativamente entre todos los titulares activos del ciclo.</p>
+              <h3>Reglamento Oficial de la Peña Primitiva Tordueles</h3>
+
+              <h4>Artículo 1. Financiación, Cuotas y Ciclos de Juego</h4>
+              <ul>
+                <li><strong>1.1. Cuota Unitaria:</strong> La participación en la peña tiene una cuota fija de 1,00 € semanal por jugador.</li>
+                <li><strong>1.2. Bloques Indivisibles:</strong> Los pagos se realizarán por adelantado en bloques cerrados e indivisibles de 10 jornadas (10,00 € por jugador y ciclo). No se admiten pagos fraccionados ni semanas sueltas.</li>
+                <li><strong>1.3. Plazo Obligatorio de Renovación:</strong> La renovación de la cuota para el siguiente ciclo debe abonarse obligatoriamente entre la jornada 7 y la jornada 9 del ciclo vigente.</li>
+              </ul>
+
+              <h4>Artículo 2. Apuestas Múltiples Adaptables e Imparcialidad</h4>
+              <p><strong>2.1. Ajuste Automático al Presupuesto y Escalado de Jugadores:</strong> El importe y tamaño de la apuesta múltiple oficial se adaptará automáticamente al número exacto de jugadores que hayan completado el pago en cada ciclo. Dado que cada jugador aporta 1,00 € por sorteo, para aumentar el tamaño de la peña y jugar una combinación mayor, el número total de participantes deberá coincidir siempre con el número exacto de apuestas directas que exige cada bloque múltiple oficial. No se admitirán cifras intermedias de jugadores.</p>
+              <p>Las opciones de apuestas múltiples de La Primitiva y los cupos exactos requeridos son:</p>
+              <ul>
+                <li>Múltiple de 7 números: 7 apuestas (requiere exactamente 7 jugadores al corriente por 7,00 €).</li>
+                <li>Múltiple de 8 números: 28 apuestas (requiere exactamente 28 jugadores al corriente por 28,00 €).</li>
+                <li>Múltiple de 5 números (fijo): 44 apuestas (requiere exactamente 44 jugadores al corriente por 44,00 €).</li>
+                <li>Múltiple de 9 números: 84 apuestas (requiere exactamente 84 jugadores al corriente por 84,00 €).</li>
+                <li>Múltiple de 10 números: 210 apuestas (requiere exactamente 210 jugadores al corriente por 210,00 €).</li>
+                <li>Múltiple de 11 números: 462 apuestas (requiere exactamente 462 jugadores al corriente por 462,00 €).</li>
+              </ul>
+              <ul>
+                <li><strong>2.2. Combinaciones Aleatorias de Terminal:</strong> Las combinaciones jugadas nunca serán fijas. Se generarán de forma automática y aleatoria mediante el terminal oficial de Loterías y Apuestas del Estado en cada sorteo para garantizar total neutralidad y juego limpio.</li>
+              </ul>
+
+              <h4>Artículo 3. Control de Lista de Espera, Inscripción y Plazos</h4>
+              <ul>
+                <li><strong>3.1. Requisitos de Inscripción, Mayoría de Edad y Aceptación de Bases:</strong> La participación en la peña está estrictamente reservada a personas mayores de 18 años, quedando prohibida la inscripción de menores de edad bajo cualquier circunstancia. Para formalizar la inscripción en la peña mediante el Formulario de Registro, es obligatoria la recopilación de Nombre, Apellidos, Teléfono Móvil y marcar la casilla obligatoria de Aceptación del Reglamento. Por motivos de privacidad y seguridad ante datos sensibles, no se exigirá el DNI ni el número de IBAN en el momento del alta inicial. No obstante, todo socio acepta expresamente que, en caso de resultar agraciado con un premio que legal o bancariamente requiera dichos datos para su tramitación y cobro, estará obligado a facilitar su DNI/NIF y su número de cuenta (IBAN); de no aportarse, no será posible materializar la entrega individualizada del premio correspondiente.</li>
+                <li><strong>3.2. Orden Cronológico Inalterable:</strong> Las vacantes se asignarán por estricto orden cronológico de inscripción registrado al completar el alta para fijar la prelación exacta en la lista de espera.</li>
+                <li><strong>3.3. Exclusión por Falta de Pago:</strong> Si un integrante titular no abona la cuota antes de finalizar la jornada 9, la jornada 10 será su última jugada del ciclo y será excluido definitivamente de la peña.</li>
+                <li><strong>3.4. Aviso de Vacantes y Plazo de 48 Horas para Suplentes:</strong> Si se produce alguna baja, se avisará primero en el grupo oficial de WhatsApp de que existen vacantes disponibles y, a continuación, se contactará de forma individual con quien corresponda según el orden estricto de la lista de suplentes. El aspirante notificado dispondrá de 48 horas para abonar los 10,00 € correspondientes al nuevo ciclo; transcurrido dicho plazo sin justificante de ingreso, decaerá en su derecho y se avisará al siguiente suplente.</li>
+                <li><strong>3.5. Ampliación de la Peña y Salto de Nivel:</strong> Si la lista de espera ("Suplentes") crece lo suficiente como para sumar, junto con los titulares actuales, el número exacto de participantes requerido para alcanzar el siguiente bloque oficial de apuestas múltiples, el ascenso de categoría no se realizará de forma automática. El Administrador recibirá un aviso del sistema y deberá evaluar y aprobar manualmente este salto de nivel antes de finalizar el ciclo vigente. Una vez aprobado el salto oficial por la administración, se notificará en bloque a los suplentes correspondientes, quienes dispondrán del plazo reglamentario para abonar su cuota. Solo tras la confirmación de estos pagos, los suplentes adquirirán la condición de "Titular" y la peña al completo pasará a jugar el nuevo bloque en el siguiente ciclo.</li>
+              </ul>
+
+              <h4>Artículo 4. Bajas, Pérdida de Antigüedad y Régimen de Fallecimiento</h4>
+              <ul>
+                <li><strong>4.1. Pérdida de Derechos por Baja:</strong> Toda persona que cause baja (voluntaria o por impago) perderá su condición de socio, su número de jugador y su antigüedad acumulada. Si en el futuro desea reingresar, deberá inscribirse de nuevo y situarse al final de la cola de espera.</li>
+                <li><strong>4.2. No Heredabilidad de la Plaza:</strong> En caso de fallecimiento de un socio titular, la plaza en la peña no se hereda a familiares ni allegados.</li>
+                <li><strong>4.3. Liquidación a Herederos Legales:</strong> La plaza vacante pasará al primer suplente tras finalizar el ciclo de 10 jornadas que el socio fallecido tuviera previamente abonado. La parte proporcional neta de cualquier premio obtenido durante dicho ciclo vigente se entregará formalmente a sus legítimos herederos legales.</li>
+                <li><strong>4.4. Compromiso con el Juego Responsable:</strong> Con el fin de velar por el bienestar de todos los participantes y fomentar un ocio saludable, si un integrante o un familiar cercano solicita al Administrador su baja por dificultades relacionadas con el juego, la Administración procederá a tramitar su exclusión de la peña de forma inmediata, confidencial y preventiva. Al tratarse de una actividad puramente recreativa entre particulares, los participantes eximen al Administrador de cualquier responsabilidad personal, económica o legal derivada de las decisiones individuales de juego o de las bajas gestionadas bajo este compromiso. De manera excepcional a lo dispuesto para el resto de bajas, en este supuesto se liquidará y devolverá al interesado (o a su entorno familiar autorizado) la parte proporcional que le correspondiera del Fondo Común acumulado hasta la fecha de su salida.</li>
+              </ul>
+
+              <h4>Artículo 5. Reparto de Premios Menores vs Mayores</h4>
+              <ul>
+                <li><strong>5.1. Premios Menores (hasta 2.000,00 €):</strong> Los premios de cuantía igual o inferior a 2.000,00 € obtenidos en cada sorteo se acumularán íntegramente en el Fondo Común (Bolsa de Premios Menores) de la peña, constituyendo una cuenta de reserva separada del presupuesto semanal de apuestas. Este fondo no es susceptible de reparto parcial ni de devolución en caso de baja de un integrante (salvo la excepción contemplada en el Artículo 4.4).</li>
+                <li><strong>5.2. Premios Mayores (superiores a 2.000,00 €):</strong> Los premios que superen los 2.000,00 € obligan legalmente a la tramitación y cobro del resguardo oficial en una entidad bancaria concertada por SELAE, presentando el DNI / NIF de la totalidad de los miembros activos que componen la peña en dicho sorteo. De acuerdo con la legislación tributaria española (Ley 16/2012), si el premio supera los 40.000,00 €, la entidad bancaria retendrá automáticamente el 20% en concepto de gravamen especial sobre el importe que exceda de dicha base exenta. Posteriormente, se transferirá la parte líquida neta al número de cuenta (IBAN) individual facilitado por cada socio. Al tratarse de transferencias bancarias para el reparto de estas cantidades (mayores de 2.000,00 € y de 40.000,00 €), cada jugador asumirá de forma individual los posibles gastos o comisiones por transferencia que aplique la entidad bancaria, descontándose dichas comisiones directamente del importe a percibir.</li>
+              </ul>
             </div>
 
             <label class="check-wrap" for="aceptoReglamento">
@@ -479,8 +534,8 @@
     toggleRulesBtn.addEventListener('click', function () {
       const open = rulesDrawer.classList.toggle('open');
       toggleRulesBtn.textContent = open
-        ? 'Ocultar resumen del Reglamento Oficial'
-        : 'Leer resumen del Reglamento Oficial';
+        ? 'Ocultar Reglamento Oficial Completo'
+        : 'Leer Reglamento Oficial Completo';
     });
 
     function validarCampos() {

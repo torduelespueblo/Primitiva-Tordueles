@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
+import { OFFICIAL_CREST_LOGO_DATA_URI } from './pdfLogoData';
 
 export interface PdfDownloadResult {
   success: boolean;
@@ -8,6 +9,61 @@ export interface PdfDownloadResult {
 }
 
 const PDF_FILENAME = 'Reglamento_Oficial_Pena_Primitiva_Tordueles.pdf';
+let cachedRgbaLogoUri: string | null = null;
+
+function convertImageToRgbaDataUri(img: HTMLImageElement): string | null {
+  try {
+    if (!img.complete || !img.naturalWidth || !img.naturalHeight) return null;
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#0A2540';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
+
+function preloadOfficialCrestLogo() {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') return;
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const converted = convertImageToRgbaDataUri(img);
+      if (converted) cachedRgbaLogoUri = converted;
+    };
+    img.src = './assets/logo.png';
+  } catch {
+    // Usar respaldo síncrono integrado
+  }
+}
+
+preloadOfficialCrestLogo();
+
+function getBestSyncLogoDataUri(): string {
+  if (cachedRgbaLogoUri) return cachedRgbaLogoUri;
+
+  if (typeof document !== 'undefined') {
+    const domLogo = document.querySelector<HTMLImageElement>(
+      'img[src*="splash-logo"], img[src*="assets/logo"], img[src*="logo"]'
+    );
+    if (domLogo) {
+      const fromDom = convertImageToRgbaDataUri(domLogo);
+      if (fromDom) {
+        cachedRgbaLogoUri = fromDom;
+        return fromDom;
+      }
+    }
+  }
+
+  return OFFICIAL_CREST_LOGO_DATA_URI;
+}
 
 /**
  * Genera físicamente el documento PDF A4 multipágina con el Reglamento Oficial íntegro
@@ -29,29 +85,38 @@ export function downloadOfficialRulesPdf(): PdfDownloadResult {
 
   let y = 0;
 
-  // Cabecera corporativa en la página 1
+  // Cabecera corporativa en la página 1 con logotipo oficial destacado
   doc.setFillColor(10, 37, 64); // #0A2540
-  doc.rect(0, 0, pageWidth, 34, 'F');
+  doc.rect(0, 0, pageWidth, 38, 'F');
 
   doc.setFillColor(255, 107, 0); // #FF6B00
-  doc.rect(0, 34, pageWidth, 1.8, 'F');
+  doc.rect(0, 38, pageWidth, 1.8, 'F');
+
+  try {
+    const logoUri = getBestSyncLogoDataUri();
+    doc.addImage(logoUri, 'PNG', marginX, 5, 28, 28);
+  } catch {
+    // Continuar con cabecera tipográfica si falla la imagen
+  }
+
+  const headerTextX = marginX + 33;
 
   doc.setTextColor(255, 107, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
-  doc.text('DOCUMENTO OFICIAL VINCULANTE', marginX, 11.5);
+  doc.text('DOCUMENTO OFICIAL VINCULANTE', headerTextX, 12.5);
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text('Peña La Primitiva Tordueles', marginX, 19.5);
+  doc.text('Peña La Primitiva Tordueles', headerTextX, 20.5);
 
   doc.setTextColor(226, 232, 240);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.text(`${OFFICIAL_RULES_TITLE} · Tordueles (Burgos)`, marginX, 27);
+  doc.text(`${OFFICIAL_RULES_TITLE} · Tordueles (Burgos)`, headerTextX, 28);
 
-  y = 45;
+  y = 48;
 
   const ensureSpace = (neededMm: number) => {
     if (y + neededMm > bottomLimit) {
@@ -100,6 +165,16 @@ export function downloadOfficialRulesPdf(): PdfDownloadResult {
       }
 
       y += 2.2;
+
+      if (p.subText) {
+        const subLines = doc.splitTextToSize(p.subText, contentWidth);
+        for (let sLineIdx = 0; sLineIdx < subLines.length; sLineIdx++) {
+          ensureSpace(lineHeight + 2);
+          doc.text(subLines[sLineIdx], marginX, y);
+          y += lineHeight;
+        }
+        y += 1.8;
+      }
 
       if (p.bullets && p.bullets.length > 0) {
         for (let bIdx = 0; bIdx < p.bullets.length; bIdx++) {

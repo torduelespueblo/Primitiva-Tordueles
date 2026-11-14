@@ -218,6 +218,30 @@
   // 2. MÓDULO 2: GENERACIÓN DE PDF PROFESIONAL (html2pdf.js) Y REGLAMENTO HTML
   // ==========================================================================
 
+  function obtenerLogoPdfRgba() {
+    try {
+      const img = document.querySelector('.pdf-doc-header img') || document.querySelector('img[alt*="Tordueles"]');
+      if (img && img.complete && img.naturalWidth > 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 192;
+        canvas.height = 192;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#0A2540';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          return canvas.toDataURL('image/png');
+        }
+      }
+      if (img && img.src && img.src.indexOf('data:image/png') === 0) {
+        return img.src;
+      }
+    } catch (_) {
+      // Continuar sin bloquear la descarga si el lienzo falla
+    }
+    return null;
+  }
+
   function descargarReglamentoPDF() {
     const sourceRules = document.getElementById('rulesScrollContainer');
     if (!sourceRules) return;
@@ -237,25 +261,36 @@
       const bottomLimit = pageHeight - 18;
 
       doc.setFillColor(10, 37, 64);
-      doc.rect(0, 0, pageWidth, 32, 'F');
+      doc.rect(0, 0, pageWidth, 38, 'F');
       doc.setFillColor(255, 107, 0);
-      doc.rect(0, 32, pageWidth, 1.8, 'F');
+      doc.rect(0, 38, pageWidth, 1.8, 'F');
+
+      const logoDataUri = obtenerLogoPdfRgba();
+      let headerTextX = marginX;
+      if (logoDataUri) {
+        try {
+          doc.addImage(logoDataUri, 'PNG', marginX, 5, 28, 28);
+          headerTextX = marginX + 33;
+        } catch (_) {
+          headerTextX = marginX;
+        }
+      }
 
       doc.setTextColor(255, 107, 0);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9.5);
-      doc.text('DOCUMENTO OFICIAL VINCULANTE', marginX, 11);
+      doc.text('DOCUMENTO OFICIAL VINCULANTE', headerTextX, 12);
 
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(15.5);
-      doc.text('Peña La Primitiva Tordueles', marginX, 19);
+      doc.text('Peña La Primitiva Tordueles', headerTextX, 20.5);
 
       doc.setTextColor(226, 232, 240);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      doc.text('Reglamento Oficial de la Peña Primitiva Tordueles · Tordueles (Burgos)', marginX, 26.5);
+      doc.text('Reglamento Oficial de la Peña Primitiva Tordueles · Tordueles (Burgos)', headerTextX, 28.5);
 
-      let y = 43;
+      let y = 47;
       const ensureSpace = function (h) {
         if (y + h > bottomLimit) {
           doc.addPage();

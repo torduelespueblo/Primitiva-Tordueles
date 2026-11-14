@@ -87,6 +87,7 @@ export const OfficialRules: React.FC = () => {
                       )}
                       {p.text}
                     </p>
+                    {p.subText && <p>{p.subText}</p>}
                     {p.bullets && (
                       <div className="bg-[#F4F6F9] p-4 sm:p-5 rounded-2xl border border-slate-200 text-base">
                         <ul className="list-disc pl-5 space-y-2 text-slate-800">

@@ -70,34 +70,40 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({
 
         {/* Scrollable Content */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-base text-slate-700 leading-relaxed">
-          {/* 4 Claves rápidas para entender cómo funciona sin agobios */}
+          {/* Claves rápidas actualizadas para entender cómo funciona sin agobios */}
           <div className="rounded-2xl bg-orange-50/90 border border-orange-200 p-4 sm:p-5 space-y-3">
             <h3 className="font-black text-[#0A2540] text-base sm:text-lg">
-              Cómo funciona la peña en 4 puntos:
+              Cómo funciona la peña en 5 puntos clave:
             </h3>
-            <ul className="space-y-2 text-sm sm:text-base text-slate-800">
+            <ul className="space-y-2.5 text-sm sm:text-base text-slate-800">
               <li className="flex items-start gap-2.5">
                 <span className="font-black text-[#FF6B00] shrink-0">1.</span>
                 <span>
-                  <strong>Cuota fija:</strong> 1,00 €/semana en ciclos cerrados de 10 jornadas (10,00 € por ciclo), renovando entre las jornadas 7 y 9.
+                  <strong>Solo mayores de 18 años y cuota fija:</strong> participación estrictamente reservada a mayores de edad (prohibida a menores). Cuota de 1,00 €/semana en ciclos indivisibles de 10 jornadas (10,00 € por ciclo), renovando entre las jornadas 7 y 9.
                 </span>
               </li>
               <li className="flex items-start gap-2.5">
                 <span className="font-black text-[#FF6B00] shrink-0">2.</span>
                 <span>
-                  <strong>Sin compromiso inicial:</strong> apuntarte en la lista de espera ya te da antigüedad oficial, pero no te obliga a pagar hasta que haya vacante o salto de bloque y confirmes tu entrada.
+                  <strong>Sin compromiso inicial:</strong> apuntarte en la lista de espera te da antigüedad cronológica oficial (sin pedir DNI ni IBAN al alta), pero no te obliga a pagar hasta que haya vacante o salto de bloque y confirmes tu entrada.
                 </span>
               </li>
               <li className="flex items-start gap-2.5">
                 <span className="font-black text-[#FF6B00] shrink-0">3.</span>
                 <span>
-                  <strong>Avisos y plazo de 48h:</strong> si hay bajas o ampliación de la peña, se avisa en el grupo de WhatsApp y de forma individual por orden de lista, con <strong>48 horas</strong> para abonar la cuota.
+                  <strong>Aviso en WhatsApp y 48 horas para suplentes:</strong> si hay bajas, se avisará primero en el grupo oficial de WhatsApp y después de forma individual por orden de lista, disponiendo de <strong>48 horas</strong> para abonar la cuota.
                 </span>
               </li>
               <li className="flex items-start gap-2.5">
                 <span className="font-black text-[#FF6B00] shrink-0">4.</span>
                 <span>
-                  <strong>Premios transparentes:</strong> los premios de hasta 2.000 € van a la Bolsa Común y los mayores de 2.000 € se reparten por banco entre los titulares activos.
+                  <strong>Compromiso con el Juego Responsable (Art. 4.4):</strong> si un integrante o un familiar cercano solicita la baja por dificultades con el juego, se tramitará de forma inmediata, confidencial y preventiva, eximiendo al Administrador de responsabilidad y devolviendo excepcionalmente su parte proporcional del Fondo Común.
+                </span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="font-black text-[#FF6B00] shrink-0">5.</span>
+                <span>
+                  <strong>Premios y comisiones bancarias:</strong> premios hasta 2.000,00 € van al Fondo Común; los mayores (superiores a 2.000,00 € y 40.000,00 €) se transfieren por banco a cada socio activo, asumiendo cada jugador de forma individual los posibles gastos o comisiones de transferencia.
                 </span>
               </li>
             </ul>
@@ -137,7 +143,7 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({
             </div>
 
             {showFullRules && (
-              <div className="px-4 sm:px-5 pb-5 pt-2 border-t border-slate-200 space-y-5 text-sm sm:text-base text-slate-700 bg-white">
+              <div className="px-4 sm:px-5 pb-5 pt-2 border-t border-slate-200 space-y-5 text-base sm:text-[17px] text-slate-700 bg-white leading-relaxed">
                 <p className="font-black text-[#0A2540] pt-1">{OFFICIAL_RULES_TITLE}</p>
                 {OFFICIAL_RULES_SECTIONS.map(section => (
                   <div
@@ -157,8 +163,9 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({
                           )}
                           {p.text}
                         </p>
+                        {p.subText && <p>{p.subText}</p>}
                         {p.bullets && (
-                          <ul className="list-disc pl-5 space-y-1 text-sm sm:text-base">
+                          <ul className="list-disc pl-5 space-y-1 text-base">
                             {p.bullets.map((b, bIdx) => (
                               <li key={bIdx}>{b}</li>
                             ))}

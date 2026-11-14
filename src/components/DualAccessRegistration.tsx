@@ -316,9 +316,9 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
               <ShieldAlert className="w-6 h-6 text-[#FF6B00] shrink-0 mt-0.5" />
               <div className="leading-relaxed">
                 <strong className="block text-[#0A2540] font-bold mb-0.5">
-                  Privacidad en el Alta Inicial (Art. 3.1):
+                  Mayoría de Edad (+18) y Privacidad en el Alta (Art. 3.1):
                 </strong>
-                Por privacidad y seguridad, <strong>NO solicitamos DNI ni IBAN</strong> de entrada. Estos solo se pedirán en caso de cobro de premios mayores a 2.000 €. Tus datos quedarán guardados en el registro oficial por estricto orden de inscripción.
+                La participación está estrictamente reservada a personas <strong>mayores de 18 años</strong>. Por privacidad y seguridad, <strong>NO solicitamos DNI ni IBAN</strong> de entrada; solo se pedirán en caso de cobro de premios mayores a 2.000 €. Tus datos quedarán guardados en el registro oficial por estricto orden de inscripción.
               </div>
             </div>
 
@@ -385,7 +385,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                   </span>
                 </div>
 
-                <div className="h-80 overflow-y-auto bg-[#F4F6F9] border-2 border-slate-300 rounded-2xl p-4 sm:p-5 text-base leading-relaxed text-slate-800 space-y-5 shadow-inner">
+                <div className="h-80 overflow-y-auto bg-[#F4F6F9] border-2 border-slate-300 rounded-2xl p-4 sm:p-5 text-base sm:text-[17px] leading-relaxed text-slate-800 space-y-5 shadow-inner">
                   <h3 className="text-lg font-black text-[#0A2540] border-b border-slate-300 pb-2">
                     {OFFICIAL_RULES_TITLE}
                   </h3>
@@ -405,6 +405,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                             )}
                             {p.text}
                           </p>
+                          {p.subText && <p>{p.subText}</p>}
                           {p.bullets && (
                             <ul className="list-disc pl-5 space-y-1">
                               {p.bullets.map((b, bIdx) => (
