@@ -117,17 +117,24 @@ export const whatsappService = {
       cost: number;
       receiptImageUrl?: string;
       drawDate?: string;
+      ticketIndex?: number;
+      totalTickets?: number;
     },
     customConfig?: Partial<WhatsAppServiceConfig>
   ): Promise<SendResult> {
+    const ticketSuffix =
+      params.totalTickets && params.totalTickets > 1 && params.ticketIndex
+        ? ` (Boleto ${params.ticketIndex} de ${params.totalTickets})`
+        : '';
+
     const caption =
       `🌲 *PEÑA LA PRIMITIVA TORDUELES* 🌲\n` +
       `📅 *Jornada ${params.jornada}/10 (Ciclo ${params.cycle})*\n` +
       `⏰ *Publicación oficial: 20:35 h*\n\n` +
-      `🎟️ *Resguardo Sellado Oficial Validado:*\n` +
+      `🎟️ *Resguardo Sellado Oficial Validado${ticketSuffix}:*\n` +
       `• Jugadores Activos: ${params.players} socios (1€/semana)\n` +
-      `• Presupuesto Jugado: ${params.cost.toFixed(2)} €\n` +
-      `• Tipo de Apuesta: Múltiple de ${params.numbers.length} números (${params.players} apuestas)\n` +
+      `• Presupuesto Boleto: ${params.cost.toFixed(2)} €\n` +
+      `• Tipo de Apuesta: Múltiple de ${params.numbers.length} números\n` +
       `• Números Jugados: ${params.numbers.map(n => (n < 10 ? `0${n}` : n)).join(' - ')}\n` +
       `• Reintegro: [ ${params.reintegro} ]\n` +
       `• Combinación generada aleatoriamente por terminal oficial SELAE.\n\n` +
@@ -138,7 +145,7 @@ export const whatsappService = {
     if (params.receiptImageUrl && params.receiptImageUrl.startsWith('http')) {
       const mediaResult = await this.sendMediaFile(
         params.receiptImageUrl,
-        `resguardo_jornada_${params.jornada}_tordueles.jpg`,
+        `resguardo_jornada_${params.jornada}_${params.ticketIndex || 1}_tordueles.jpg`,
         caption,
         customConfig
       );

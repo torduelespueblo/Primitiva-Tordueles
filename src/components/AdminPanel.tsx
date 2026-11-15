@@ -60,8 +60,37 @@ import {
   CalendarClock,
   Clock,
   Calculator,
-  EyeOff
+  EyeOff,
+  Plus
 } from 'lucide-react';
+
+interface TicketDraftItem {
+  draftId: string;
+  numbers: string;
+  reintegro: number;
+  cost: number;
+  image: string;
+  fileName: string | null;
+  isScanningAI: boolean;
+  scanError: string | null;
+  scanSuccessMessage: string | null;
+  previewCandidateIdx: number;
+  previewLoadFailed: boolean;
+}
+
+const createEmptyDraft = (defaultCost = 14): TicketDraftItem => ({
+  draftId: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  numbers: '',
+  reintegro: 0,
+  cost: defaultCost,
+  image: '',
+  fileName: null,
+  isScanningAI: false,
+  scanError: null,
+  scanSuccessMessage: null,
+  previewCandidateIdx: 0,
+  previewLoadFailed: false,
+});
 
 interface AppInstallationEntry {
   deviceId: string;
@@ -339,44 +368,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   });
 
-  // Formulario nuevo boleto y programación para el día del sorteo
+  // Formulario multi-boleto y programación para el día del sorteo
   const [newTicketJornada, setNewTicketJornada] = useState(settings.currentJornada);
-  const [newTicketCost, setNewTicketCost] = useState(14);
-  const [newTicketNumbers, setNewTicketNumbers] = useState('');
-  const [newTicketReintegro, setNewTicketReintegro] = useState(0);
-  const [newTicketImage, setNewTicketImage] = useState('');
   const [newTicketDrawDate, setNewTicketDrawDate] = useState(() => getNextPrimitivaDrawDate());
   const [newTicketPublishMode, setNewTicketPublishMode] = useState<'PROGRAMADO' | 'AHORA'>('PROGRAMADO');
   const [newTicketPublishTime, setNewTicketPublishTime] = useState('20:35');
+  const [ticketDrafts, setTicketDrafts] = useState<TicketDraftItem[]>(() => [createEmptyDraft(14)]);
   const [isSavingTicket, setIsSavingTicket] = useState(false);
   const [ticketSaveSuccess, setTicketSaveSuccess] = useState(false);
   const [ticketSyncFeedback, setTicketSyncFeedback] = useState<string | null>(null);
+  const [batchSaveError, setBatchSaveError] = useState<string | null>(null);
 
-  // Estados para escaneo de boleto mediante IA
-  const [isScanningAI, setIsScanningAI] = useState(false);
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [scanSuccessMessage, setScanSuccessMessage] = useState<string | null>(null);
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-  const [previewCandidateIdx, setPreviewCandidateIdx] = useState(0);
-  const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
+  const updateDraft = (draftId: string, updater: (prev: TicketDraftItem) => TicketDraftItem) => {
+    setTicketDrafts(prev => prev.map(d => (d.draftId === draftId ? updater(d) : d)));
+  };
 
-  const previewCandidates = getReceiptImageCandidates(newTicketImage);
-  const activePreviewSrc = previewCandidates[previewCandidateIdx] || normalizeReceiptImageUrl(newTicketImage);
-
-  useEffect(() => {
-    setPreviewCandidateIdx(0);
-    setPreviewLoadFailed(false);
-  }, [newTicketImage]);
-
-  const handleFileUploadAndScan = async (file: File) => {
-    setSelectedFileName(file.name);
-    setScanError(null);
-    setScanSuccessMessage(null);
+  const scanFileIntoDraft = async (draftId: string, file: File, syncJornadaFromFirst = false) => {
+    updateDraft(draftId, d => ({
+      ...d,
+      fileName: file.name,
+      isScanningAI: true,
+      scanError: null,
+      scanSuccessMessage: null,
+      previewCandidateIdx: 0,
+      previewLoadFailed: false,
+    }));
 
     let optimizedPayload: File | string = file;
     try {
       const dataUrl = await optimizeTicketImageToDataUrl(file);
-      setNewTicketImage(dataUrl);
+      updateDraft(draftId, d => ({
+        ...d,
+        image: dataUrl,
+        previewCandidateIdx: 0,
+        previewLoadFailed: false,
+      }));
       if (file.type.startsWith('image/')) {
         optimizedPayload = dataUrl;
       }
@@ -384,33 +410,89 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       // Si falla la optimización local, continuar con archivo original
     }
 
-    // Iniciar extracción mediante IA en el backend
-    setIsScanningAI(true);
     const result = await processTicketWithAI(optimizedPayload, file.type);
-    setIsScanningAI(false);
 
     if (result.success && result.data) {
       const data = result.data;
-      if (data.numbers && data.numbers.length > 0) {
-        setNewTicketNumbers(data.numbers.map(n => (n < 10 ? `0${n}` : `${n}`)).join(', '));
-      }
-      if (typeof data.jornada === 'number' && !isNaN(data.jornada) && data.jornada >= 1 && data.jornada <= 10) {
+      if (syncJornadaFromFirst && typeof data.jornada === 'number' && !isNaN(data.jornada) && data.jornada >= 1 && data.jornada <= 10) {
         setNewTicketJornada(data.jornada);
       }
-      if (typeof data.reintegro === 'number' && !isNaN(data.reintegro)) {
-        setNewTicketReintegro(data.reintegro);
-      }
-      if (typeof data.cost === 'number' && !isNaN(data.cost) && data.cost > 0) {
-        setNewTicketCost(data.cost);
-      }
-      setScanSuccessMessage(
-        `¡Boleto analizado con IA! Se han detectado ${data.numbers?.length || 0} números${data.jornada ? `, Jornada ${data.jornada}` : ''}${data.reintegro !== undefined && data.reintegro !== null ? `, Reintegro [${data.reintegro}]` : ''}${data.cost ? ` y coste ${data.cost}€` : ''}. ${data.notes || ''}`
-      );
+      updateDraft(draftId, d => ({
+        ...d,
+        isScanningAI: false,
+        numbers:
+          data.numbers && data.numbers.length > 0
+            ? data.numbers.map(n => (n < 10 ? `0${n}` : `${n}`)).join(', ')
+            : d.numbers,
+        reintegro:
+          typeof data.reintegro === 'number' && !isNaN(data.reintegro)
+            ? data.reintegro
+            : d.reintegro,
+        cost:
+          typeof data.cost === 'number' && !isNaN(data.cost) && data.cost > 0
+            ? data.cost
+            : d.cost,
+        scanSuccessMessage: `¡Boleto analizado con IA! ${data.numbers?.length || 0} números${
+          data.reintegro !== undefined && data.reintegro !== null ? `, Reintegro [${data.reintegro}]` : ''
+        }${data.cost ? `, importe ${data.cost} €` : ''}. ${data.notes || ''}`,
+      }));
     } else {
-      setScanError(
-        result.error || 'No se pudieron extraer los números automáticamente. La imagen real sí queda cargada para los jugadores; introduce los números manualmente abajo.'
-      );
+      updateDraft(draftId, d => ({
+        ...d,
+        isScanningAI: false,
+        scanError:
+          result.error ||
+          'No se pudieron extraer los números automáticamente. La imagen real sí queda cargada para los jugadores; introduce los números manualmente en este bloque.',
+      }));
     }
+  };
+
+  const handleMultipleFilesUploadAndScan = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+    setBatchSaveError(null);
+    setTicketSyncFeedback(null);
+
+    const firstIsPristine =
+      ticketDrafts.length === 1 &&
+      !ticketDrafts[0].image &&
+      !ticketDrafts[0].numbers.trim() &&
+      !ticketDrafts[0].fileName;
+
+    const assignedPairs: Array<{ draftId: string; file: File; isFirst: boolean }> = [];
+
+    if (firstIsPristine) {
+      assignedPairs.push({ draftId: ticketDrafts[0].draftId, file: files[0], isFirst: true });
+      const extraDrafts = files.slice(1).map((f, i) => {
+        const nd = createEmptyDraft(14);
+        assignedPairs.push({ draftId: nd.draftId, file: f, isFirst: i === -1 });
+        return nd;
+      });
+      if (extraDrafts.length > 0) {
+        setTicketDrafts(prev => [...prev, ...extraDrafts]);
+      }
+    } else {
+      const addedDrafts = files.map(f => {
+        const nd = createEmptyDraft(14);
+        assignedPairs.push({ draftId: nd.draftId, file: f, isFirst: false });
+        return nd;
+      });
+      setTicketDrafts(prev => [...prev, ...addedDrafts]);
+    }
+
+    await Promise.all(
+      assignedPairs.map(pair => scanFileIntoDraft(pair.draftId, pair.file, pair.isFirst))
+    );
+  };
+
+  const handleAddDraftSlot = () => {
+    setBatchSaveError(null);
+    setTicketDrafts(prev => [...prev, createEmptyDraft(14)]);
+  };
+
+  const handleRemoveDraftSlot = (draftId: string) => {
+    setBatchSaveError(null);
+    setTicketDrafts(prev => (prev.length > 1 ? prev.filter(d => d.draftId !== draftId) : [createEmptyDraft(14)]));
   };
 
   // Formulario de escrutinio manual
@@ -534,14 +616,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleSaveTicket = async () => {
-    const nums = newTicketNumbers
-      .split(/[,;\s-]+/)
-      .map(s => parseInt(s.trim(), 10))
-      .filter(n => !isNaN(n) && n >= 1 && n <= 49);
+    const parsedBatch: Array<{
+      draft: TicketDraftItem;
+      nums: number[];
+    }> = [];
 
-    if (nums.length === 0) {
-      setScanError('Introduce al menos los números de la combinación jugada antes de guardar el resguardo.');
-      return;
+    for (let i = 0; i < ticketDrafts.length; i++) {
+      const draft = ticketDrafts[i];
+      const nums = draft.numbers
+        .split(/[,;\s-]+/)
+        .map(s => parseInt(s.trim(), 10))
+        .filter(n => !isNaN(n) && n >= 1 && n <= 49);
+
+      if (nums.length === 0) {
+        setBatchSaveError(
+          `El Boleto #${i + 1} no tiene números válidos (1-49). Escribe su combinación manualmente o quita ese bloque antes de guardar.`
+        );
+        return;
+      }
+      parsedBatch.push({ draft, nums });
     }
 
     const drawDateClean = newTicketDrawDate || getNextPrimitivaDrawDate();
@@ -553,108 +646,145 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       isNaN(publishAtDate.getTime()) ||
       publishAtDate.getTime() <= Date.now();
 
-    const inferredBetType: MultipleBetType =
-      nums.length === 5
-        ? 'MULTIPLE_5'
-        : nums.length === 7
-        ? 'MULTIPLE_7'
-        : nums.length === 8
-        ? 'MULTIPLE_8'
-        : nums.length === 9
-        ? 'MULTIPLE_9'
-        : nums.length === 10
-        ? 'MULTIPLE_10'
-        : nums.length === 11
-        ? 'MULTIPLE_11'
-        : 'COMBINADA';
-
     const activePlayersCount = players.filter(p => p.status === 'TITULAR').length;
 
-    const normalizedInputImage = normalizeReceiptImageUrl(newTicketImage);
-
-    const newTicket: TicketDraw = {
-      id: `t-${Date.now()}`,
-      cycleNumber: settings.currentCycle,
-      jornadaNumber: newTicketJornada,
-      drawDate: drawDateClean,
-      receiptImageUrl: normalizedInputImage,
-      betType: inferredBetType,
-      numbersPlayedCount: nums.length,
-      cost: newTicketCost,
-      activePlayersCount,
-      costPerPlayer: 1.0,
-      playedNumbers: nums,
-      playedReintegro: newTicketReintegro,
-      jokerPlayed: true,
-      isScrutinized: false,
-      totalPrize: 0,
-      prizeType: 'NINGUNO',
-      publishStatus: shouldPublishImmediately ? 'PUBLICADO' : 'PROGRAMADO',
-      publishAt: publishAtIso,
-      scheduledNotificationSent: shouldPublishImmediately,
-    };
-
     setIsSavingTicket(true);
-    setScanError(null);
+    setBatchSaveError(null);
     setTicketSyncFeedback(null);
 
-    const syncRes = await syncTicketWithAppsScript(settings.googleAppsScriptUrl, {
-      id: newTicket.id,
-      ciclo: settings.currentCycle,
-      jornada: newTicketJornada,
-      fechaSorteo: drawDateClean,
-      horaPublicacion: publishTimeClean,
-      publicarAhora: shouldPublishImmediately,
-      combinacion: nums.map(n => (n < 10 ? `0${n}` : `${n}`)).join(', '),
-      reintegro: newTicketReintegro,
-      importe: newTicketCost,
-      jugadoresActivos: activePlayersCount,
-      imagenBase64: newTicketImage.startsWith('data:') ? newTicketImage : undefined,
-      imagenUrl: !newTicketImage.startsWith('data:') ? normalizedInputImage : undefined,
-      fileName: selectedFileName || `resguardo_j${newTicketJornada}_${drawDateClean}.jpg`,
-    });
+    const baseTs = Date.now();
+    let updatedTicketsList = [...tickets];
+    let syncedCount = 0;
+    const savedBatchTickets: Array<{ ticket: TicketDraw; alreadySentWaByGas: boolean }> = [];
 
-    const ticketToStore: TicketDraw = {
-      ...newTicket,
-      receiptImageUrl: normalizeReceiptImageUrl(syncRes.driveImageUrl || newTicket.receiptImageUrl),
-    };
+    for (let idx = 0; idx < parsedBatch.length; idx++) {
+      const { draft, nums } = parsedBatch[idx];
+      const inferredBetType: MultipleBetType =
+        nums.length === 5
+          ? 'MULTIPLE_5'
+          : nums.length === 7
+          ? 'MULTIPLE_7'
+          : nums.length === 8
+          ? 'MULTIPLE_8'
+          : nums.length === 9
+          ? 'MULTIPLE_9'
+          : nums.length === 10
+          ? 'MULTIPLE_10'
+          : nums.length === 11
+          ? 'MULTIPLE_11'
+          : 'COMBINADA';
 
-    onUpdateTickets(archivePreviousPendingTicketsForNewSchedule(tickets, ticketToStore));
+      const normalizedInputImage = normalizeReceiptImageUrl(draft.image);
+      const safeCost = isNaN(draft.cost) || draft.cost < 0 ? 0 : draft.cost;
+      const safeReintegro = isNaN(draft.reintegro) ? 0 : draft.reintegro;
+
+      const newTicket: TicketDraw = {
+        id: `t-${baseTs}-${idx + 1}`,
+        cycleNumber: settings.currentCycle,
+        jornadaNumber: newTicketJornada,
+        drawDate: drawDateClean,
+        receiptImageUrl: normalizedInputImage,
+        betType: inferredBetType,
+        numbersPlayedCount: nums.length,
+        cost: safeCost,
+        activePlayersCount,
+        costPerPlayer: 1.0,
+        playedNumbers: nums,
+        playedReintegro: safeReintegro,
+        jokerPlayed: true,
+        isScrutinized: false,
+        totalPrize: 0,
+        prizeType: 'NINGUNO',
+        publishStatus: shouldPublishImmediately ? 'PUBLICADO' : 'PROGRAMADO',
+        publishAt: publishAtIso,
+        scheduledNotificationSent: shouldPublishImmediately,
+      };
+
+      const syncRes = await syncTicketWithAppsScript(settings.googleAppsScriptUrl, {
+        id: newTicket.id,
+        ciclo: settings.currentCycle,
+        jornada: newTicketJornada,
+        fechaSorteo: drawDateClean,
+        horaPublicacion: publishTimeClean,
+        publicarAhora: shouldPublishImmediately,
+        combinacion: nums.map(n => (n < 10 ? `0${n}` : `${n}`)).join(', '),
+        reintegro: safeReintegro,
+        importe: safeCost,
+        jugadoresActivos: activePlayersCount,
+        imagenBase64: draft.image.startsWith('data:') ? draft.image : undefined,
+        imagenUrl: !draft.image.startsWith('data:') ? normalizedInputImage : undefined,
+        fileName: draft.fileName || `resguardo_j${newTicketJornada}_b${idx + 1}_${drawDateClean}.jpg`,
+      });
+
+      if (syncRes.synced) syncedCount++;
+
+      const ticketToStore: TicketDraw = {
+        ...newTicket,
+        receiptImageUrl: normalizeReceiptImageUrl(syncRes.driveImageUrl || newTicket.receiptImageUrl),
+      };
+
+      updatedTicketsList = archivePreviousPendingTicketsForNewSchedule(
+        updatedTicketsList,
+        ticketToStore
+      );
+      savedBatchTickets.push({
+        ticket: ticketToStore,
+        alreadySentWaByGas: Boolean(syncRes.whatsappEnviadoAhora),
+      });
+    }
+
+    onUpdateTickets(updatedTicketsList);
     setIsSavingTicket(false);
     setTicketSaveSuccess(true);
+    setTicketDrafts([createEmptyDraft(14)]);
+
+    const totalBoletos = savedBatchTickets.length;
 
     if (shouldPublishImmediately) {
-      pushNotificationService.notifyTicketValidated(newTicketJornada, nums);
-      if (settings.sendDrawDayTicketAt2035) {
-        whatsappService.sendTicketReceipt(
-          {
-            jornada: newTicketJornada,
-            cycle: settings.currentCycle,
-            numbers: nums,
-            reintegro: newTicketReintegro,
-            players: activePlayersCount,
-            cost: newTicketCost,
-            receiptImageUrl: ticketToStore.receiptImageUrl,
-            drawDate: drawDateClean,
-          },
-          {
-            instanceId: settings.greenApiInstanceId,
-            token: settings.greenApiToken,
-            chatId: settings.greenApiChatId,
-          }
+      if (savedBatchTickets.length > 0) {
+        pushNotificationService.notifyTicketValidated(
+          newTicketJornada,
+          savedBatchTickets[0].ticket.playedNumbers
         );
       }
+
+      if (settings.sendDrawDayTicketAt2035) {
+        for (let idx = 0; idx < savedBatchTickets.length; idx++) {
+          const item = savedBatchTickets[idx];
+          if (item.alreadySentWaByGas) continue;
+          await whatsappService.sendTicketReceipt(
+            {
+              jornada: item.ticket.jornadaNumber,
+              cycle: item.ticket.cycleNumber,
+              numbers: item.ticket.playedNumbers,
+              reintegro: item.ticket.playedReintegro,
+              players: activePlayersCount,
+              cost: item.ticket.cost,
+              receiptImageUrl: item.ticket.receiptImageUrl,
+              drawDate: drawDateClean,
+              ticketIndex: idx + 1,
+              totalTickets: totalBoletos,
+            },
+            {
+              instanceId: settings.greenApiInstanceId,
+              token: settings.greenApiToken,
+              chatId: settings.greenApiChatId,
+            }
+          );
+        }
+      }
+
       setTicketSyncFeedback(
-        syncRes.synced
-          ? 'Resguardo publicado en la App, guardado en Drive/Sheets y notificado al grupo.'
-          : 'Resguardo publicado en este dispositivo y notificado (actualiza Apps Script si deseas respaldo automático en Sheets/Drive).'
+        syncedCount === totalBoletos
+          ? `${totalBoletos} ${totalBoletos === 1 ? 'resguardo publicado' : 'resguardos publicados'} en «Mi Jugada», guardados en Drive/Sheets y notificados al grupo.`
+          : `${totalBoletos} ${totalBoletos === 1 ? 'resguardo publicado' : 'resguardos publicados'} localmente (${syncedCount}/${totalBoletos} sincronizados en Apps Script).`
       );
     } else {
       const label = formatScheduledDateTimeLabel(publishAtIso, drawDateClean);
       setTicketSyncFeedback(
-        syncRes.synced
-          ? `Programado para el ${label}. No se ha mostrado a los socios ni enviado avisos todavía; Apps Script lo publicará y enviará por WhatsApp ese día a las ${publishTimeClean} h.`
-          : `Programado localmente para el ${label} (oculto en «Mi Jugada» hasta esa hora). Nota: despliega la última versión de WebApp.gs / Code.gs en Apps Script para que el envío por WhatsApp a las ${publishTimeClean} h funcione aunque tengas la App cerrada.`
+        syncedCount === totalBoletos
+          ? `${totalBoletos} ${totalBoletos === 1 ? 'resguardo programado' : 'resguardos programados'} para el ${label}. Se publicarán y enviarán por WhatsApp ese día a las ${publishTimeClean} h.`
+          : `${totalBoletos} ${totalBoletos === 1 ? 'resguardo programado' : 'resguardos programados'} localmente para el ${label} (${syncedCount}/${totalBoletos} en Apps Script).`
       );
     }
 
@@ -674,8 +804,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
     onUpdateTickets(updated);
 
+    const syncRes = await syncTicketWithAppsScript(settings.googleAppsScriptUrl, {
+      id: ticket.id,
+      ciclo: ticket.cycleNumber,
+      jornada: ticket.jornadaNumber,
+      fechaSorteo: ticket.drawDate,
+      horaPublicacion: new Date().toTimeString().slice(0, 5),
+      publicarAhora: true,
+      combinacion: ticket.playedNumbers.map(n => (n < 10 ? `0${n}` : `${n}`)).join(', '),
+      reintegro: ticket.playedReintegro,
+      importe: ticket.cost,
+      jugadoresActivos: ticket.activePlayersCount,
+      imagenUrl: ticket.receiptImageUrl,
+    });
+
     pushNotificationService.notifyTicketValidated(ticket.jornadaNumber, ticket.playedNumbers);
-    if (settings.sendDrawDayTicketAt2035) {
+    if (settings.sendDrawDayTicketAt2035 && !syncRes.whatsappEnviadoAhora) {
       await whatsappService.sendTicketReceipt(
         {
           jornada: ticket.jornadaNumber,
@@ -697,9 +841,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTicketSyncFeedback(`Resguardo de la Jornada ${ticket.jornadaNumber} publicado y notificado ahora.`);
   };
 
-  const handleDeleteScheduledTicket = (ticketId: string) => {
+  const handleDeleteScheduledTicket = async (ticketId: string) => {
     onUpdateTickets(tickets.filter(t => t.id !== ticketId));
-    setTicketSyncFeedback('Boleto programado eliminado antes de su publicación.');
+    const endpoint = getCleanGasUrl();
+    if (endpoint && adminPassword) {
+      try {
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'eliminarBoletoActivo',
+            id: ticketId,
+            password: adminPassword,
+          }),
+        });
+      } catch {
+        // Silencioso; ya eliminado localmente
+      }
+    }
+    setTicketSyncFeedback('Resguardo eliminado correctamente de «Mi Jugada» y de la base de datos.');
   };
 
   const syncPrizeFundToBackend = async (
@@ -1965,29 +2125,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         );
       })()}
 
-      {/* SECTION 3: TICKET UPLOAD */}
+      {/* SECTION 3: TICKET UPLOAD (SOPORTE MULTI-BOLETO E IMÁGENES MÚLTIPLES) */}
       {activeSection === 'TICKET_UPLOAD' && (
         <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
-          <div>
-            <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
-              <Upload className="w-6 h-6 text-[#FF6B00]" />
-              Subir y Publicar Resguardo Oficial Sellado
-            </h2>
-            <p className="text-base text-slate-600 mt-1">
-              Sube la imagen o PDF del boleto sellado para extraer automáticamente los números jugados mediante IA.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
+                <Upload className="w-6 h-6 text-[#FF6B00]" />
+                Subir y Publicar Resguardos Oficiales Sellados
+              </h2>
+              <p className="text-base text-slate-600 mt-1">
+                Sube <strong>una o varias fotos/PDF</strong> a la vez para extraer sus números con IA, o pulsa <strong>«+ Añadir otro boleto»</strong> para escribir múltiples combinaciones manualmente en la misma jornada.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-[#0A2540] text-white px-4 py-2.5 shrink-0 tabular-nums">
+              <span className="text-xs uppercase font-bold text-slate-300 block">En preparación</span>
+              <span className="text-lg font-black text-[#FF6B00]">
+                {ticketDrafts.length} {ticketDrafts.length === 1 ? 'boleto' : 'boletos'} ·{' '}
+                {ticketDrafts.reduce((s, d) => s + (isNaN(d.cost) ? 0 : d.cost), 0).toFixed(2)} €
+              </span>
+            </div>
           </div>
 
+          {/* Zona de subida múltiple de imágenes/PDF */}
           <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-[#F4F6F9] p-5 sm:p-6 text-center transition hover:border-[#0A2540]">
             <input
               type="file"
               id="ticket-file-input"
+              multiple
               accept="image/*,application/pdf"
               className="hidden"
               onChange={e => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  handleFileUploadAndScan(file);
+                if (e.target.files && e.target.files.length > 0) {
+                  handleMultipleFilesUploadAndScan(e.target.files);
+                  e.target.value = '';
                 }
               }}
             />
@@ -1996,7 +2167,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               className="cursor-pointer flex flex-col items-center justify-center gap-3 select-none"
             >
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0A2540] text-[#FF6B00] shadow-xs">
-                {isScanningAI ? (
+                {ticketDrafts.some(d => d.isScanningAI) ? (
                   <Loader2 className="w-7 h-7 animate-spin" />
                 ) : (
                   <Sparkles className="w-7 h-7" />
@@ -2004,52 +2175,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
               <div>
                 <span className="text-base sm:text-lg font-extrabold text-[#0A2540] block">
-                  {isScanningAI
-                    ? 'Analizando resguardo con IA...'
-                    : selectedFileName
-                    ? `Archivo: ${selectedFileName}`
-                    : 'Subir Imagen o PDF del Boleto'}
+                  {ticketDrafts.some(d => d.isScanningAI)
+                    ? 'Analizando resguardos con IA...'
+                    : 'Subir 1 o Varias Imágenes / PDF de Boletos'}
                 </span>
                 <span className="text-sm sm:text-base text-slate-600 block mt-1">
-                  JPG, PNG, WEBP o PDF · Extracción automática de números y reintegro
+                  Puedes seleccionar varios resguardos de la galería a la vez · Cada archivo crea su propia ficha con extracción automática de números
                 </span>
               </div>
               <div className="mt-1 inline-flex items-center gap-2 px-5 min-h-[46px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white text-base font-bold transition shadow-xs">
                 <FileUp className="w-5 h-5 text-[#FF6B00]" />
-                <span>{selectedFileName ? 'Cambiar Archivo' : 'Seleccionar Archivo'}</span>
+                <span>Seleccionar Imágenes / PDF</span>
               </div>
             </label>
-
-            {isScanningAI && (
-              <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-base font-bold text-[#0A2540] border border-slate-200 animate-pulse">
-                <Loader2 className="w-5 h-5 animate-spin text-[#FF6B00]" />
-                <span>Escaneando números del boleto...</span>
-              </div>
-            )}
-
-            {scanSuccessMessage && (
-              <div className="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-base text-emerald-950 flex items-start gap-2.5 text-left">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold block">Extracción completada</span>
-                  <span>{scanSuccessMessage}</span>
-                </div>
-              </div>
-            )}
-
-            {scanError && (
-              <div className="mt-4 p-4 rounded-xl bg-orange-50 border border-orange-200 text-base text-[#0A2540] flex items-start gap-2.5 text-left">
-                <AlertTriangle className="w-5 h-5 text-[#FF6B00] shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold block">Aviso del escáner:</span>
-                  <span>{scanError}</span>
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-base">
-            <div className="space-y-4">
+          {/* Datos comunes de la Jornada y Programación */}
+          <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-4 sm:p-5 space-y-4 text-base">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="font-bold text-[#0A2540] block mb-1.5">Jornada del Ciclo:</label>
                 <input
@@ -2057,238 +2200,373 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   min={1}
                   max={10}
                   value={newTicketJornada}
-                  onChange={e => setNewTicketJornada(parseInt(e.target.value, 10))}
-                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono"
+                  onChange={e => setNewTicketJornada(parseInt(e.target.value, 10) || 1)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
                 />
               </div>
-
               <div>
-                <label className="font-bold text-[#0A2540] block mb-1.5">
-                  Combinación Jugada:
-                </label>
+                <label className="font-bold text-[#0A2540] block mb-1.5">Fecha del Sorteo:</label>
                 <input
-                  type="text"
-                  value={newTicketNumbers}
-                  onChange={e => setNewTicketNumbers(e.target.value)}
-                  placeholder="07, 13, 22, 34, 49"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
+                  type="date"
+                  value={newTicketDrawDate}
+                  onChange={e => setNewTicketDrawDate(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-[#0A2540] block mb-1.5">Reintegro (0-9):</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={9}
-                    value={newTicketReintegro}
-                    onChange={e => setNewTicketReintegro(parseInt(e.target.value, 10))}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-[#0A2540] block mb-1.5">Coste Total (€):</label>
-                  <input
-                    type="number"
-                    value={newTicketCost}
-                    onChange={e => setNewTicketCost(parseFloat(e.target.value))}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-emerald-800"
-                  />
-                </div>
+              <div>
+                <label className="font-bold text-[#0A2540] block mb-1.5">Hora de Publicación:</label>
+                <input
+                  type="time"
+                  value={newTicketPublishTime}
+                  disabled={newTicketPublishMode === 'AHORA'}
+                  onChange={e => setNewTicketPublishTime(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540] disabled:bg-slate-100 disabled:text-slate-400"
+                />
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-[#0A2540] block mb-1.5">Fecha del Sorteo:</label>
-                  <input
-                    type="date"
-                    value={newTicketDrawDate}
-                    onChange={e => setNewTicketDrawDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-[#0A2540] block mb-1.5">Hora de Publicación:</label>
-                  <input
-                    type="time"
-                    value={newTicketPublishTime}
-                    disabled={newTicketPublishMode === 'AHORA'}
-                    onChange={e => setNewTicketPublishTime(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540] disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-4 space-y-2.5">
-                <span className="font-bold text-[#0A2540] text-sm uppercase tracking-wider block">
-                  Momento de publicación y envío de avisos
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setNewTicketPublishMode('PROGRAMADO')}
+                className={`p-3 rounded-xl border-2 text-left transition cursor-pointer ${
+                  newTicketPublishMode === 'PROGRAMADO'
+                    ? 'border-[#FF6B00] bg-orange-50 text-[#0A2540]'
+                    : 'border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                <span className="font-extrabold text-sm flex items-center gap-1.5">
+                  <CalendarClock className="w-4 h-4 text-[#FF6B00] shrink-0" />
+                  Programar todos al día del sorteo
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setNewTicketPublishMode('PROGRAMADO')}
-                    className={`p-3 rounded-xl border-2 text-left transition cursor-pointer ${
-                      newTicketPublishMode === 'PROGRAMADO'
-                        ? 'border-[#FF6B00] bg-orange-50 text-[#0A2540]'
-                        : 'border-slate-200 bg-white text-slate-600'
-                    }`}
-                  >
-                    <span className="font-extrabold text-sm flex items-center gap-1.5">
-                      <CalendarClock className="w-4 h-4 text-[#FF6B00] shrink-0" />
-                      Programar al día del sorteo
-                    </span>
-                    <span className="text-xs text-slate-600 block mt-1">
-                      Se guarda oculto y se publica + envía por WhatsApp el día elegido ({newTicketPublishTime} h).
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewTicketPublishMode('AHORA')}
-                    className={`p-3 rounded-xl border-2 text-left transition cursor-pointer ${
-                      newTicketPublishMode === 'AHORA'
-                        ? 'border-[#0A2540] bg-slate-100 text-[#0A2540]'
-                        : 'border-slate-200 bg-white text-slate-600'
-                    }`}
-                  >
-                    <span className="font-extrabold text-sm flex items-center gap-1.5">
-                      <Send className="w-4 h-4 text-[#0A2540] shrink-0" />
-                      Publicar y avisar ahora
-                    </span>
-                    <span className="text-xs text-slate-600 block mt-1">
-                      Visible al instante en «Mi Jugada» y envía WhatsApp + Push ahora mismo.
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-[#0A2540] block mb-1.5">URL o Imagen del Resguardo:</label>
-                <input
-                  type="text"
-                  value={newTicketImage.startsWith('data:') ? 'Imagen digital cargada (Base64)' : newTicketImage}
-                  onChange={e => {
-                    if (!newTicketImage.startsWith('data:')) {
-                      setNewTicketImage(e.target.value);
-                    }
-                  }}
-                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono text-sm sm:text-base"
-                />
-              </div>
+                <span className="text-xs text-slate-600 block mt-1">
+                  Se guardan ocultos y se publican + envían por WhatsApp el día elegido ({newTicketPublishTime} h).
+                </span>
+              </button>
 
               <button
                 type="button"
-                disabled={isSavingTicket}
-                onClick={handleSaveTicket}
-                className="w-full min-h-[50px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] disabled:opacity-60 text-white font-bold text-base shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+                onClick={() => setNewTicketPublishMode('AHORA')}
+                className={`p-3 rounded-xl border-2 text-left transition cursor-pointer ${
+                  newTicketPublishMode === 'AHORA'
+                    ? 'border-[#0A2540] bg-slate-100 text-[#0A2540]'
+                    : 'border-slate-200 bg-white text-slate-600'
+                }`}
               >
-                {isSavingTicket ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Guardando y sincronizando...</span>
-                  </>
-                ) : ticketSaveSuccess ? (
-                  <span>
-                    {newTicketPublishMode === 'PROGRAMADO'
-                      ? '¡Resguardo Programado Correctamente!'
-                      : '¡Resguardo Publicado y Notificado!'}
-                  </span>
-                ) : (
-                  <span>
-                    {newTicketPublishMode === 'PROGRAMADO'
-                      ? `Programar Resguardo para el ${newTicketDrawDate} (${newTicketPublishTime} h)`
-                      : 'Publicar y Notificar Resguardo Ahora'}
-                  </span>
-                )}
+                <span className="font-extrabold text-sm flex items-center gap-1.5">
+                  <Send className="w-4 h-4 text-[#0A2540] shrink-0" />
+                  Publicar y avisar todos ahora
+                </span>
+                <span className="text-xs text-slate-600 block mt-1">
+                  Visibles al instante en «Mi Jugada» y envía WhatsApp + Push ahora mismo.
+                </span>
               </button>
-
-              {ticketSyncFeedback && (
-                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-950 font-semibold leading-relaxed">
-                  {ticketSyncFeedback}
-                </div>
-              )}
-            </div>
-
-            <div className="border border-slate-200 rounded-2xl p-5 bg-[#F4F6F9] flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-sm font-bold text-slate-600 uppercase">
-                    Vista Previa del Resguardo (Visible al publicarse)
-                  </span>
-                  {newTicketImage && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewTicketImage('');
-                        setSelectedFileName(null);
-                      }}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-rose-700 hover:underline cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Quitar</span>
-                    </button>
-                  )}
-                </div>
-                <div className="relative rounded-xl overflow-hidden border border-slate-300 min-h-56 max-h-80 bg-white flex items-center justify-center p-2">
-                  {selectedFileName?.toLowerCase().endsWith('.pdf') || newTicketImage.startsWith('data:application/pdf') ? (
-                    <div className="p-4 text-center">
-                      <FileText className="w-12 h-12 text-rose-600 mx-auto mb-1" />
-                      <span className="text-base font-bold text-[#0A2540] block truncate max-w-xs">
-                        {selectedFileName || 'resguardo.pdf'}
-                      </span>
-                      <span className="text-sm text-slate-600">Documento PDF listo para publicar</span>
-                    </div>
-                  ) : newTicketImage && !previewLoadFailed ? (
-                    <img
-                      src={activePreviewSrc}
-                      alt="Boleto sellado"
-                      referrerPolicy="no-referrer"
-                      className="max-h-72 w-auto max-w-full object-contain"
-                      onError={() => {
-                        if (previewCandidateIdx + 1 < previewCandidates.length) {
-                          setPreviewCandidateIdx(prev => prev + 1);
-                        } else {
-                          setPreviewLoadFailed(true);
-                        }
-                      }}
-                    />
-                  ) : newTicketImage ? (
-                    <div className="p-4 text-center text-slate-600 space-y-1.5">
-                      <AlertTriangle className="w-9 h-9 text-amber-500 mx-auto" />
-                      <span className="text-sm font-bold text-[#0A2540] block">
-                        Imagen guardada (vista previa bloqueada por el navegador)
-                      </span>
-                      <span className="text-xs text-slate-500 block">
-                        Al guardar, la App aplicará la ruta segura de Google Drive / Apps Script.
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="p-4 text-center text-slate-600">
-                      <Upload className="w-10 h-10 text-slate-400 mx-auto mb-1.5" />
-                      <span className="text-sm font-semibold block">
-                        Sube la foto o PDF del boleto sellado
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 p-4 bg-white rounded-xl border border-slate-200 text-base space-y-1.5">
-                <div><strong>Jornada:</strong> {newTicketJornada}/10 · <strong>Sorteo:</strong> {newTicketDrawDate}</div>
-                <div><strong>Combinación:</strong> {newTicketNumbers || 'Pendiente de introducir'}</div>
-                <div><strong>Reintegro:</strong> [{newTicketReintegro}] · <strong>Coste:</strong> {newTicketCost.toFixed(2)} €</div>
-                <div className="text-sm text-[#FF6B00] font-bold flex items-center gap-1.5 pt-1">
-                  <Clock className="w-4 h-4 shrink-0" />
-                  <span>
-                    {newTicketPublishMode === 'PROGRAMADO'
-                      ? `Publicación programada: ${newTicketDrawDate} a las ${newTicketPublishTime} h`
-                      : 'Publicación inmediata al guardar'}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
+
+          {/* Tarjetas individuales por cada Boleto / Resguardo de la Jornada */}
+          <div className="space-y-4">
+            {ticketDrafts.map((draft, idx) => {
+              const draftCandidates = getReceiptImageCandidates(draft.image);
+              const draftPreviewSrc =
+                draftCandidates[draft.previewCandidateIdx] || normalizeReceiptImageUrl(draft.image);
+              const individualInputId = `ticket-file-single-${draft.draftId}`;
+
+              return (
+                <div
+                  key={draft.draftId}
+                  className="rounded-2xl border-2 border-slate-200 bg-white p-4 sm:p-5 space-y-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <span className="px-3 py-1 rounded-xl bg-[#0A2540] text-white text-sm font-black">
+                        Boleto #{idx + 1}
+                      </span>
+                      {draft.fileName && (
+                        <span className="text-xs sm:text-sm font-mono text-slate-600 truncate max-w-[220px]">
+                          {draft.fileName}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="file"
+                        id={individualInputId}
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            scanFileIntoDraft(draft.draftId, file, idx === 0);
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={individualInputId}
+                        className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white text-xs sm:text-sm font-bold cursor-pointer transition"
+                      >
+                        <FileUp className="w-4 h-4 text-[#FF6B00]" />
+                        <span>{draft.image ? 'Cambiar foto' : 'Subir foto boleto'}</span>
+                      </label>
+
+                      {ticketDrafts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDraftSlot(draft.draftId)}
+                          className="inline-flex items-center gap-1 px-3 min-h-[40px] rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs sm:text-sm font-bold cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Quitar</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {draft.isScanningAI && (
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 text-sm font-bold text-[#0A2540] border border-blue-200 animate-pulse">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#FF6B00]" />
+                      <span>Escaneando números del Boleto #{idx + 1} con IA...</span>
+                    </div>
+                  )}
+
+                  {draft.scanSuccessMessage && (
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-950 flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>{draft.scanSuccessMessage}</span>
+                    </div>
+                  )}
+
+                  {draft.scanError && (
+                    <div className="p-3 rounded-xl bg-orange-50 border border-orange-200 text-sm text-[#0A2540] flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-[#FF6B00] shrink-0 mt-0.5" />
+                      <span>{draft.scanError}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-base">
+                    <div className="space-y-3.5">
+                      <div>
+                        <label className="font-bold text-[#0A2540] block mb-1.5">
+                          Combinación Jugada (Boleto #{idx + 1}):
+                        </label>
+                        <input
+                          type="text"
+                          value={draft.numbers}
+                          onChange={e =>
+                            updateDraft(draft.draftId, d => ({ ...d, numbers: e.target.value }))
+                          }
+                          placeholder="07, 13, 22, 34, 41, 45, 49"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="font-bold text-[#0A2540] block mb-1.5">Reintegro (0-9):</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={9}
+                            value={draft.reintegro}
+                            onChange={e =>
+                              updateDraft(draft.draftId, d => ({
+                                ...d,
+                                reintegro: parseInt(e.target.value, 10) || 0,
+                              }))
+                            }
+                            className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="font-bold text-[#0A2540] block mb-1.5">Coste Boleto (€):</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={draft.cost}
+                            onChange={e =>
+                              updateDraft(draft.draftId, d => ({
+                                ...d,
+                                cost: parseFloat(e.target.value) || 0,
+                              }))
+                            }
+                            className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-emerald-800"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-[#0A2540] block mb-1.5">
+                          URL o Imagen del Resguardo #{idx + 1}:
+                        </label>
+                        <input
+                          type="text"
+                          value={
+                            draft.image.startsWith('data:')
+                              ? 'Imagen digital cargada (Base64)'
+                              : draft.image
+                          }
+                          onChange={e => {
+                            if (!draft.image.startsWith('data:')) {
+                              const nextVal = e.target.value;
+                              updateDraft(draft.draftId, d => ({
+                                ...d,
+                                image: nextVal,
+                                previewCandidateIdx: 0,
+                                previewLoadFailed: false,
+                              }));
+                            }
+                          }}
+                          placeholder="Se rellena al subir foto o pega una URL"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-2xl p-4 bg-[#F4F6F9] flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-slate-600 uppercase">
+                            Vista Previa Boleto #{idx + 1}
+                          </span>
+                          {draft.image && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateDraft(draft.draftId, d => ({
+                                  ...d,
+                                  image: '',
+                                  fileName: null,
+                                  previewCandidateIdx: 0,
+                                  previewLoadFailed: false,
+                                }))
+                              }
+                              className="inline-flex items-center gap-1 text-xs font-bold text-rose-700 hover:underline cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Quitar foto</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative rounded-xl overflow-hidden border border-slate-300 min-h-44 max-h-60 bg-white flex items-center justify-center p-2">
+                          {draft.fileName?.toLowerCase().endsWith('.pdf') ||
+                          draft.image.startsWith('data:application/pdf') ? (
+                            <div className="p-4 text-center">
+                              <FileText className="w-10 h-10 text-rose-600 mx-auto mb-1" />
+                              <span className="text-sm font-bold text-[#0A2540] block truncate max-w-xs">
+                                {draft.fileName || 'resguardo.pdf'}
+                              </span>
+                              <span className="text-xs text-slate-600">PDF listo para publicar</span>
+                            </div>
+                          ) : draft.image && !draft.previewLoadFailed ? (
+                            <img
+                              src={draftPreviewSrc}
+                              alt={`Resguardo ${idx + 1}`}
+                              referrerPolicy="no-referrer"
+                              className="max-h-56 w-auto max-w-full object-contain"
+                              onError={() => {
+                                if (draft.previewCandidateIdx + 1 < draftCandidates.length) {
+                                  updateDraft(draft.draftId, d => ({
+                                    ...d,
+                                    previewCandidateIdx: d.previewCandidateIdx + 1,
+                                  }));
+                                } else {
+                                  updateDraft(draft.draftId, d => ({
+                                    ...d,
+                                    previewLoadFailed: true,
+                                  }));
+                                }
+                              }}
+                            />
+                          ) : draft.image ? (
+                            <div className="p-3 text-center text-slate-600 space-y-1">
+                              <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+                              <span className="text-xs font-bold text-[#0A2540] block">
+                                Imagen guardada (vista previa bloqueada por el navegador)
+                              </span>
+                            </div>
+                          ) : (
+                            <label
+                              htmlFor={individualInputId}
+                              className="p-4 text-center text-slate-500 cursor-pointer hover:text-[#0A2540] transition"
+                            >
+                              <Upload className="w-8 h-8 text-slate-400 mx-auto mb-1" />
+                              <span className="text-xs sm:text-sm font-semibold block">
+                                Pulsa aquí para subir la imagen del Boleto #{idx + 1}
+                              </span>
+                            </label>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 text-xs sm:text-sm space-y-1">
+                        <div>
+                          <strong>Combinación:</strong> {draft.numbers || 'Pendiente de introducir'}
+                        </div>
+                        <div>
+                          <strong>Reintegro:</strong> [{draft.reintegro}] · <strong>Coste:</strong>{' '}
+                          {(isNaN(draft.cost) ? 0 : draft.cost).toFixed(2)} €
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {batchSaveError && (
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-sm sm:text-base text-rose-900 font-bold flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <span>{batchSaveError}</span>
+            </div>
+          )}
+
+          {/* Botones Añadir otro boleto + Guardar/Publicar lote */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={handleAddDraftSlot}
+              className="sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[50px] rounded-xl border-2 border-[#0A2540] bg-white hover:bg-slate-100 text-[#0A2540] font-extrabold text-base transition cursor-pointer shrink-0"
+            >
+              <Plus className="w-5 h-5 text-[#FF6B00]" />
+              <span>Añadir otro boleto a esta jornada</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isSavingTicket || ticketDrafts.some(d => d.isScanningAI)}
+              onClick={handleSaveTicket}
+              className="flex-1 min-h-[50px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] disabled:opacity-60 text-white font-bold text-base shadow-xs transition cursor-pointer flex items-center justify-center gap-2 px-5"
+            >
+              {isSavingTicket ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Guardando {ticketDrafts.length} {ticketDrafts.length === 1 ? 'resguardo' : 'resguardos'}...</span>
+                </>
+              ) : ticketSaveSuccess ? (
+                <span>
+                  {newTicketPublishMode === 'PROGRAMADO'
+                    ? '¡Resguardos Programados Correctamente!'
+                    : '¡Resguardos Publicados y Notificados!'}
+                </span>
+              ) : (
+                <span>
+                  {newTicketPublishMode === 'PROGRAMADO'
+                    ? `Programar ${ticketDrafts.length === 1 ? 'Resguardo' : `${ticketDrafts.length} Resguardos`} para el ${newTicketDrawDate} (${newTicketPublishTime} h)`
+                    : `Publicar y Notificar ${ticketDrafts.length === 1 ? 'Resguardo' : `${ticketDrafts.length} Resguardos`} Ahora`}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {ticketSyncFeedback && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-950 font-semibold leading-relaxed">
+              {ticketSyncFeedback}
+            </div>
+          )}
 
           {/* Resguardos ya publicados en la jornada actual */}
           {(() => {
@@ -2318,12 +2596,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       key={pt.id}
                       className="rounded-xl bg-white border border-emerald-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
-                      <div className="space-y-1">
-                        <div className="font-extrabold text-[#0A2540] text-sm sm:text-base">
-                          Boleto #{idx + 1} · Jornada {pt.jornadaNumber}/10 · {pt.drawDate}
-                        </div>
-                        <div className="text-sm font-mono text-slate-700">
-                          [{pt.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(', ')}] · R: {pt.playedReintegro} · {pt.cost.toFixed(2)} €
+                      <div className="flex items-center gap-3">
+                        {pt.receiptImageUrl && (
+                          <img
+                            src={normalizeReceiptImageUrl(pt.receiptImageUrl)}
+                            alt={`Miniatura boleto ${idx + 1}`}
+                            referrerPolicy="no-referrer"
+                            className="w-14 h-14 rounded-lg object-cover border border-slate-200 shrink-0"
+                          />
+                        )}
+                        <div className="space-y-1">
+                          <div className="font-extrabold text-[#0A2540] text-sm sm:text-base">
+                            Boleto #{idx + 1} · Jornada {pt.jornadaNumber}/10 · {pt.drawDate}
+                          </div>
+                          <div className="text-sm font-mono text-slate-700">
+                            [{pt.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(', ')}] · R: {pt.playedReintegro} · {pt.cost.toFixed(2)} €
+                          </div>
                         </div>
                       </div>
                       <button
@@ -2356,17 +2644,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   Los socios todavía no ven estos boletos ni han recibido avisos. Se publicarán automáticamente en la fecha y hora indicadas.
                 </p>
                 <div className="space-y-2.5">
-                  {scheduledTickets.map(st => (
+                  {scheduledTickets.map((st, idx) => (
                     <div
                       key={st.id}
                       className="rounded-xl bg-white border border-amber-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
-                      <div className="space-y-1">
-                        <div className="font-extrabold text-[#0A2540] text-sm sm:text-base">
-                          Jornada {st.jornadaNumber}/10 · {formatScheduledDateTimeLabel(st.publishAt, st.drawDate)}
-                        </div>
-                        <div className="text-sm font-mono text-slate-700">
-                          [{st.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(', ')}] · R: {st.playedReintegro} · {st.cost.toFixed(2)} €
+                      <div className="flex items-center gap-3">
+                        {st.receiptImageUrl && (
+                          <img
+                            src={normalizeReceiptImageUrl(st.receiptImageUrl)}
+                            alt={`Miniatura programado ${idx + 1}`}
+                            referrerPolicy="no-referrer"
+                            className="w-14 h-14 rounded-lg object-cover border border-slate-200 shrink-0"
+                          />
+                        )}
+                        <div className="space-y-1">
+                          <div className="font-extrabold text-[#0A2540] text-sm sm:text-base">
+                            Boleto #{idx + 1} · Jornada {st.jornadaNumber}/10 · {formatScheduledDateTimeLabel(st.publishAt, st.drawDate)}
+                          </div>
+                          <div className="text-sm font-mono text-slate-700">
+                            [{st.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(', ')}] · R: {st.playedReintegro} · {st.cost.toFixed(2)} €
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">

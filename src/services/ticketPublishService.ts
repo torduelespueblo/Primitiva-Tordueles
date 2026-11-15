@@ -93,6 +93,7 @@ export async function syncTicketWithAppsScript(
   success: boolean;
   synced: boolean;
   driveImageUrl?: string;
+  whatsappEnviadoAhora?: boolean;
   ultimosJugados?: Array<{
     id?: string;
     jornada: number;
@@ -146,6 +147,7 @@ export async function syncTicketWithAppsScript(
         success: Boolean(json.success),
         synced: Boolean(json.success),
         driveImageUrl: json.driveImageUrl,
+        whatsappEnviadoAhora: Boolean(json.whatsappEnviadoAhora),
         ultimosJugados: Array.isArray(json.ultimosJugados) ? json.ultimosJugados : undefined,
         message: json.message,
       };
