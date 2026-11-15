@@ -16,7 +16,10 @@ import { whatsappService } from '../services/whatsappService';
 import { pushNotificationService } from '../services/pushNotifications';
 import { processTicketWithAI, optimizeTicketImageToDataUrl } from '../services/aiService';
 import { fetchLiveDailyBulletinFromAppsScript } from '../services/lotteryDailyService';
-import { getPublicRegistrationShareUrl } from '../services/registrationService';
+import {
+  getPublicRegistrationShareUrl,
+  validateMemberPaymentByAdmin
+} from '../services/registrationService';
 import {
   archivePreviousPendingTicketsForNewSchedule,
   capTicketsKeepingPlayed,
@@ -205,6 +208,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Estados de gestión uncensored desde pestaña "Usuarios"
   const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false);
   const [adminUsersFeedback, setAdminUsersFeedback] = useState<string | null>(null);
+  const [validatingPaymentId, setValidatingPaymentId] = useState<string | null>(null);
 
   // Estados de seguimiento de Instalaciones PWA ("Instalaciones App")
   const [installations, setInstallations] = useState<AppInstallationEntry[]>([]);
@@ -298,7 +302,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               : rawEstado.includes('BAJA')
               ? 'BAJA'
               : 'SUPLENTE';
-          const paid = String(j.pago || '').trim().toLowerCase() === 'pagado';
+          const rawPago = String(j.pago || 'Pendiente').trim();
+          const rawPagoLower = rawPago.toLowerCase();
+          const paid = rawPagoLower === 'pagado';
+          const notified = rawPagoLower.startsWith('notificado');
           const ts = String(j.timestamp || '').trim();
           const tsMs = typeof j.timestampMs === 'number' ? j.timestampMs : undefined;
 
@@ -318,7 +325,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             status,
             currentCyclePaid: paid,
             paidUntilCycle: Number(j.ciclo) || settings.currentCycle,
-            renewalStatus: paid ? 'RENOVADO' : status === 'BAJA' ? 'EXCLUIDO' : 'PENDIENTE',
+            renewalStatus: paid
+              ? 'RENOVADO'
+              : notified
+              ? 'NOTIFICADO'
+              : status === 'BAJA'
+              ? 'EXCLUIDO'
+              : 'PENDIENTE',
+            paymentStatusLabel: rawPago,
+            paymentNotifiedAt: String(j.fechaAvisoPago || '').trim(),
           };
         });
         onUpdatePlayers(mapped);
@@ -394,6 +409,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, [adminPassword, getCleanGasUrl]);
 
   useEffect(() => {
+    if (adminPassword) {
+      fetchUncensoredAdminUsers();
+    }
+  }, [adminPassword, fetchUncensoredAdminUsers]);
+
+  useEffect(() => {
     if (activeSection === 'USERS' && adminPassword) {
       fetchUncensoredAdminUsers();
       fetchAdminInstallations();
@@ -402,6 +423,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       fetchCycleScrutiny();
     }
   }, [activeSection, adminPassword, fetchUncensoredAdminUsers, fetchAdminInstallations, fetchCycleScrutiny]);
+
+  const pendingPaymentNotices = players.filter(p => {
+    const lbl = (p.paymentStatusLabel || '').trim().toLowerCase();
+    return p.renewalStatus === 'NOTIFICADO' || lbl.startsWith('notificado');
+  });
+
+  const handleValidatePaymentOneClick = async (
+    p: Player,
+    nuevoEstado: 'Pagado' | 'Pendiente'
+  ) => {
+    setValidatingPaymentId(p.id);
+    const res = await validateMemberPaymentByAdmin(getCleanGasUrl(), {
+      fila: p.sheetRow,
+      dni: p.dni || p.phone,
+      nuevoEstado,
+      password: adminPassword || '',
+    });
+    setValidatingPaymentId(null);
+
+    if (res.success) {
+      const isPaid = nuevoEstado === 'Pagado';
+      const updated = players.map(item =>
+        item.id === p.id
+          ? {
+              ...item,
+              currentCyclePaid: isPaid,
+              renewalStatus: isPaid ? ('RENOVADO' as const) : ('PENDIENTE' as const),
+              paymentStatusLabel: nuevoEstado,
+              paymentNotifiedAt: isPaid ? item.paymentNotifiedAt : '',
+            }
+          : item
+      );
+      onUpdatePlayers(updated);
+      setAdminUsersFeedback(
+        isPaid
+          ? `✅ Ingreso confirmado (Pagado) para ${p.name}.`
+          : `❌ Aviso rechazado para ${p.name} (vuelve a Pendiente).`
+      );
+    } else {
+      setAdminUsersFeedback(res.message || 'No se pudo actualizar el estado del pago.');
+    }
+  };
 
   // Estados de Notificaciones Push Preprogramadas
   const [pushTitle, setPushTitle] = useState(
@@ -1403,7 +1466,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
         {[
           { id: 'CONFIG', label: 'Interruptores & WhatsApp', icon: Settings },
-          { id: 'USERS', label: 'Gestión Socios', icon: Users },
+          {
+            id: 'USERS',
+            label: 'Gestión Socios',
+            icon: Users,
+            badge: pendingPaymentNotices.length > 0 ? pendingPaymentNotices.length : undefined,
+          },
           { id: 'TICKET_UPLOAD', label: 'Subir Resguardo', icon: Upload },
           { id: 'PUSH_ALERTS', label: 'Push & Avisos', icon: BellRing },
           { id: 'WORKSPACE', label: 'Sheets & Drive', icon: HardDrive },
@@ -1425,10 +1493,95 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Icon className={`w-5 h-5 ${isActive ? 'text-[#FF6B00]' : 'text-slate-500'}`} />
               <span>{item.label}</span>
+              {item.badge !== undefined && (
+                <span className="ml-1 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#FF6B00] text-white text-xs font-black tabular-nums">
+                  {item.badge}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {/* BANDEJA GLOBAL RÁPIDA: AVISOS DE PAGO PENDIENTES DE VERIFICAR */}
+      {pendingPaymentNotices.length > 0 && activeSection !== 'USERS' && (
+        <div className="rounded-3xl bg-amber-50/90 border-2 border-amber-300 p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-[#FF6B00] text-white flex items-center justify-center shrink-0">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="font-extrabold text-lg sm:text-xl text-[#0A2540]">
+                  Avisos de Pago Pendientes de Verificar ({pendingPaymentNotices.length})
+                </h2>
+                <p className="text-sm text-amber-950/90">
+                  Socios que han pulsado «Ya he realizado el pago (10 €)» mediante Bizum o Transferencia.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={fetchUncensoredAdminUsers}
+              disabled={isLoadingAdminUsers}
+              className="px-3.5 min-h-[40px] rounded-xl bg-white border border-amber-300 text-xs sm:text-sm font-bold text-[#0A2540] hover:bg-amber-100 cursor-pointer shrink-0"
+            >
+              {isLoadingAdminUsers ? 'Actualizando...' : 'Actualizar avisos'}
+            </button>
+          </div>
+
+          <div className="space-y-2.5">
+            {pendingPaymentNotices.map(p => {
+              const rawLbl = p.paymentStatusLabel || 'Notificado';
+              const methodMatch = rawLbl.match(/\(([^)]+)\)/);
+              const methodName = methodMatch ? methodMatch[1] : rawLbl;
+              const isBusy = validatingPaymentId === p.id;
+              return (
+                <div
+                  key={`global-pay-${p.id}`}
+                  className="rounded-2xl bg-white border border-amber-200 p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-2xs"
+                >
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-black text-base text-[#0A2540]">{p.name}</span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-100 text-amber-950 text-xs font-extrabold">
+                        {methodName}
+                      </span>
+                      {p.paymentNotifiedAt && (
+                        <span className="text-xs font-mono font-bold text-slate-600 tabular-nums">
+                          🕒 {p.paymentNotifiedAt}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {p.status} · {p.dni ? `DNI: ${p.dni}` : `Tel: ${p.phone || '—'}`}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => handleValidatePaymentOneClick(p, 'Pagado')}
+                      className="px-3.5 min-h-[40px] rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs sm:text-sm font-extrabold cursor-pointer"
+                    >
+                      {isBusy ? 'Procesando...' : '✅ Confirmar Ingreso (Pagado)'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => handleValidatePaymentOneClick(p, 'Pendiente')}
+                      className="px-3.5 min-h-[40px] rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 disabled:opacity-60 text-rose-800 text-xs sm:text-sm font-bold cursor-pointer"
+                    >
+                      ❌ No recibido (Rechazar)
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* SECTION 1: CONFIG & WHATSAPP SWITCHES */}
       {activeSection === 'CONFIG' && (
@@ -1966,9 +2119,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         const handleTogglePayment = async (p: Player) => {
           const nextPaid = !p.currentCyclePaid;
+          const nextLabel = nextPaid ? 'Pagado' : 'Pendiente';
           const updated = players.map(item =>
             item.id === p.id
-              ? { ...item, currentCyclePaid: nextPaid, renewalStatus: nextPaid ? ('RENOVADO' as const) : ('PENDIENTE' as const) }
+              ? {
+                  ...item,
+                  currentCyclePaid: nextPaid,
+                  renewalStatus: nextPaid ? ('RENOVADO' as const) : ('PENDIENTE' as const),
+                  paymentStatusLabel: nextLabel,
+                  paymentNotifiedAt: nextPaid ? item.paymentNotifiedAt : '',
+                }
               : item
           );
           onUpdatePlayers(updated);
@@ -1982,7 +2142,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 body: JSON.stringify({
                   action: 'actualizarPagoAdmin',
                   fila: p.sheetRow,
-                  nuevoEstado: nextPaid ? 'Pagado' : 'Pendiente',
+                  nuevoEstado: nextLabel,
                   password: adminPassword,
                 }),
               });
@@ -2057,6 +2217,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     list.map(p => {
                       const firstName = p.firstName || p.name.split(' ')[0] || p.name;
                       const lastName = p.lastName ?? p.name.split(' ').slice(1).join(' ');
+                      const payLabel = p.paymentStatusLabel || (p.currentCyclePaid ? 'Pagado' : 'Pendiente');
+                      const isNotifiedRow =
+                        p.renewalStatus === 'NOTIFICADO' ||
+                        payLabel.toLowerCase().startsWith('notificado');
                       return (
                         <tr key={p.id} className="hover:bg-slate-50">
                           {showTimestampCol && (
@@ -2074,10 +2238,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               type="button"
                               onClick={() => handleTogglePayment(p)}
                               className={`px-3 min-h-[40px] rounded-xl text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap ${
-                                p.currentCyclePaid ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900'
+                                p.currentCyclePaid
+                                  ? 'bg-emerald-100 text-emerald-900'
+                                  : isNotifiedRow
+                                  ? 'bg-amber-100 text-amber-950 border border-amber-300'
+                                  : 'bg-rose-100 text-rose-900'
                               }`}
                             >
-                              {p.currentCyclePaid ? 'Pagado' : 'Pendiente'}
+                              {payLabel}
                             </button>
                           </td>
                           <td className="py-3.5 px-4">
@@ -2102,34 +2270,122 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         );
 
         return (
-          <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="font-extrabold text-xl text-[#0A2540]">
-                  Gestión de Socios desde «Usuarios» (3 Listas Separadas)
-                </h2>
-                <p className="text-base text-slate-600 mt-0.5">
-                  Titulares, Suplentes (ordenados estrictamente por marca temporal) y Bajas definitivas con datos completos.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={fetchUncensoredAdminUsers}
-                  disabled={isLoadingAdminUsers}
-                  className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] disabled:opacity-60 text-white text-sm font-bold cursor-pointer"
+          <div className="space-y-6">
+            {/* BANDEJA DE VALIDACIÓN RÁPIDA EN 1 CLIC */}
+            <div className="rounded-3xl bg-white border-2 border-amber-300 p-5 sm:p-7 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-100 text-[#FF6B00] flex items-center justify-center shrink-0">
+                    <Clock className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-xl text-[#0A2540]">
+                      Avisos de Pago Pendientes de Verificar ({pendingPaymentNotices.length})
+                    </h2>
+                    <p className="text-sm sm:text-base text-slate-600 mt-0.5">
+                      Socios que han notificado su Bizum o Transferencia de 10 € desde la app. Valida en 1 clic tras comprobar el extracto.
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-extrabold tabular-nums shrink-0 ${
+                    pendingPaymentNotices.length > 0
+                      ? 'bg-[#FF6B00] text-white'
+                      : 'bg-emerald-100 text-emerald-900'
+                  }`}
                 >
-                  {isLoadingAdminUsers && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{isLoadingAdminUsers ? 'Sincronizando...' : 'Actualizar desde Usuarios'}</span>
-                </button>
+                  {pendingPaymentNotices.length > 0
+                    ? `${pendingPaymentNotices.length} pendiente(s)`
+                    : 'Todo al día'}
+                </span>
               </div>
+
+              {pendingPaymentNotices.length === 0 ? (
+                <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 text-sm font-semibold text-slate-600 text-center">
+                  No hay avisos de pago pendientes de verificar en este momento.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingPaymentNotices.map(p => {
+                    const rawLbl = p.paymentStatusLabel || 'Notificado';
+                    const methodMatch = rawLbl.match(/\(([^)]+)\)/);
+                    const methodName = methodMatch ? methodMatch[1] : rawLbl;
+                    const isBusy = validatingPaymentId === p.id;
+                    return (
+                      <div
+                        key={`users-pay-${p.id}`}
+                        className="rounded-2xl bg-amber-50/70 border border-amber-200 p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-black text-base text-[#0A2540]">{p.name}</span>
+                            <span className="px-2.5 py-0.5 rounded-lg bg-white border border-amber-300 text-[#0A2540] text-xs font-extrabold">
+                              Método: {methodName}
+                            </span>
+                            {p.paymentNotifiedAt && (
+                              <span className="text-xs font-mono font-bold text-slate-700 tabular-nums">
+                                🕒 Aviso: {p.paymentNotifiedAt}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs sm:text-sm text-slate-600">
+                            {p.status} · {p.dni ? `DNI: ${p.dni}` : `Teléfono: ${p.phone || '—'}`}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleValidatePaymentOneClick(p, 'Pagado')}
+                            className="px-4 min-h-[42px] rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs sm:text-sm font-extrabold shadow-2xs cursor-pointer"
+                          >
+                            {isBusy ? 'Guardando...' : '✅ Confirmar Ingreso (Pagado)'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleValidatePaymentOneClick(p, 'Pendiente')}
+                            className="px-4 min-h-[42px] rounded-xl bg-white hover:bg-rose-50 border border-rose-300 disabled:opacity-60 text-rose-800 text-xs sm:text-sm font-bold cursor-pointer"
+                          >
+                            ❌ No recibido (Rechazar)
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {adminUsersFeedback && (
-              <div className="p-3 rounded-xl bg-[#F4F6F9] border border-slate-200 text-sm font-semibold text-[#0A2540]">
-                {adminUsersFeedback}
+            <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-extrabold text-xl text-[#0A2540]">
+                    Gestión de Socios desde «Usuarios» (3 Listas Separadas)
+                  </h2>
+                  <p className="text-base text-slate-600 mt-0.5">
+                    Titulares, Suplentes (ordenados estrictamente por marca temporal) y Bajas definitivas con datos completos.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={fetchUncensoredAdminUsers}
+                    disabled={isLoadingAdminUsers}
+                    className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] disabled:opacity-60 text-white text-sm font-bold cursor-pointer"
+                  >
+                    {isLoadingAdminUsers && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>{isLoadingAdminUsers ? 'Sincronizando...' : 'Actualizar desde Usuarios'}</span>
+                  </button>
+                </div>
               </div>
-            )}
+
+              {adminUsersFeedback && (
+                <div className="p-3 rounded-xl bg-[#F4F6F9] border border-slate-200 text-sm font-semibold text-[#0A2540]">
+                  {adminUsersFeedback}
+                </div>
+              )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 tabular-nums">
               <div className="p-4 rounded-2xl bg-[#F4F6F9] border border-slate-200">
@@ -2290,6 +2546,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
           </div>
         );

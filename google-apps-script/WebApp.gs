@@ -278,6 +278,29 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'notificarPagoSocio') {
+      var resNotifPago = notificarPagoSocio(
+        contents.identificador || contents.dni || contents.telefono || contents.fila,
+        contents.metodo
+      );
+      return ContentService.createTextOutput(JSON.stringify(resNotifPago))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'validarPagoAdmin') {
+      if (!validarPasswordAdmin(contents.password)) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, message: 'Acceso no autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resValidarPago = validarPagoAdmin(
+        contents.dni || contents.identificador || contents.fila,
+        contents.nuevoEstado,
+        contents.password
+      );
+      return ContentService.createTextOutput(JSON.stringify(resValidarPago))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ status: 'OK', received: true }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -328,8 +351,9 @@ function validarLoginDNI(dniInput) {
     }
 
     var lastRow = sheetUsuarios.getLastRow();
-    // Columnas A..K: 1:Timestamp, 2:Nombre, 3:Apellidos, 4:DNI, 5:Teléfono, 6:IBAN, 7:Pago, 8:Ciclo, 9:Reglamento, 10:%Part, 11:Estado
-    var datos = sheetUsuarios.getRange(2, 1, lastRow - 1, 11).getValues();
+    var numColsU = Math.max(12, sheetUsuarios.getLastColumn());
+    // Columnas A..L: 1:Timestamp, 2:Nombre, 3:Apellidos, 4:DNI, 5:Teléfono, 6:IBAN, 7:Pago, 8:Ciclo, 9:Reglamento, 10:%Part, 11:Estado, 12:Fecha Aviso Pago
+    var datos = sheetUsuarios.getRange(2, 1, lastRow - 1, numColsU).getValues();
 
     for (var i = 0; i < datos.length; i++) {
       var fila = datos[i];
@@ -339,6 +363,7 @@ function validarLoginDNI(dniInput) {
         var nombre = (fila[1] || '').toString().trim();
         var apellidos = (fila[2] || '').toString().trim();
         var estadoPago = (fila[6] || 'Pendiente').toString().trim();
+        var fechaAvisoPago = (fila[11] || '').toString().trim();
         var cicloActual = parseInt(fila[7], 10) || 1;
         var reglamentoAceptado = fila[8] === true || fila[8] === 'TRUE' || fila[8] === 1 || fila[8] === 'SÍ';
         var porcentajePart = fila[9] || 0;
@@ -364,6 +389,7 @@ function validarLoginDNI(dniInput) {
             nombreCompleto: (nombre + ' ' + apellidos).trim(),
             estadoPago: estadoPago,
             pago: estadoPago,
+            fechaAvisoPago: fechaAvisoPago,
             cicloActual: cicloActual,
             reglamentoAceptado: reglamentoAceptado,
             porcentajeParticipacion: typeof porcentajePart === 'number' ? (porcentajePart * 100).toFixed(2) + '%' : String(porcentajePart),
@@ -741,7 +767,8 @@ function validarAccesoSocioWeb(identificadorInput) {
     }
 
     var lastRow = sheetUsuarios.getLastRow();
-    var datos = sheetUsuarios.getRange(2, 1, lastRow - 1, 11).getValues();
+    var numColsAcceso = Math.max(12, sheetUsuarios.getLastColumn());
+    var datos = sheetUsuarios.getRange(2, 1, lastRow - 1, numColsAcceso).getValues();
 
     for (var i = 0; i < datos.length; i++) {
       var fila = datos[i];
@@ -770,6 +797,7 @@ function validarAccesoSocioWeb(identificadorInput) {
 
         var rol = estadoUpper === 'TITULAR' ? 'TITULAR' : 'SUPLENTE';
         var estadoPago = String(fila[6] || 'Pendiente').trim();
+        var fechaAvisoPago = String(fila[11] || '').trim();
         var cicloActual = parseInt(fila[7], 10) || 1;
         var reglamentoAceptado = fila[8] === true || fila[8] === 'TRUE' || fila[8] === 1 || fila[8] === 'SÍ';
         var conteo = obtenerConteoJugadoresPublico(ss);
@@ -799,6 +827,7 @@ function validarAccesoSocioWeb(identificadorInput) {
             nombreCompleto: (nombre + ' ' + apellidos).trim(),
             estadoPago: estadoPago,
             pago: estadoPago,
+            fechaAvisoPago: fechaAvisoPago,
             cicloActual: cicloActual,
             reglamentoAceptado: reglamentoAceptado,
             estado: estadoRaw
@@ -844,7 +873,8 @@ function obtenerListaJugadoresAdmin(password) {
     }
 
     var lastRow = sheetUsuarios.getLastRow();
-    var rows = sheetUsuarios.getRange(2, 1, lastRow - 1, 11).getValues();
+    var numColsAdmin = Math.max(12, sheetUsuarios.getLastColumn());
+    var rows = sheetUsuarios.getRange(2, 1, lastRow - 1, numColsAdmin).getValues();
     var listaCompleta = [];
 
     for (var i = 0; i < rows.length; i++) {
@@ -864,7 +894,8 @@ function obtenerListaJugadoresAdmin(password) {
           ciclo: (r[7] || 1).toString().trim(),
           reglamento: Boolean(r[8]),
           participacion: r[9] || 0,
-          estado: (r[10] || 'Suplente').toString().trim()
+          estado: (r[10] || 'Suplente').toString().trim(),
+          fechaAvisoPago: (r[11] || '').toString().trim()
         });
       }
     }
@@ -896,7 +927,13 @@ function actualizarEstadoPagoAdmin(fila, nuevoEstado, password) {
     var estadoNormalizado = (nuevoEstado === 'Pagado') ? 'Pagado' : 'Pendiente';
     var ss = obtenerSpreadsheetPeña();
     var sheetUsuarios = ss.getSheetByName('Usuarios');
-    sheetUsuarios.getRange(filaNum, 7).setValue(estadoNormalizado);
+    var celdaPago = sheetUsuarios.getRange(filaNum, 7);
+    celdaPago.clearDataValidations();
+    celdaPago.setValue(estadoNormalizado);
+    if (estadoNormalizado === 'Pendiente' && sheetUsuarios.getLastColumn() >= 12) {
+      sheetUsuarios.getRange(filaNum, 12).setValue('');
+    }
+    SpreadsheetApp.flush();
 
     return {
       success: true,

@@ -89,6 +89,8 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
     if (res.success && res.user) {
       const roleStatus: Player['status'] =
         res.rol === 'TITULAR' ? 'TITULAR' : 'SUPLENTE';
+      const rawPay = String(res.user.estadoPago || 'Pendiente').trim();
+      const rawPayLower = rawPay.toLowerCase();
       const playerObj: Player = {
         id: `sheet-auth-${res.user.filaIndex || Date.now()}`,
         memberNumber: 0,
@@ -100,10 +102,16 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
         dni: res.user.dni || '',
         registrationTimestamp: '',
         status: roleStatus,
-        currentCyclePaid: res.user.estadoPago?.toLowerCase() === 'pagado',
+        currentCyclePaid: rawPayLower === 'pagado',
         paidUntilCycle: res.user.cicloActual || 1,
         renewalStatus:
-          res.user.estadoPago?.toLowerCase() === 'pagado' ? 'RENOVADO' : 'PENDIENTE',
+          rawPayLower === 'pagado'
+            ? 'RENOVADO'
+            : rawPayLower.startsWith('notificado')
+            ? 'NOTIFICADO'
+            : 'PENDIENTE',
+        paymentStatusLabel: rawPay,
+        paymentNotifiedAt: res.user.fechaAvisoPago || '',
       };
 
       if (onAuthenticatedPlayer) {

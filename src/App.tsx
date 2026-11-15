@@ -102,6 +102,20 @@ export default function App() {
       return false;
     }
   });
+  const [memberPaymentStatus, setMemberPaymentStatus] = useState<string>(() => {
+    try {
+      return localStorage.getItem('primitiva_tordueles_member_payment_status') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [memberPaymentNotifiedAt, setMemberPaymentNotifiedAt] = useState<string>(() => {
+    try {
+      return localStorage.getItem('primitiva_tordueles_member_payment_at') || '';
+    } catch {
+      return '';
+    }
+  });
   const [counts, setCounts] = useState<{ titulares?: number; suplentes?: number }>({});
   const [ticketSummary, setTicketSummary] = useState<{
     hayBoleto: boolean;
@@ -494,6 +508,8 @@ export default function App() {
     setMemberIdentifier('');
     setMemberRole('');
     setMemberName('');
+    setMemberPaymentStatus('');
+    setMemberPaymentNotifiedAt('');
     setHasRegisteredOnDevice(false);
     setPlayers([]);
     setWaitingList([]);
@@ -506,6 +522,8 @@ export default function App() {
       localStorage.removeItem('primitiva_tordueles_member_id');
       localStorage.removeItem('primitiva_tordueles_member_role');
       localStorage.removeItem('primitiva_tordueles_member_name');
+      localStorage.removeItem('primitiva_tordueles_member_payment_status');
+      localStorage.removeItem('primitiva_tordueles_member_payment_at');
       localStorage.removeItem('primitiva_tordueles_visitor_registered');
     } catch {
       // ignore
@@ -539,11 +557,21 @@ export default function App() {
       }
     }
 
+    const payStatus =
+      accessData?.user?.estadoPago ||
+      player.paymentStatusLabel ||
+      (player.currentCyclePaid ? 'Pagado' : 'Pendiente');
+    const payAt = accessData?.user?.fechaAvisoPago || player.paymentNotifiedAt || '';
+
     setMemberRole(resolvedRole);
     setMemberName(player.name);
+    setMemberPaymentStatus(payStatus);
+    setMemberPaymentNotifiedAt(payAt);
     try {
       localStorage.setItem('primitiva_tordueles_member_role', resolvedRole);
       localStorage.setItem('primitiva_tordueles_member_name', player.name);
+      localStorage.setItem('primitiva_tordueles_member_payment_status', payStatus);
+      localStorage.setItem('primitiva_tordueles_member_payment_at', payAt);
     } catch {
       // ignore
     }
@@ -723,11 +751,21 @@ export default function App() {
               if (fullName) {
                 setMemberName(fullName);
               }
+              const srvPago = String(data.acceso?.user?.estadoPago || '').trim();
+              const srvPagoAt = String(data.acceso?.user?.fechaAvisoPago || '').trim();
+              if (srvPago) {
+                setMemberPaymentStatus(srvPago);
+              }
+              setMemberPaymentNotifiedAt(srvPagoAt);
               try {
                 localStorage.setItem('primitiva_tordueles_member_role', serverRole);
                 if (fullName) {
                   localStorage.setItem('primitiva_tordueles_member_name', fullName);
                 }
+                if (srvPago) {
+                  localStorage.setItem('primitiva_tordueles_member_payment_status', srvPago);
+                }
+                localStorage.setItem('primitiva_tordueles_member_payment_at', srvPagoAt);
               } catch {
                 // ignore
               }
@@ -826,6 +864,21 @@ export default function App() {
         settings={settings}
         isAdminAuthenticated={isAdminAuthenticated}
         onOpenAdminLogin={() => setShowAdminLogin(true)}
+        memberRole={memberRole}
+        memberName={memberName}
+        memberIdentifier={memberIdentifier}
+        memberPaymentStatus={memberPaymentStatus}
+        memberPaymentNotifiedAt={memberPaymentNotifiedAt}
+        onMemberPaymentNotified={(newStatus, notifiedAt) => {
+          setMemberPaymentStatus(newStatus);
+          setMemberPaymentNotifiedAt(notifiedAt);
+          try {
+            localStorage.setItem('primitiva_tordueles_member_payment_status', newStatus);
+            localStorage.setItem('primitiva_tordueles_member_payment_at', notifiedAt);
+          } catch {
+            // ignore
+          }
+        }}
       />
 
       {/* Main Content Area */}

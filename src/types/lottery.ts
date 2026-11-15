@@ -16,7 +16,9 @@ export interface Player {
   status: PlayerStatus;
   currentCyclePaid: boolean; // Si ha pagado el ciclo actual de 10 jornadas
   paidUntilCycle: number; // Ciclo hasta el cual tiene cubierto el pago
-  renewalStatus: 'RENOVADO' | 'PENDIENTE' | 'URGENTE_EXPIRA' | 'EXCLUIDO';
+  renewalStatus: 'RENOVADO' | 'NOTIFICADO' | 'PENDIENTE' | 'URGENTE_EXPIRA' | 'EXCLUIDO';
+  paymentStatusLabel?: string; // 'Pagado' | 'Pendiente' | 'Notificado (Bizum)' | 'Notificado (Transferencia)'
+  paymentNotifiedAt?: string; // Fecha/hora en que el socio notificó el pago
   notes?: string;
 }
 

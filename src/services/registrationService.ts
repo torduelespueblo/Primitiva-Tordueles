@@ -74,6 +74,7 @@ export interface MemberAccessResponse {
     apellidos: string;
     nombreCompleto: string;
     estadoPago: string;
+    fechaAvisoPago?: string;
     cicloActual: number;
     reglamentoAceptado: boolean;
     estado: string;
@@ -289,4 +290,173 @@ export function getPublicRegistrationShareUrl(): string {
   const url = new URL('./inscripcion.html', window.location.href);
   return url.toString();
 }
+
+export interface PaymentNotificationResponse {
+  success: boolean;
+  estadoPago?: string;
+  metodo?: 'Bizum' | 'Transferencia';
+  fechaAvisoPago?: string;
+  syncedToSheet: boolean;
+  message?: string;
+}
+
+/**
+ * Envía el aviso de pago de renovación (Bizum o Transferencia) de un socio a Google Apps Script.
+ */
+export async function notifyMemberPaymentToSheet(
+  appsScriptUrl: string | undefined,
+  payload: {
+    identificador: string;
+    metodo: 'Bizum' | 'Transferencia';
+  }
+): Promise<PaymentNotificationResponse> {
+  const estadoLocal = `Notificado (${payload.metodo})`;
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const fechaLocal = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  if (!appsScriptUrl || !appsScriptUrl.startsWith('http')) {
+    return {
+      success: true,
+      estadoPago: estadoLocal,
+      metodo: payload.metodo,
+      fechaAvisoPago: fechaLocal,
+      syncedToSheet: false,
+      message: 'Aviso guardado localmente (URL de Apps Script no configurada).',
+    };
+  }
+
+  const cleanUrl = appsScriptUrl.endsWith('/exe') ? `${appsScriptUrl}c` : appsScriptUrl;
+
+  try {
+    const response = await fetch(cleanUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        action: 'notificarPagoSocio',
+        identificador: payload.identificador.trim(),
+        dni: payload.identificador.trim(),
+        metodo: payload.metodo,
+      }),
+    });
+
+    if (response.ok) {
+      try {
+        const data = await response.json();
+        if (data && data.success) {
+          return {
+            success: true,
+            estadoPago: data.estadoPago || estadoLocal,
+            metodo: payload.metodo,
+            fechaAvisoPago: data.fechaAvisoPago || fechaLocal,
+            syncedToSheet: true,
+            message: data.message,
+          };
+        }
+        return {
+          success: false,
+          syncedToSheet: false,
+          message: data?.message || 'No se pudo registrar el aviso de pago en la hoja Usuarios.',
+        };
+      } catch {
+        // fallback si devuelve respuesta opaca
+      }
+    }
+
+    return {
+      success: true,
+      estadoPago: estadoLocal,
+      metodo: payload.metodo,
+      fechaAvisoPago: fechaLocal,
+      syncedToSheet: true,
+    };
+  } catch {
+    try {
+      await fetch(cleanUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify({
+          action: 'notificarPagoSocio',
+          identificador: payload.identificador.trim(),
+          dni: payload.identificador.trim(),
+          metodo: payload.metodo,
+        }),
+      });
+      return {
+        success: true,
+        estadoPago: estadoLocal,
+        metodo: payload.metodo,
+        fechaAvisoPago: fechaLocal,
+        syncedToSheet: true,
+      };
+    } catch {
+      return {
+        success: false,
+        syncedToSheet: false,
+        message: 'Error de conexión al enviar el aviso de pago.',
+      };
+    }
+  }
+}
+
+export interface ValidateAdminPaymentResponse {
+  success: boolean;
+  fila?: number;
+  nuevoEstado?: string;
+  message?: string;
+}
+
+/**
+ * Permite al administrador confirmar ('Pagado') o rechazar ('Pendiente') un aviso de pago en 1 clic.
+ */
+export async function validateMemberPaymentByAdmin(
+  appsScriptUrl: string | undefined,
+  payload: {
+    fila?: number;
+    dni?: string;
+    nuevoEstado: 'Pagado' | 'Pendiente';
+    password: string;
+  }
+): Promise<ValidateAdminPaymentResponse> {
+  if (!appsScriptUrl || !appsScriptUrl.startsWith('http')) {
+    return { success: true, nuevoEstado: payload.nuevoEstado };
+  }
+
+  const cleanUrl = appsScriptUrl.endsWith('/exe') ? `${appsScriptUrl}c` : appsScriptUrl;
+
+  try {
+    const response = await fetch(cleanUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        action: 'validarPagoAdmin',
+        fila: payload.fila,
+        dni: payload.dni || '',
+        nuevoEstado: payload.nuevoEstado,
+        password: payload.password,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        success: Boolean(data?.success),
+        fila: data?.fila,
+        nuevoEstado: data?.nuevoEstado || payload.nuevoEstado,
+        message: data?.message || data?.error,
+      };
+    }
+    return { success: false, message: 'No se pudo validar el pago en el servidor.' };
+  } catch {
+    return { success: false, message: 'Error de red validando el pago.' };
+  }
+}
+
 

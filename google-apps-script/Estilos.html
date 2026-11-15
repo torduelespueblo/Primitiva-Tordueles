@@ -646,6 +646,116 @@
     text-decoration: none;
   }
 
+  .renewal-banner.confirmed {
+    background: linear-gradient(135deg, #065F46 0%, #047857 100%);
+    box-shadow: 0 8px 20px rgba(6, 95, 70, 0.22);
+  }
+
+  .renewal-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .btn-notify-payment {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 10px 16px;
+    background: #FFFFFF;
+    color: var(--navy-deep);
+    border: none;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(10, 37, 64, 0.18);
+    transition: transform var(--transition-fast), background-color var(--transition-fast);
+  }
+
+  .btn-notify-payment:hover {
+    background: #F8FAFC;
+  }
+
+  .btn-notify-payment:active {
+    transform: scale(0.98);
+  }
+
+  .payment-notified-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #FEF3C7;
+    color: #78350F;
+    border: 1px solid #FCD34D;
+    font-size: 0.86rem;
+    font-weight: 800;
+    line-height: 1.35;
+    cursor: default;
+  }
+
+  .payment-confirmed-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.16);
+    color: #FFFFFF;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    font-size: 0.88rem;
+    font-weight: 800;
+  }
+
+  .payment-method-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .payment-method-option {
+    min-height: 54px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--border-hairline);
+    background: #FFFFFF;
+    color: var(--navy-deep);
+    font-size: 0.94rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  }
+
+  .payment-method-option.active {
+    border-color: var(--orange-luck);
+    background: var(--orange-tint);
+    color: var(--navy-deep);
+  }
+
+  .payment-concept-reminder {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: #FFF7ED;
+    border: 1px solid #FED7AA;
+    color: #9A3412;
+    font-size: 0.84rem;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
   /* Grid del Dashboard */
   .dashboard-grid {
     display: grid;
@@ -949,6 +1059,72 @@
     background-color: var(--danger-bg);
     color: var(--danger-fg);
     border-color: var(--danger-border);
+  }
+
+  .btn-toggle-pago.notificado {
+    background-color: #FEF3C7;
+    color: #78350F;
+    border-color: #FCD34D;
+  }
+
+  /* Bandeja Admin de Validación de Pagos en 1 Clic */
+  .pending-payments-card {
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: var(--radius-md);
+    background: #FFFBEB;
+    border: 2px solid #FCD34D;
+  }
+
+  .pending-payment-row {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: #FFFFFF;
+    border: 1px solid #FDE68A;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .pending-payment-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-confirm-income {
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    background: #059669;
+    color: #FFFFFF;
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .btn-confirm-income:hover {
+    background: #047857;
+  }
+
+  .btn-reject-income {
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--danger-border);
+    background: #FFFFFF;
+    color: var(--danger-fg);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .btn-reject-income:hover {
+    background: var(--danger-bg);
   }
 
   /* Modales y Overlays */

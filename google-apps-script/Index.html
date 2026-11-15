@@ -245,7 +245,7 @@
       <!-- MÓDULO 3 & 5: DASHBOARD DEL JUGADOR (BANNER NARANJA + RGPD)    -->
       <!-- ============================================================== -->
       <section id="viewDashboard" class="view-section">
-        <!-- MÓDULO 5: Banner Naranja Superior (Visible únicamente en Jornadas 7, 8 o 9) -->
+        <!-- MÓDULO 5: Banner Naranja Superior (Visible en Jornadas 7, 8 o 9 o estado pendiente/suplente avisado) -->
         <div id="renewalOrangeBanner" class="renewal-banner" role="alert">
           <div class="renewal-banner-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -255,13 +255,24 @@
             </svg>
           </div>
           <div style="flex: 1;">
-            <div class="renewal-banner-title">Aviso Obligatorio de Renovación</div>
+            <div class="renewal-banner-title" id="renewalBannerTitle">Aviso Obligatorio de Renovación</div>
             <p class="renewal-banner-text" id="renewalBannerText">
               Periodo de Renovación Activo: Jornada 8/10. Recuerda abonar la cuota de 10€ antes de finalizar la jornada 9.
             </p>
-            <a id="btnWhatsappRenovacion" href="https://api.whatsapp.com/send?text=Confirmo%20pago%20de%2010%E2%82%AC%20Pe%C3%B1a%20Primitiva%20Tordueles" target="_blank" rel="noopener noreferrer" class="btn-whatsapp-inline">
-              Confirmar Pago por WhatsApp
-            </a>
+            <div class="renewal-banner-actions">
+              <button type="button" id="btnNotificarPagoSocio" class="btn-notify-payment" onclick="abrirModalNotificarPago()">
+                Ya he realizado el pago (10 €)
+              </button>
+              <span id="badgePagoNotificadoLocked" class="payment-notified-pill" style="display: none;">
+                ⏳ Pago notificado — Pendiente de verificación por el Administrador
+              </span>
+              <span id="badgeRenovacionConfirmada" class="payment-confirmed-pill" style="display: none;">
+                ✅ Renovación confirmada para el próximo ciclo
+              </span>
+              <a id="btnWhatsappRenovacion" href="https://api.whatsapp.com/send?text=Confirmo%20pago%20de%2010%E2%82%AC%20Pe%C3%B1a%20Primitiva%20Tordueles" target="_blank" rel="noopener noreferrer" class="btn-whatsapp-inline" style="margin-top: 0;">
+                Confirmar Pago por WhatsApp
+              </a>
+            </div>
           </div>
         </div>
 
@@ -422,6 +433,24 @@
             <button type="button" id="btnToggleModoCaptacion" class="toggle-pill-btn off" onclick="toggleModoCaptacionInicial()">
               Desactivado (Listado visible)
             </button>
+          </div>
+
+          <!-- BANDEJA DE VALIDACIÓN RÁPIDA: AVISOS DE PAGO PENDIENTES -->
+          <div id="adminPendingPaymentsCard" class="pending-payments-card">
+            <div class="admin-group-header" style="margin-bottom: 4px;">
+              <h3 class="admin-group-title" style="font-size: 0.96rem;">
+                Avisos de Pago Pendientes de Verificar
+              </h3>
+              <span class="admin-group-badge suplente tabular-nums" id="adminPendingPaymentsBadge">0</span>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.45;">
+              Socios que han notificado el abono de 10 € por Bizum o Transferencia desde la app. Valida en 1 clic tras comprobar el extracto.
+            </p>
+            <div id="adminPendingPaymentsList">
+              <div style="margin-top: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-muted);">
+                No hay avisos de pago pendientes de verificar en este momento.
+              </div>
+            </div>
           </div>
 
           <!-- TABLA 1: TITULARES -->
@@ -730,6 +759,36 @@
           <button type="submit" class="btn-primary" style="margin-top: 0;">Entrar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE NOTIFICACIÓN DE PAGO DE RENOVACIÓN (10 €) -->
+  <div id="paymentNotifyModal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 1.12rem; font-weight: 800; color: var(--navy-deep);">Notificar Pago de Renovación (10 €)</h3>
+        <button type="button" class="btn-close-modal" onclick="cerrarModalNotificarPago()" aria-label="Cerrar">&times;</button>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted);">
+        Selecciona el método que has utilizado para abonar tu cuota de <strong>10 €</strong>:
+      </p>
+      <div class="payment-method-grid">
+        <button type="button" id="optMetodoBizum" class="payment-method-option active" onclick="seleccionarMetodoPago('Bizum')">
+          <span>📲 Bizum</span>
+          <span style="font-size: 0.74rem; font-weight: 600; color: var(--text-muted);">Envío inmediato</span>
+        </button>
+        <button type="button" id="optMetodoTransferencia" class="payment-method-option" onclick="seleccionarMetodoPago('Transferencia')">
+          <span>🏦 Transferencia</span>
+          <span style="font-size: 0.74rem; font-weight: 600; color: var(--text-muted);">Ingreso en cuenta</span>
+        </button>
+      </div>
+      <div class="payment-concept-reminder">
+        ℹ️ Asegúrate de haber indicado tu <strong>Nombre y Apellidos</strong> en el concepto para que el Administrador pueda identificar tu ingreso rápidamente.
+      </div>
+      <div style="display: flex; gap: 10px; margin-top: 16px;">
+        <button type="button" class="btn-outline-navy" style="margin-top: 0;" onclick="cerrarModalNotificarPago()">Cancelar</button>
+        <button type="button" class="btn-primary" style="margin-top: 0;" onclick="enviarNotificacionPagoSocio()">Confirmar Aviso de Pago</button>
+      </div>
     </div>
   </div>
 

@@ -10,10 +10,17 @@ import {
   Bell,
   Menu,
   X,
-  AlertTriangle
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  Smartphone,
+  Building2,
+  Loader2
 } from 'lucide-react';
 import { SyndicateSettings } from '../types/lottery';
 import { pushNotificationService } from '../services/pushNotifications';
+import { notifyMemberPaymentToSheet } from '../services/registrationService';
 
 interface NavbarProps {
   currentTab: string;
@@ -21,6 +28,12 @@ interface NavbarProps {
   settings: SyndicateSettings;
   isAdminAuthenticated: boolean;
   onOpenAdminLogin: () => void;
+  memberRole?: 'TITULAR' | 'SUPLENTE' | '';
+  memberName?: string;
+  memberIdentifier?: string;
+  memberPaymentStatus?: string;
+  memberPaymentNotifiedAt?: string;
+  onMemberPaymentNotified?: (newStatus: string, notifiedAt: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -29,13 +42,66 @@ export const Navbar: React.FC<NavbarProps> = ({
   settings,
   isAdminAuthenticated,
   onOpenAdminLogin,
+  memberRole = '',
+  memberName = '',
+  memberIdentifier = '',
+  memberPaymentStatus = '',
+  memberPaymentNotifiedAt = '',
+  onMemberPaymentNotified,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [pushState, setPushState] = useState<NotificationPermission>(
     pushNotificationService.getPermission()
   );
 
+  // Modal de notificación de pago (Bizum / Transferencia)
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [selectedPayMethod, setSelectedPayMethod] = useState<'Bizum' | 'Transferencia'>('Bizum');
+  const [isSubmittingPay, setIsSubmittingPay] = useState(false);
+  const [payModalError, setPayModalError] = useState<string | null>(null);
+
   const isRenewalPeriod = settings.currentJornada >= 7 && settings.currentJornada <= 9;
+  const isAuthenticatedMember = Boolean(
+    memberIdentifier && (memberRole === 'TITULAR' || memberRole === 'SUPLENTE')
+  );
+  const payStatusLower = (memberPaymentStatus || '').trim().toLowerCase();
+  const isPaymentConfirmed = payStatusLower === 'pagado';
+  const isPaymentNotified = payStatusLower.startsWith('notificado');
+  const isPaymentPending =
+    isAuthenticatedMember &&
+    !isPaymentConfirmed &&
+    !isPaymentNotified &&
+    (payStatusLower === 'pendiente' || memberRole === 'SUPLENTE' || isRenewalPeriod);
+
+  const showRenewalOrPaymentBanner =
+    isRenewalPeriod || isPaymentNotified || isPaymentPending;
+
+  const handleConfirmNotifyPayment = async () => {
+    if (!memberIdentifier) {
+      setPayModalError('Debes iniciar sesión con tu DNI o Teléfono antes de notificar el pago.');
+      return;
+    }
+    setPayModalError(null);
+    setIsSubmittingPay(true);
+
+    const res = await notifyMemberPaymentToSheet(settings.googleAppsScriptUrl, {
+      identificador: memberIdentifier,
+      metodo: selectedPayMethod,
+    });
+
+    setIsSubmittingPay(false);
+    if (!res.success) {
+      setPayModalError(res.message || 'No se pudo enviar el aviso de pago. Inténtalo de nuevo.');
+      return;
+    }
+
+    const nextStatus = res.estadoPago || `Notificado (${selectedPayMethod})`;
+    const nextAt = res.fechaAvisoPago || '';
+    if (onMemberPaymentNotified) {
+      onMemberPaymentNotified(nextStatus, nextAt);
+    }
+    setShowPayModal(false);
+  };
 
   const handleRequestPush = async () => {
     const perm = await pushNotificationService.requestPermission();
@@ -60,13 +126,173 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-        {/* Top Banner if in renewal period */}
-        {isRenewalPeriod && (
-          <div className="bg-[#FF6B00] px-4 py-2.5 text-white text-sm sm:text-base font-semibold flex items-center justify-center gap-2.5">
-            <AlertTriangle className="w-5 h-5 shrink-0 text-white" />
-            <span className="leading-snug text-center">
-              <strong>Renovación Activa (Jornada {settings.currentJornada}/10):</strong> Recuerda abonar los 10 € antes de finalizar la jornada 9.
-            </span>
+        {/* Top Banner de Renovación y Notificación de Pagos */}
+        {showRenewalOrPaymentBanner &&
+          (isAuthenticatedMember && isPaymentConfirmed ? (
+            <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-2 text-emerald-900 text-sm sm:text-base font-bold flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
+              <span className="leading-snug text-center">
+                ✅ Renovación confirmada para el próximo ciclo
+              </span>
+            </div>
+          ) : (
+            <div className="bg-[#FF6B00] px-4 py-2.5 text-white text-sm sm:text-base font-semibold">
+              <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-4">
+                <div className="flex items-center gap-2 text-center sm:text-left">
+                  <AlertTriangle className="w-5 h-5 shrink-0 text-white" />
+                  <span className="leading-snug">
+                    {isRenewalPeriod ? (
+                      <>
+                        <strong>Renovación Activa (Jornada {settings.currentJornada}/10):</strong>{' '}
+                        Recuerda abonar los 10 € antes de finalizar la jornada 9.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Cuota de Participación Pendiente (10 €):</strong>{' '}
+                        Avisa aquí al Administrador una vez realizado el ingreso.
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                {isAuthenticatedMember && (
+                  <div className="shrink-0">
+                    {isPaymentNotified ? (
+                      <div
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 text-[#0A2540] text-xs sm:text-sm font-extrabold shadow-xs select-none"
+                        role="status"
+                      >
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>
+                          ⏳ Pago notificado — Pendiente de verificación por el Administrador
+                          {memberPaymentNotifiedAt ? ` (${memberPaymentNotifiedAt})` : ''}
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayModalError(null);
+                          setShowPayModal(true);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 px-4 min-h-[40px] rounded-xl bg-white hover:bg-orange-50 text-[#0A2540] text-xs sm:text-sm font-extrabold shadow-sm border border-white/80 transition cursor-pointer"
+                      >
+                        <CreditCard className="w-4 h-4 text-[#FF6B00] shrink-0" />
+                        <span>Ya he realizado el pago (10 €)</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+        {/* Modal de Confirmación de Método de Pago (Bizum / Transferencia) */}
+        {showPayModal && (
+          <div
+            className="fixed inset-0 z-50 bg-[#0A2540]/70 backdrop-blur-xs flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pay-notify-modal-title"
+          >
+            <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl overflow-hidden text-slate-900">
+              <div className="bg-[#0A2540] px-5 py-4 text-white flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#FF6B00] block">
+                    Renovación / Cuota · 10,00 €
+                  </span>
+                  <h2 id="pay-notify-modal-title" className="text-lg font-black font-serif">
+                    Notificar Pago Realizado
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPayModal(false)}
+                  className="p-2 rounded-xl hover:bg-white/10 text-slate-200 cursor-pointer"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-4">
+                {memberName && (
+                  <p className="text-sm font-bold text-[#0A2540]">
+                    Socio: <span className="text-[#FF6B00]">{memberName}</span>
+                  </p>
+                )}
+
+                <div>
+                  <label className="block text-sm font-extrabold text-[#0A2540] mb-2">
+                    Selecciona el método de pago utilizado:
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPayMethod('Bizum')}
+                      className={`flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-2xl border-2 text-sm font-extrabold transition cursor-pointer ${
+                        selectedPayMethod === 'Bizum'
+                          ? 'border-[#FF6B00] bg-orange-50 text-[#0A2540] shadow-xs'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <Smartphone
+                        className={`w-6 h-6 ${
+                          selectedPayMethod === 'Bizum' ? 'text-[#FF6B00]' : 'text-slate-400'
+                        }`}
+                      />
+                      <span>Bizum</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPayMethod('Transferencia')}
+                      className={`flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-2xl border-2 text-sm font-extrabold transition cursor-pointer ${
+                        selectedPayMethod === 'Transferencia'
+                          ? 'border-[#FF6B00] bg-orange-50 text-[#0A2540] shadow-xs'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <Building2
+                        className={`w-6 h-6 ${
+                          selectedPayMethod === 'Transferencia' ? 'text-[#FF6B00]' : 'text-slate-400'
+                        }`}
+                      />
+                      <span>Transferencia</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3.5 text-sm text-amber-950 font-semibold leading-snug">
+                  💡 Recuerda: <strong>Asegúrate de haber indicado tu Nombre y Apellidos en el concepto</strong> para que el Administrador localice tu ingreso rápidamente.
+                </div>
+
+                {payModalError && (
+                  <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm font-semibold text-red-700">
+                    {payModalError}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowPayModal(false)}
+                    className="flex-1 min-h-[46px] rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-sm font-bold text-[#0A2540] cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmittingPay}
+                    onClick={handleConfirmNotifyPayment}
+                    className="flex-1 min-h-[46px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] disabled:opacity-60 text-sm font-extrabold text-white shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isSubmittingPay && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>{isSubmittingPay ? 'Enviando aviso...' : `Confirmar (${selectedPayMethod})`}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

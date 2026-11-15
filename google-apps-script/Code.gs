@@ -111,7 +111,8 @@ function configurarPestanaUsuarios(ss) {
     'Ciclo Actual',
     'Reglamento Aceptado',
     '% Participación',
-    'Estado'
+    'Estado',
+    'Fecha Aviso Pago'
   ];
 
   var headerRange = sheet.getRange(1, 1, 1, headers.length);
@@ -126,8 +127,8 @@ function configurarPestanaUsuarios(ss) {
   sheet.getRange('K2:K200').setDataValidation(reglaEstado);
 
   var reglaPago = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['Pagado', 'Pendiente'], true)
-    .setAllowInvalid(false)
+    .requireValueInList(['Pagado', 'Pendiente', 'Notificado (Bizum)', 'Notificado (Transferencia)'], true)
+    .setAllowInvalid(true)
     .build();
   sheet.getRange('G2:G200').setDataValidation(reglaPago);
 
@@ -139,6 +140,7 @@ function configurarPestanaUsuarios(ss) {
   sheet.getRange('D2:F200').setNumberFormat('@');
   sheet.getRange('A2:A200').setNumberFormat('dd/MM/yyyy HH:mm:ss.000');
   sheet.getRange('J2:J200').setNumberFormat('0.00%');
+  sheet.getRange('L2:L200').setNumberFormat('@');
 
   for (var r = 2; r <= 30; r++) {
     sheet.getRange(r, 10).setFormula('=IF(K' + r + '="Titular", IFERROR(1 / COUNTIF($K$2:$K, "Titular"), 0), 0)');
@@ -2810,6 +2812,183 @@ function sumarGananciaSemanalEnBaseDeDatos(cantidadSemanal, modo) {
     return {
       success: false,
       message: 'Error al guardar ganancia semanal: ' + err.message
+    };
+  }
+}
+
+// ============================================================================
+// 8. NOTIFICACIÓN Y VALIDACIÓN DE PAGOS DE RENOVACIÓN (BIZUM / TRANSFERENCIA)
+// ============================================================================
+
+/**
+ * Asegura la columna L ("Fecha Aviso Pago") en la pestaña 'Usuarios'.
+ */
+function asegurarColumnaFechaAvisoPagoUsuarios(sheetUsuarios) {
+  if (!sheetUsuarios) return;
+  var headerL = String(sheetUsuarios.getRange(1, 12).getValue() || '').trim();
+  if (!headerL) {
+    sheetUsuarios.getRange(1, 12).setValue('Fecha Aviso Pago').setFontWeight('bold');
+    var bg = sheetUsuarios.getRange(1, 11).getBackground();
+    var fg = sheetUsuarios.getRange(1, 11).getFontColor();
+    if (bg) sheetUsuarios.getRange(1, 12).setBackground(bg);
+    if (fg) sheetUsuarios.getRange(1, 12).setFontColor(fg);
+    sheetUsuarios.getRange(1, 12).setHorizontalAlignment('center');
+  }
+}
+
+/**
+ * Busca la fila de un socio en 'Usuarios' por número de fila, DNI/NIE o teléfono (9 dígitos).
+ */
+function localizarFilaUsuarioPorIdentificador(sheetUsuarios, identificadorOFila) {
+  var lastRow = sheetUsuarios.getLastRow();
+  if (lastRow < 2) return null;
+
+  var raw = String(identificadorOFila || '').trim();
+  if (!raw) return null;
+
+  // Coincidencia directa por número de fila si viene como entero pequeño (ej. desde Admin)
+  if (/^\d{1,4}$/.test(raw)) {
+    var filaNum = parseInt(raw, 10);
+    if (filaNum >= 2 && filaNum <= lastRow) {
+      var nomCheck = String(sheetUsuarios.getRange(filaNum, 2).getValue() || '').trim();
+      if (nomCheck) return filaNum;
+    }
+  }
+
+  var idUpper = raw.toUpperCase().replace(/[\s-]/g, '');
+  var digitsOnly = raw.replace(/\D/g, '');
+  var phoneTail = digitsOnly.length >= 9 ? digitsOnly.slice(-9) : digitsOnly;
+
+  var datos = sheetUsuarios.getRange(2, 1, lastRow - 1, 11).getValues();
+  for (var i = 0; i < datos.length; i++) {
+    var r = datos[i];
+    var nombre = String(r[1] || '').trim();
+    if (!nombre) continue;
+
+    var estadoUpper = String(r[10] || '').trim().toUpperCase();
+    if (estadoUpper.indexOf('BAJA') !== -1) continue;
+
+    var dniFila = String(r[3] || '').trim().toUpperCase().replace(/[\s-]/g, '');
+    var telDigits = String(r[4] || '').replace(/\D/g, '');
+    var telTail = telDigits.length >= 9 ? telDigits.slice(-9) : telDigits;
+
+    if ((dniFila && dniFila === idUpper) || (phoneTail.length >= 9 && telTail && telTail === phoneTail)) {
+      return i + 2;
+    }
+  }
+  return null;
+}
+
+/**
+ * Registra el aviso de pago de renovación (10 €) realizado por el socio desde la app.
+ * Actualiza Estado de Pago a 'Notificado (Bizum)' o 'Notificado (Transferencia)' y guarda fecha/hora.
+ */
+function notificarPagoSocio(dni, metodo) {
+  try {
+    var ss = obtenerSpreadsheetConfigurado();
+    var sheetUsuarios = ss.getSheetByName(PROYECTO_CONFIG.SHEET_USUARIOS || 'Usuarios');
+    if (!sheetUsuarios || sheetUsuarios.getLastRow() < 2) {
+      return { success: false, message: 'No hay socios registrados en la base de datos.' };
+    }
+
+    asegurarColumnaFechaAvisoPagoUsuarios(sheetUsuarios);
+
+    var fila = localizarFilaUsuarioPorIdentificador(sheetUsuarios, dni);
+    if (!fila) {
+      return { success: false, message: 'No se encontró tu ficha de socio activa para registrar el aviso.' };
+    }
+
+    var metodoRaw = String(metodo || '').trim().toLowerCase();
+    var metodoNorm = metodoRaw.indexOf('trans') !== -1 ? 'Transferencia' : 'Bizum';
+    var estadoPago = 'Notificado (' + metodoNorm + ')';
+    var fechaAviso = Utilities.formatDate(new Date(), PROYECTO_CONFIG.TIMEZONE || 'Europe/Madrid', 'dd/MM/yyyy HH:mm');
+
+    var celdaPago = sheetUsuarios.getRange(fila, 7);
+    celdaPago.clearDataValidations();
+    celdaPago.setValue(estadoPago);
+
+    sheetUsuarios.getRange(fila, 12).setNumberFormat('@').setValue(fechaAviso);
+    SpreadsheetApp.flush();
+
+    var nombre = String(sheetUsuarios.getRange(fila, 2).getValue() || '').trim();
+    var apellidos = String(sheetUsuarios.getRange(fila, 3).getValue() || '').trim();
+    var dniVal = String(sheetUsuarios.getRange(fila, 4).getValue() || '').trim();
+
+    return {
+      success: true,
+      fila: fila,
+      dni: dniVal,
+      nombre: nombre,
+      apellidos: apellidos,
+      metodo: metodoNorm,
+      estadoPago: estadoPago,
+      fechaAvisoPago: fechaAviso,
+      message: 'Aviso de pago (' + metodoNorm + ') registrado. Pendiente de verificación por el Administrador.'
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: 'Error al registrar el aviso de pago: ' + err.message
+    };
+  }
+}
+
+/**
+ * Permite al Administrador confirmar ('Pagado') o rechazar ('Pendiente') un aviso de pago en 1 clic.
+ */
+function validarPagoAdmin(dni, nuevoEstado, passwordOpcional) {
+  try {
+    if (passwordOpcional !== undefined && passwordOpcional !== null && typeof validarPasswordAdmin === 'function') {
+      if (!validarPasswordAdmin(passwordOpcional)) {
+        return { success: false, error: 'Acceso no autorizado.', message: 'Acceso no autorizado.' };
+      }
+    }
+
+    var ss = obtenerSpreadsheetConfigurado();
+    var sheetUsuarios = ss.getSheetByName(PROYECTO_CONFIG.SHEET_USUARIOS || 'Usuarios');
+    if (!sheetUsuarios || sheetUsuarios.getLastRow() < 2) {
+      return { success: false, error: 'La pestaña Usuarios está vacía.', message: 'La pestaña Usuarios está vacía.' };
+    }
+
+    asegurarColumnaFechaAvisoPagoUsuarios(sheetUsuarios);
+
+    var fila = localizarFilaUsuarioPorIdentificador(sheetUsuarios, dni);
+    if (!fila) {
+      return { success: false, error: 'Socio no localizado en Usuarios.', message: 'Socio no localizado en Usuarios.' };
+    }
+
+    var rawEstado = String(nuevoEstado || '').trim().toLowerCase();
+    var estadoFinal = rawEstado === 'pagado' ? 'Pagado' : 'Pendiente';
+
+    var celdaPago = sheetUsuarios.getRange(fila, 7);
+    celdaPago.clearDataValidations();
+    celdaPago.setValue(estadoFinal);
+
+    if (estadoFinal === 'Pendiente') {
+      sheetUsuarios.getRange(fila, 12).setValue('');
+    }
+    SpreadsheetApp.flush();
+
+    var nombre = String(sheetUsuarios.getRange(fila, 2).getValue() || '').trim();
+    var apellidos = String(sheetUsuarios.getRange(fila, 3).getValue() || '').trim();
+    var dniVal = String(sheetUsuarios.getRange(fila, 4).getValue() || '').trim();
+
+    return {
+      success: true,
+      fila: fila,
+      dni: dniVal,
+      nombre: nombre,
+      apellidos: apellidos,
+      nuevoEstado: estadoFinal,
+      message: estadoFinal === 'Pagado'
+        ? 'Ingreso confirmado como Pagado para ' + (nombre + ' ' + apellidos).trim() + '.'
+        : 'Aviso rechazado: el estado vuelve a Pendiente para ' + (nombre + ' ' + apellidos).trim() + '.'
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message,
+      message: 'Error al validar el pago: ' + err.message
     };
   }
 }

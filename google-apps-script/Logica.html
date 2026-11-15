@@ -13,7 +13,9 @@
     modoCaptacionInicial: false,
     calcShowAll: false,
     ultimoConteoTitulares: 0,
-    ultimoConteoSuplentes: 0
+    ultimoConteoSuplentes: 0,
+    metodoPagoSeleccionado: 'Bizum',
+    ultimaJornadaInfo: null
   };
 
   (function initSplashScreen() {
@@ -476,6 +478,7 @@
     const tes = data.tesoreria || {};
     const jInfo = data.jornadaInfo || {};
     ESTADO_APP.modoCaptacionInicial = Boolean(data.modoCaptacionInicial);
+    ESTADO_APP.ultimaJornadaInfo = jInfo;
 
     document.getElementById('dashBolsaPremios').innerText = formatearMoneda(tes.bolsaPremios);
     const adminBoteLbl = document.getElementById('adminBoteActualLabel');
@@ -507,6 +510,8 @@
       );
       btnWa.href = 'https://api.whatsapp.com/send?text=' + msg;
     }
+
+    actualizarBannerRenovacionUI(jInfo);
 
     const cardBoleto = document.getElementById('cardApuestaActiva');
     const multiWrap = document.getElementById('dashBoletosMultiContainer');
@@ -567,29 +572,145 @@
     }
   }
 
+  function actualizarBannerRenovacionUI(info) {
+    const banner = document.getElementById('renewalOrangeBanner');
+    const titleEl = document.getElementById('renewalBannerTitle');
+    const txt = document.getElementById('renewalBannerText');
+    const btnNotif = document.getElementById('btnNotificarPagoSocio');
+    const badgeNotif = document.getElementById('badgePagoNotificadoLocked');
+    const badgeConfirm = document.getElementById('badgeRenovacionConfirmada');
+    const btnWa = document.getElementById('btnWhatsappRenovacion');
+    if (!banner || !txt) return;
+
+    const user = ESTADO_APP.usuario || {};
+    const pagoRaw = String(user.estadoPago || user.pago || '').trim();
+    const pagoLower = pagoRaw.toLowerCase();
+    const esPagado = pagoLower === 'pagado';
+    const esNotificado = pagoLower.indexOf('notificado') === 0;
+    const esPendiente = pagoLower === 'pendiente' || (!esPagado && !esNotificado && Boolean(user.nombreCompleto));
+    const esPeriodoRenovacion = Boolean(info && info.esPeriodoRenovacion);
+
+    const mostrarBanner = esPeriodoRenovacion || esNotificado || esPendiente;
+    if (!mostrarBanner) {
+      banner.classList.remove('visible', 'confirmed');
+      return;
+    }
+
+    banner.classList.add('visible');
+
+    if (esPagado && esPeriodoRenovacion) {
+      banner.classList.add('confirmed');
+      if (titleEl) titleEl.innerText = 'Estado de Renovación';
+      txt.innerText = 'Tu cuota del próximo ciclo está verificada por el Administrador (Jornada ' + (info.jornadaEnCiclo || 7) + '/10).';
+      if (btnNotif) btnNotif.style.display = 'none';
+      if (badgeNotif) badgeNotif.style.display = 'none';
+      if (badgeConfirm) badgeConfirm.style.display = 'inline-flex';
+      if (btnWa) btnWa.style.display = 'none';
+      return;
+    }
+
+    banner.classList.remove('confirmed');
+    if (badgeConfirm) badgeConfirm.style.display = 'none';
+
+    if (esPeriodoRenovacion) {
+      if (titleEl) titleEl.innerText = 'Aviso Obligatorio de Renovación';
+      txt.innerText = 'Periodo de Renovación Activo: Jornada ' + (info.jornadaEnCiclo || 7) + '/10. Recuerda abonar la cuota de 10€ antes de finalizar la jornada 9.';
+    } else {
+      if (titleEl) titleEl.innerText = 'Cuota de Participación (10 €)';
+      txt.innerText = esNotificado
+        ? 'Hemos recibido tu aviso de pago (' + pagoRaw + '). El Administrador lo verificará en breve.'
+        : 'Tu estado de pago actual figura como Pendiente. Si ya has abonado los 10 €, notifícalo aquí al Administrador.';
+    }
+
+    if (esNotificado) {
+      if (btnNotif) btnNotif.style.display = 'none';
+      if (badgeNotif) {
+        badgeNotif.style.display = 'inline-flex';
+        badgeNotif.innerText = '⏳ Pago notificado — Pendiente de verificación por el Administrador' +
+          (user.fechaAvisoPago ? (' (' + user.fechaAvisoPago + ')') : '');
+      }
+      if (btnWa) btnWa.style.display = 'none';
+    } else {
+      if (btnNotif) btnNotif.style.display = 'inline-flex';
+      if (badgeNotif) badgeNotif.style.display = 'none';
+      if (btnWa) btnWa.style.display = 'inline-flex';
+    }
+  }
+
+  function abrirModalNotificarPago() {
+    seleccionarMetodoPago('Bizum');
+    const modal = document.getElementById('paymentNotifyModal');
+    if (modal) modal.classList.add('active');
+  }
+
+  function cerrarModalNotificarPago() {
+    const modal = document.getElementById('paymentNotifyModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  function seleccionarMetodoPago(metodo) {
+    ESTADO_APP.metodoPagoSeleccionado = metodo === 'Transferencia' ? 'Transferencia' : 'Bizum';
+    const optB = document.getElementById('optMetodoBizum');
+    const optT = document.getElementById('optMetodoTransferencia');
+    if (optB) optB.classList.toggle('active', ESTADO_APP.metodoPagoSeleccionado === 'Bizum');
+    if (optT) optT.classList.toggle('active', ESTADO_APP.metodoPagoSeleccionado === 'Transferencia');
+  }
+
+  function enviarNotificacionPagoSocio() {
+    const user = ESTADO_APP.usuario || {};
+    const identificador = user.dni || user.telefono || (user.filaIndex ? String(user.filaIndex) : '');
+    if (!identificador) {
+      mostrarToast('Inicia sesión primero con tu DNI o teléfono para notificar el pago.', 'error');
+      return;
+    }
+    if (!tieneAppsScript()) {
+      mostrarToast('Función disponible en la WebApp conectada a Google Apps Script.', 'error');
+      return;
+    }
+
+    const metodo = ESTADO_APP.metodoPagoSeleccionado || 'Bizum';
+    mostrarCargando(true, 'Registrando aviso de pago (' + metodo + ')...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          ESTADO_APP.usuario.estadoPago = res.estadoPago || ('Notificado (' + metodo + ')');
+          ESTADO_APP.usuario.pago = ESTADO_APP.usuario.estadoPago;
+          ESTADO_APP.usuario.fechaAvisoPago = res.fechaAvisoPago || '';
+          const dashPagoEl = document.getElementById('dashPago');
+          if (dashPagoEl) dashPagoEl.innerText = ESTADO_APP.usuario.estadoPago;
+          cerrarModalNotificarPago();
+          actualizarBannerRenovacionUI(ESTADO_APP.ultimaJornadaInfo);
+          mostrarToast(res.message || 'Pago notificado correctamente.', 'success');
+        } else {
+          mostrarToast((res && res.message) || 'No se pudo registrar el aviso de pago.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error al notificar pago: ' + (err.message || err), 'error');
+      })
+      .notificarPagoSocio(identificador, metodo);
+  }
+
   function cargarBannerRenovacion() {
     const banner = document.getElementById('renewalOrangeBanner');
-    const txt = document.getElementById('renewalBannerText');
-    if (!banner || !txt) return;
+    if (!banner) return;
 
     if (tieneAppsScript()) {
       google.script.run
         .withSuccessHandler(function (info) {
-          if (info && info.esPeriodoRenovacion) {
-            txt.innerText = 'Periodo de Renovación Activo: Jornada ' + info.jornadaEnCiclo + '/10. Recuerda abonar la cuota de 10€ antes de finalizar la jornada 9.';
-            banner.classList.add('visible');
-          } else {
-            banner.classList.remove('visible');
-          }
+          ESTADO_APP.ultimaJornadaInfo = info || null;
+          actualizarBannerRenovacionUI(info);
         })
         .withFailureHandler(function () {
-          banner.classList.remove('visible');
+          actualizarBannerRenovacionUI(ESTADO_APP.ultimaJornadaInfo);
         })
         .obtenerJornadaActual();
       return;
     }
 
-    banner.classList.remove('visible');
+    actualizarBannerRenovacionUI(ESTADO_APP.ultimaJornadaInfo);
   }
 
   function cargarListaPublicaJugadores() {
@@ -762,8 +883,12 @@
   }
 
   function construirFilaTablaAdmin(j, incluirTimestamp) {
-    const esPagado = String(j.pago || '').trim().toLowerCase() === 'pagado';
+    const pagoTexto = String(j.pago || 'Pendiente').trim();
+    const pagoLower = pagoTexto.toLowerCase();
+    const esPagado = pagoLower === 'pagado';
+    const esNotificado = pagoLower.indexOf('notificado') === 0;
     const siguienteEstado = esPagado ? 'Pendiente' : 'Pagado';
+    const clasePago = esPagado ? 'pagado' : (esNotificado ? 'notificado' : 'pendiente');
     const tsCol = incluirTimestamp
       ? '<td class="tabular-nums" style="font-size: 0.78rem; color: var(--text-muted); white-space: nowrap;">' + escapeHtml(j.timestamp || '—') + '</td>'
       : '';
@@ -777,8 +902,8 @@
         '<td class="tabular-nums">' + escapeHtml(j.telefono || '—') + '</td>' +
         '<td class="tabular-nums" style="font-size: 0.78rem;">' + escapeHtml(j.iban || '—') + '</td>' +
         '<td>' +
-          '<button type="button" class="btn-toggle-pago ' + (esPagado ? 'pagado' : 'pendiente') + '" onclick="cambiarEstadoPagoAdmin(' + j.fila + ', \'' + siguienteEstado + '\')">' +
-            (esPagado ? 'Pagado' : 'Pendiente') +
+          '<button type="button" class="btn-toggle-pago ' + clasePago + '" onclick="cambiarEstadoPagoAdmin(' + j.fila + ', \'' + siguienteEstado + '\')">' +
+            escapeHtml(pagoTexto) +
           '</button>' +
         '</td>' +
       '</tr>'
@@ -810,6 +935,42 @@
 
     const pagados = lista.filter(function (j) { return String(j.pago || '').trim().toLowerCase() === 'pagado'; }).length;
 
+    // Bandeja de validación rápida: filtrar avisos "Notificado (...)"
+    const avisosPendientes = lista.filter(function (j) {
+      return String(j.pago || '').trim().toLowerCase().indexOf('notificado') === 0;
+    });
+    const pendingBadge = document.getElementById('adminPendingPaymentsBadge');
+    const pendingList = document.getElementById('adminPendingPaymentsList');
+    if (pendingBadge) pendingBadge.innerText = avisosPendientes.length;
+    if (pendingList) {
+      if (avisosPendientes.length === 0) {
+        pendingList.innerHTML = '<div style="margin-top: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-muted);">No hay avisos de pago pendientes de verificar en este momento.</div>';
+      } else {
+        pendingList.innerHTML = avisosPendientes.map(function (j) {
+          const matchMetodo = String(j.pago || '').match(/\(([^)]+)\)/);
+          const metodoElegido = matchMetodo ? matchMetodo[1] : String(j.pago || 'Notificado');
+          const idParam = j.dni ? ('\'' + escapeHtml(j.dni) + '\'') : j.fila;
+          return (
+            '<div class="pending-payment-row">' +
+              '<div>' +
+                '<div style="font-weight: 800; color: var(--navy-deep); font-size: 0.94rem;">' +
+                  escapeHtml((j.nombre || '') + ' ' + (j.apellidos || '')) +
+                '</div>' +
+                '<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">' +
+                  'Método: <strong>' + escapeHtml(metodoElegido) + '</strong>' +
+                  (j.fechaAvisoPago ? (' · 🕒 ' + escapeHtml(j.fechaAvisoPago)) : '') +
+                '</div>' +
+              '</div>' +
+              '<div class="pending-payment-actions">' +
+                '<button type="button" class="btn-confirm-income" onclick="validarPagoAdminRapido(' + idParam + ', \'Pagado\')">✅ Confirmar Ingreso (Pagado)</button>' +
+                '<button type="button" class="btn-reject-income" onclick="validarPagoAdminRapido(' + idParam + ', \'Pendiente\')">❌ No recibido (Rechazar)</button>' +
+              '</div>' +
+            '</div>'
+          );
+        }).join('');
+      }
+    }
+
     document.getElementById('adminTitularesCount').innerText = titulares.length;
     document.getElementById('adminSuplentesCount').innerText = suplentes.length;
     document.getElementById('adminBajasCount').innerText = bajas.length;
@@ -834,6 +995,26 @@
     ESTADO_APP.ultimoConteoTitulares = titulares.length;
     ESTADO_APP.ultimoConteoSuplentes = suplentes.length;
     renderizarCalculadoraCombinaciones(titulares.length, suplentes.length);
+  }
+
+  function validarPagoAdminRapido(identificadorOFila, nuevoEstado) {
+    if (!ESTADO_APP.adminPassword || !tieneAppsScript()) return;
+    mostrarCargando(true, nuevoEstado === 'Pagado' ? 'Confirmando ingreso como Pagado...' : 'Devolviendo estado a Pendiente...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          mostrarToast(res.message || 'Estado actualizado.', 'success');
+          recargarListaAdmin();
+        } else {
+          mostrarToast((res && (res.error || res.message)) || 'No se pudo validar el pago.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error: ' + (err.message || err), 'error');
+      })
+      .validarPagoAdmin(identificadorOFila, nuevoEstado, ESTADO_APP.adminPassword);
   }
 
   function actualizarBotonModoCaptacionUI() {
