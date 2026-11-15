@@ -34,6 +34,7 @@ export interface ServerActiveTicketDto {
   fotoResguardo?: string;
   importeJugado?: number;
   combinacionJugada?: string;
+  modalidad?: string;
   ciclo?: number;
   reintegro?: number;
   jugadoresActivos?: number;
@@ -58,6 +59,7 @@ export interface MemberAccessResponse {
     fecha: string;
     importeJugado?: number;
     combinacionJugada?: string;
+    modalidad?: string;
     combinacionGanadora?: string;
     aciertos?: number | null;
     cantidadPremiada?: number;

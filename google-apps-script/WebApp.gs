@@ -180,6 +180,12 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'programarJornadaMultiple') {
+      var resJornadaMulti = guardarOProgramarJornadaMultipleDesdeWeb(contents.datos);
+      return ContentService.createTextOutput(JSON.stringify(resJornadaMulti))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'adminJugadores') {
       var resAdmin = obtenerListaJugadoresAdmin(contents.password);
       return ContentService.createTextOutput(JSON.stringify(resAdmin))
@@ -1201,7 +1207,7 @@ function obtenerBoletosActivosPublicos(ss) {
     if (!sheetSorteos || sheetSorteos.getLastRow() < 2) return [];
 
     var lastRow = sheetSorteos.getLastRow();
-    var numCols = Math.max(17, sheetSorteos.getLastColumn());
+    var numCols = Math.max(18, sheetSorteos.getLastColumn());
     var rows = sheetSorteos.getRange(2, 1, lastRow - 1, numCols).getValues();
     var ahora = new Date();
     var zona = 'Europe/Madrid';
@@ -1246,6 +1252,7 @@ function obtenerBoletosActivosPublicos(ss) {
         fotoResguardo: normalizarUrlImagenDrive(r[3]),
         importeJugado: parseFloat(r[4]) || 0,
         combinacionJugada: combJugada,
+        modalidad: String(r[17] || '').trim(),
         ciclo: cNum,
         reintegro: r[14] !== '' && r[14] !== undefined ? parseInt(r[14], 10) : 0,
         jugadoresActivos: parseInt(r[15], 10) || 0,
@@ -1277,7 +1284,7 @@ function obtenerUltimosBoletosJugadosPublico(ss) {
     if (!sheetSorteos || sheetSorteos.getLastRow() < 2) return [];
 
     var lastRow = sheetSorteos.getLastRow();
-    var numCols = Math.max(17, sheetSorteos.getLastColumn());
+    var numCols = Math.max(18, sheetSorteos.getLastColumn());
     var rows = sheetSorteos.getRange(2, 1, lastRow - 1, numCols).getValues();
     var zona = 'Europe/Madrid';
 
@@ -1329,6 +1336,7 @@ function obtenerUltimosBoletosJugadosPublico(ss) {
         fecha: fechaStr,
         importeJugado: parseFloat(r[4]) || 0,
         combinacionJugada: combJugada,
+        modalidad: String(r[17] || '').trim(),
         combinacionGanadora: combGanadora,
         aciertos: aciertosVal,
         cantidadPremiada: premioVal,
@@ -1420,10 +1428,10 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
       return { success: false, message: 'No existe la pestaña "Sorteos".' };
     }
 
-    // Asegurar cabeceras extendidas en K..Q si no existen
-    if (sheetSorteos.getLastColumn() < 17) {
-      sheetSorteos.getRange(1, 11, 1, 7).setValues([[
-        'Estado Publicación', 'FechaHora Publicación', 'WhatsApp Enviado', 'Ciclo', 'Reintegro', 'Jugadores Activos', 'ID Boleto'
+    // Asegurar cabeceras extendidas en K..R si no existen
+    if (sheetSorteos.getLastColumn() < 18) {
+      sheetSorteos.getRange(1, 11, 1, 8).setValues([[
+        'Estado Publicación', 'FechaHora Publicación', 'WhatsApp Enviado', 'Ciclo', 'Reintegro', 'Jugadores Activos', 'ID Boleto', 'Modalidad'
       ]]);
     }
 
@@ -1455,6 +1463,7 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
     var jornadaNum = parseInt(datos.jornada, 10) || 1;
     var fechaTarget = String(datos.fechaSorteo);
     var ticketId = String(datos.id || ('tkt-' + new Date().getTime())).trim();
+    var modalidadStr = String(datos.modalidad || '').trim();
     var reemplazarExistente = Boolean(datos.reemplazarExistente);
 
     var lastRowS = sheetSorteos.getLastRow();
@@ -1463,7 +1472,7 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
     var coincidenciaDirecta = false;
 
     if (lastRowS >= 2) {
-      var numColsEx = Math.max(17, sheetSorteos.getLastColumn());
+      var numColsEx = Math.max(18, sheetSorteos.getLastColumn());
       var existentes = sheetSorteos.getRange(2, 1, lastRowS - 1, numColsEx).getValues();
       for (var rIdx = 0; rIdx < existentes.length; rIdx++) {
         var jRaw = String(existentes[rIdx][0] || '').trim();
@@ -1528,7 +1537,7 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
 
     sheetSorteos.getRange(nuevaFila, 1).setValue(jornadaNum);
     sheetSorteos.getRange(nuevaFila, 2).setNumberFormat('@').setValue(fechaTarget);
-    sheetSorteos.getRange(nuevaFila, 3).setValue('Resguardo J' + jornadaNum);
+    sheetSorteos.getRange(nuevaFila, 3).setValue('Resguardo J' + jornadaNum + (modalidadStr ? ' · ' + modalidadStr : ''));
     if (driveImageUrl) {
       sheetSorteos.getRange(nuevaFila, 4).setValue(driveImageUrl);
     }
@@ -1546,6 +1555,7 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
     sheetSorteos.getRange(nuevaFila, 15).setValue(parseInt(datos.reintegro, 10) || 0);
     sheetSorteos.getRange(nuevaFila, 16).setValue(parseInt(datos.jugadoresActivos, 10) || 0);
     sheetSorteos.getRange(nuevaFila, 17).setValue(ticketId);
+    sheetSorteos.getRange(nuevaFila, 18).setValue(modalidadStr);
 
     if (publicarAhora) {
       enviandoWhatsAppAhora = true;
@@ -1570,6 +1580,208 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
     };
   } catch (err) {
     return { success: false, message: 'Error programando boleto: ' + err.message };
+  }
+}
+
+/**
+ * Guarda o programa en un único lote TODOS los resguardos múltiples de una misma jornada
+ * (action: 'programarJornadaMultiple'), archivando las imágenes anteriores a HISTORIAL.
+ */
+function guardarOProgramarJornadaMultipleDesdeWeb(datos) {
+  try {
+    if (!datos || !Array.isArray(datos.boletos) || datos.boletos.length === 0 || !datos.fechaSorteo) {
+      return { success: false, message: 'Debes enviar al menos un boleto válido y la fecha del sorteo.' };
+    }
+
+    var ss = obtenerSpreadsheetPeña();
+    var sheetSorteos = ss.getSheetByName('Sorteos');
+    if (!sheetSorteos) {
+      return { success: false, message: 'No existe la pestaña "Sorteos".' };
+    }
+
+    if (sheetSorteos.getLastColumn() < 18) {
+      sheetSorteos.getRange(1, 11, 1, 8).setValues([[
+        'Estado Publicación', 'FechaHora Publicación', 'WhatsApp Enviado', 'Ciclo', 'Reintegro', 'Jugadores Activos', 'ID Boleto', 'Modalidad'
+      ]]);
+    }
+
+    var jornadaNum = parseInt(datos.jornada, 10) || 1;
+    var cicloNum = parseInt(datos.ciclo, 10) || 1;
+    var fechaTarget = String(datos.fechaSorteo).trim();
+    var horaPub = String(datos.horaPublicacion || '20:35').trim();
+    var publicarAhora = Boolean(datos.publicarAhora);
+    var estadoPub = publicarAhora ? 'PUBLICADO' : 'PROGRAMADO';
+    var fechaHoraPub = fechaTarget + ' ' + horaPub;
+    var jugadoresActivos = parseInt(datos.jugadoresActivos, 10) || 0;
+    var totalBoletos = datos.boletos.length;
+
+    var idsEntrantes = {};
+    for (var bCheck = 0; bCheck < totalBoletos; bCheck++) {
+      var rawId = String(datos.boletos[bCheck].id || '').trim();
+      if (rawId) idsEntrantes[rawId] = true;
+    }
+
+    // 1. Archivar jornadas anteriores (quitar imagen y pasar a HISTORIAL) y limpiar filas huérfanas de la misma jornada si reemplazamos el lote
+    var lastRowS = sheetSorteos.getLastRow();
+    if (lastRowS >= 2) {
+      var numColsEx = Math.max(18, sheetSorteos.getLastColumn());
+      var existentes = sheetSorteos.getRange(2, 1, lastRowS - 1, numColsEx).getValues();
+      var filasAEliminar = [];
+
+      for (var prevIdx = 0; prevIdx < existentes.length; prevIdx++) {
+        var filaPrev = prevIdx + 2;
+        var combPrev = String(existentes[prevIdx][5] || '').trim();
+        if (!combPrev) continue;
+
+        var jPrev = parseInt(existentes[prevIdx][0], 10);
+        var cPrev = parseInt(existentes[prevIdx][13], 10) || 1;
+        var fPrevRaw = existentes[prevIdx][1];
+        var fPrev = fPrevRaw instanceof Date
+          ? Utilities.formatDate(fPrevRaw, 'Europe/Madrid', 'yyyy-MM-dd')
+          : String(fPrevRaw || '').trim();
+        var idPrev = String(existentes[prevIdx][16] || '').trim();
+
+        if (jPrev === jornadaNum && cPrev === cicloNum && fPrev === fechaTarget) {
+          if (!idPrev || !idsEntrantes[idPrev]) {
+            filasAEliminar.push(filaPrev);
+          }
+          continue;
+        }
+
+        var estadoPrev = String(existentes[prevIdx][10] || '').trim().toUpperCase();
+        if (estadoPrev !== 'HISTORIAL') {
+          sheetSorteos.getRange(filaPrev, 11).setValue('HISTORIAL');
+        }
+        if (String(existentes[prevIdx][3] || '').trim() !== '') {
+          sheetSorteos.getRange(filaPrev, 4).clearContent();
+        }
+      }
+
+      for (var dIdx = filasAEliminar.length - 1; dIdx >= 0; dIdx--) {
+        sheetSorteos.deleteRow(filasAEliminar[dIdx]);
+      }
+    }
+
+    // 2. Insertar o actualizar cada boleto del lote
+    var results = [];
+    var filasWhatsApp = [];
+    var folderId = PropertiesService.getScriptProperties().getProperty('RESGUARDOS_FOLDER_ID');
+    var folder = null;
+
+    for (var i = 0; i < totalBoletos; i++) {
+      var item = datos.boletos[i];
+      if (!item || !item.combinacion) continue;
+
+      var ticketId = String(item.id || ('tkt-' + new Date().getTime() + '-' + (i + 1))).trim();
+      var modalidadStr = String(item.modalidad || '').trim();
+      var driveImageUrl = normalizarUrlImagenDrive(item.imagenUrl);
+
+      if (item.imagenBase64 && String(item.imagenBase64).indexOf('data:') === 0) {
+        try {
+          if (!folder) {
+            folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+          }
+          var partes = String(item.imagenBase64).split(',');
+          var mimeMatch = partes[0].match(/data:([^;]+);base64/);
+          var mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+          var bytes = Utilities.base64Decode(partes[1]);
+          var ext = mimeType.indexOf('png') !== -1 ? 'png' : (mimeType.indexOf('pdf') !== -1 ? 'pdf' : 'jpg');
+          var nombreArchivo = item.fileName || ('resguardo_j' + jornadaNum + '_b' + (i + 1) + '_' + fechaTarget + '.' + ext);
+          var blob = Utilities.newBlob(bytes, mimeType, nombreArchivo);
+          var file = folder.createFile(blob);
+          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          driveImageUrl = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w1600';
+        } catch (eDriveBatch) {
+          Logger.log('Aviso subiendo resguardo lote a Drive (' + (i + 1) + '): ' + eDriveBatch.message);
+        }
+      }
+
+      var curLastRow = sheetSorteos.getLastRow();
+      var filaDestino = curLastRow + 1;
+      var primeraLibre = null;
+      var matchRow = null;
+
+      if (curLastRow >= 2) {
+        var rowsCur = sheetSorteos.getRange(2, 1, curLastRow - 1, Math.max(18, sheetSorteos.getLastColumn())).getValues();
+        for (var rC = 0; rC < rowsCur.length; rC++) {
+          var jR = String(rowsCur[rC][0] || '').trim();
+          var fR = String(rowsCur[rC][1] || '').trim();
+          var cR = String(rowsCur[rC][5] || '').trim();
+          var idR = String(rowsCur[rC][16] || '').trim();
+          if (!jR && !fR && !cR) {
+            if (rowsCur[rC][9] !== '' && rowsCur[rC][9] !== null) {
+              sheetSorteos.getRange(rC + 2, 10).clearContent();
+            }
+            if (primeraLibre === null) primeraLibre = rC + 2;
+            continue;
+          }
+          if (idR && idR === ticketId) {
+            matchRow = rC + 2;
+            break;
+          }
+        }
+      }
+
+      if (matchRow !== null) {
+        filaDestino = matchRow;
+      } else if (primeraLibre !== null) {
+        filaDestino = primeraLibre;
+      }
+
+      sheetSorteos.getRange(filaDestino, 1).setValue(jornadaNum);
+      sheetSorteos.getRange(filaDestino, 2).setNumberFormat('@').setValue(fechaTarget);
+      sheetSorteos.getRange(filaDestino, 3).setValue(
+        'Resguardo J' + jornadaNum + (totalBoletos > 1 ? ' (' + (i + 1) + '/' + totalBoletos + ')' : '') + (modalidadStr ? ' · ' + modalidadStr : '')
+      );
+      if (driveImageUrl) {
+        sheetSorteos.getRange(filaDestino, 4).setValue(driveImageUrl);
+      }
+      sheetSorteos.getRange(filaDestino, 5).setValue(parseFloat(item.importe) || 0);
+      sheetSorteos.getRange(filaDestino, 6).setValue(String(item.combinacion));
+      var premioExistI = parseFloat(sheetSorteos.getRange(filaDestino, 9).getValue());
+      var valPremioMenor = !isNaN(premioExistI) ? (premioExistI <= 2000 ? premioExistI : 0) : 0;
+      sheetSorteos.getRange(filaDestino, 10).setValue(valPremioMenor).setNumberFormat('#,##0.00 €');
+      sheetSorteos.getRange(filaDestino, 11).setValue(estadoPub);
+      sheetSorteos.getRange(filaDestino, 12).setNumberFormat('@').setValue(fechaHoraPub);
+      sheetSorteos.getRange(filaDestino, 13).setValue(publicarAhora ? 'SÍ' : 'NO');
+      sheetSorteos.getRange(filaDestino, 14).setValue(cicloNum);
+      sheetSorteos.getRange(filaDestino, 15).setValue(parseInt(item.reintegro, 10) || 0);
+      sheetSorteos.getRange(filaDestino, 16).setValue(jugadoresActivos);
+      sheetSorteos.getRange(filaDestino, 17).setValue(ticketId);
+      sheetSorteos.getRange(filaDestino, 18).setValue(modalidadStr);
+
+      filasWhatsApp.push({ fila: filaDestino, indice: i + 1 });
+      results.push({ id: ticketId, driveImageUrl: driveImageUrl, modalidad: modalidadStr });
+    }
+
+    SpreadsheetApp.flush();
+
+    var whatsappEnviadoAhora = false;
+    if (publicarAhora && filasWhatsApp.length > 0) {
+      whatsappEnviadoAhora = true;
+      for (var w = 0; w < filasWhatsApp.length; w++) {
+        enviarBoletoDeFilaPorWhatsApp(sheetSorteos, filasWhatsApp[w].fila, filasWhatsApp[w].indice, totalBoletos);
+      }
+    }
+
+    var ultimosJugados = obtenerUltimosBoletosJugadosPublico(ss);
+    var boletosActivos = obtenerBoletosActivosPublicos(ss);
+
+    return {
+      success: true,
+      estado: estadoPub,
+      fechaHoraPublicacion: fechaHoraPub,
+      totalBoletos: totalBoletos,
+      results: results,
+      boletosActivos: boletosActivos,
+      ultimosJugados: ultimosJugados,
+      whatsappEnviadoAhora: whatsappEnviadoAhora,
+      message: publicarAhora
+        ? totalBoletos + ' resguardo(s) publicados y enviados a WhatsApp.'
+        : totalBoletos + ' resguardo(s) programados en Google Sheets para el ' + fechaHoraPub + '.'
+    };
+  } catch (err) {
+    return { success: false, message: 'Error programando jornada múltiple: ' + err.message };
   }
 }
 

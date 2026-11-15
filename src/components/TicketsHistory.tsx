@@ -269,11 +269,13 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {group.tickets.map(ticket => (
+                      {group.tickets.map((ticket, idx) => (
                         <TicketCard
                           key={ticket.id}
                           ticket={ticket}
                           googleAppsScriptUrl={googleAppsScriptUrl}
+                          ticketIndex={idx + 1}
+                          totalTickets={group.tickets.length}
                         />
                       ))}
                     </div>

@@ -27,6 +27,7 @@ import {
   isTicketPublishedNow,
   formatScheduledDateTimeLabel,
   syncTicketWithAppsScript,
+  syncJornadaBatchWithAppsScript,
   normalizeReceiptImageUrl,
   getReceiptImageCandidates
 } from '../services/ticketPublishService';
@@ -61,14 +62,65 @@ import {
   Clock,
   Calculator,
   EyeOff,
-  Plus
+  Plus,
+  LayoutGrid,
+  X
 } from 'lucide-react';
+
+interface ModalityPreset {
+  key: string;
+  label: string;
+  betType: MultipleBetType;
+  betsCount: number;
+  numbersCount: number;
+}
+
+const MODALITY_PRESETS: ModalityPreset[] = [
+  { key: 'MULTIPLE_5', label: 'Múltiple 44 (5 Fijos)', betType: 'MULTIPLE_5', betsCount: 44, numbersCount: 5 },
+  { key: 'MULTIPLE_7', label: 'Múltiple 7', betType: 'MULTIPLE_7', betsCount: 7, numbersCount: 7 },
+  { key: 'MULTIPLE_8', label: 'Múltiple 8', betType: 'MULTIPLE_8', betsCount: 28, numbersCount: 8 },
+  { key: 'MULTIPLE_9', label: 'Múltiple 9', betType: 'MULTIPLE_9', betsCount: 84, numbersCount: 9 },
+  { key: 'MULTIPLE_10', label: 'Múltiple 10', betType: 'MULTIPLE_10', betsCount: 210, numbersCount: 10 },
+  { key: 'MULTIPLE_11', label: 'Múltiple 11', betType: 'MULTIPLE_11', betsCount: 462, numbersCount: 11 },
+  { key: 'CUSTOM', label: 'Combinación Personalizada', betType: 'COMBINADA', betsCount: 1, numbersCount: 6 },
+];
+
+function inferModalityPresetFromCount(count: number): ModalityPreset {
+  if (count === 5) return MODALITY_PRESETS[0];
+  if (count === 7) return MODALITY_PRESETS[1];
+  if (count === 8) return MODALITY_PRESETS[2];
+  if (count === 9) return MODALITY_PRESETS[3];
+  if (count === 10) return MODALITY_PRESETS[4];
+  if (count === 11) return MODALITY_PRESETS[5];
+  return MODALITY_PRESETS[6];
+}
+
+function parseDraftNumbersList(raw: string): number[] {
+  const nums = raw
+    .split(/[,;\s-]+/)
+    .map(s => parseInt(s.trim(), 10))
+    .filter(n => !isNaN(n) && n >= 1 && n <= 49);
+  return Array.from(new Set(nums)).sort((a, b) => a - b);
+}
+
+function formatDraftNumbers(nums: number[]): string {
+  return nums
+    .slice()
+    .sort((a, b) => a - b)
+    .map(n => (n < 10 ? `0${n}` : `${n}`))
+    .join(', ');
+}
 
 interface TicketDraftItem {
   draftId: string;
   numbers: string;
   reintegro: number;
   cost: number;
+  modalityKey: string;
+  modalityLabel: string;
+  betsCount: number;
+  modalityManuallySet: boolean;
+  isNumberGridOpen: boolean;
   image: string;
   fileName: string | null;
   isScanningAI: boolean;
@@ -78,11 +130,16 @@ interface TicketDraftItem {
   previewLoadFailed: boolean;
 }
 
-const createEmptyDraft = (defaultCost = 14): TicketDraftItem => ({
+const createEmptyDraft = (defaultCost = 44): TicketDraftItem => ({
   draftId: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   numbers: '',
   reintegro: 0,
   cost: defaultCost,
+  modalityKey: 'MULTIPLE_5',
+  modalityLabel: 'Múltiple 44 (5 Fijos)',
+  betsCount: 44,
+  modalityManuallySet: false,
+  isNumberGridOpen: false,
   image: '',
   fileName: null,
   isScanningAI: false,
@@ -373,7 +430,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newTicketDrawDate, setNewTicketDrawDate] = useState(() => getNextPrimitivaDrawDate());
   const [newTicketPublishMode, setNewTicketPublishMode] = useState<'PROGRAMADO' | 'AHORA'>('PROGRAMADO');
   const [newTicketPublishTime, setNewTicketPublishTime] = useState('20:35');
-  const [ticketDrafts, setTicketDrafts] = useState<TicketDraftItem[]>(() => [createEmptyDraft(14)]);
+  const [ticketDrafts, setTicketDrafts] = useState<TicketDraftItem[]>(() => [createEmptyDraft(44)]);
   const [isSavingTicket, setIsSavingTicket] = useState(false);
   const [ticketSaveSuccess, setTicketSaveSuccess] = useState(false);
   const [ticketSyncFeedback, setTicketSyncFeedback] = useState<string | null>(null);
@@ -381,6 +438,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const updateDraft = (draftId: string, updater: (prev: TicketDraftItem) => TicketDraftItem) => {
     setTicketDrafts(prev => prev.map(d => (d.draftId === draftId ? updater(d) : d)));
+  };
+
+  const applyNumbersToDraft = (draft: TicketDraftItem, nextNums: number[]): TicketDraftItem => {
+    const clean = Array.from(new Set(nextNums.filter(n => !isNaN(n) && n >= 1 && n <= 49))).sort(
+      (a, b) => a - b
+    );
+    const formatted = formatDraftNumbers(clean);
+    if (!draft.modalityManuallySet && [5, 7, 8, 9, 10, 11].includes(clean.length)) {
+      const preset = inferModalityPresetFromCount(clean.length);
+      return {
+        ...draft,
+        numbers: formatted,
+        modalityKey: preset.key,
+        modalityLabel: preset.label,
+        betsCount: preset.betsCount,
+        cost: preset.betsCount,
+      };
+    }
+    return {
+      ...draft,
+      numbers: formatted,
+    };
+  };
+
+  const toggleDraftGridNumber = (draftId: string, num: number) => {
+    updateDraft(draftId, d => {
+      const current = parseDraftNumbersList(d.numbers);
+      const next = current.includes(num) ? current.filter(n => n !== num) : [...current, num];
+      return applyNumbersToDraft(d, next);
+    });
+  };
+
+  const handleSelectModalityPreset = (draftId: string, presetKey: string) => {
+    const preset = MODALITY_PRESETS.find(p => p.key === presetKey) || MODALITY_PRESETS[6];
+    updateDraft(draftId, d => ({
+      ...d,
+      modalityKey: preset.key,
+      modalityLabel: preset.label,
+      betsCount: preset.key === 'CUSTOM' ? Math.max(1, d.betsCount || 1) : preset.betsCount,
+      cost: preset.key === 'CUSTOM' ? d.cost : preset.betsCount,
+      modalityManuallySet: true,
+    }));
   };
 
   const scanFileIntoDraft = async (draftId: string, file: File, syncJornadaFromFirst = false) => {
@@ -414,35 +513,51 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     if (result.success && result.data) {
       const data = result.data;
-      if (syncJornadaFromFirst && typeof data.jornada === 'number' && !isNaN(data.jornada) && data.jornada >= 1 && data.jornada <= 10) {
+      if (
+        syncJornadaFromFirst &&
+        typeof data.jornada === 'number' &&
+        !isNaN(data.jornada) &&
+        data.jornada >= 1 &&
+        data.jornada <= 10
+      ) {
         setNewTicketJornada(data.jornada);
       }
-      updateDraft(draftId, d => ({
-        ...d,
-        isScanningAI: false,
-        numbers:
-          data.numbers && data.numbers.length > 0
-            ? data.numbers.map(n => (n < 10 ? `0${n}` : `${n}`)).join(', ')
-            : d.numbers,
-        reintegro:
-          typeof data.reintegro === 'number' && !isNaN(data.reintegro)
-            ? data.reintegro
-            : d.reintegro,
-        cost:
-          typeof data.cost === 'number' && !isNaN(data.cost) && data.cost > 0
-            ? data.cost
-            : d.cost,
-        scanSuccessMessage: `¡Boleto analizado con IA! ${data.numbers?.length || 0} números${
-          data.reintegro !== undefined && data.reintegro !== null ? `, Reintegro [${data.reintegro}]` : ''
-        }${data.cost ? `, importe ${data.cost} €` : ''}. ${data.notes || ''}`,
-      }));
+
+      const detectedNums = Array.isArray(data.numbers)
+        ? Array.from(new Set(data.numbers.filter(n => !isNaN(n) && n >= 1 && n <= 49))).sort(
+            (a, b) => a - b
+          )
+        : [];
+
+      updateDraft(draftId, d => {
+        const withNums =
+          detectedNums.length > 0 ? applyNumbersToDraft(d, detectedNums) : { ...d };
+        return {
+          ...withNums,
+          isScanningAI: false,
+          reintegro:
+            typeof data.reintegro === 'number' && !isNaN(data.reintegro)
+              ? data.reintegro
+              : withNums.reintegro,
+          cost:
+            typeof data.cost === 'number' && !isNaN(data.cost) && data.cost > 0
+              ? data.cost
+              : withNums.cost,
+          scanSuccessMessage: `¡Lectura OCR completada! ${detectedNums.length} números detectados${
+            data.reintegro !== undefined && data.reintegro !== null
+              ? `, Reintegro [${data.reintegro}]`
+              : ''
+          }${data.cost ? `, importe ${data.cost} €` : ''}. ${data.notes || ''}`,
+        };
+      });
     } else {
       updateDraft(draftId, d => ({
         ...d,
         isScanningAI: false,
+        isNumberGridOpen: true,
         scanError:
           result.error ||
-          'No se pudieron extraer los números automáticamente. La imagen real sí queda cargada para los jugadores; introduce los números manualmente en este bloque.',
+          'No se pudieron extraer los números automáticamente. La imagen real sí queda cargada para los jugadores; marca los números en la cuadrícula 1-49.',
       }));
     }
   };
@@ -464,7 +579,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (firstIsPristine) {
       assignedPairs.push({ draftId: ticketDrafts[0].draftId, file: files[0], isFirst: true });
       const extraDrafts = files.slice(1).map((f, i) => {
-        const nd = createEmptyDraft(14);
+        const nd = createEmptyDraft(7);
         assignedPairs.push({ draftId: nd.draftId, file: f, isFirst: i === -1 });
         return nd;
       });
@@ -473,7 +588,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     } else {
       const addedDrafts = files.map(f => {
-        const nd = createEmptyDraft(14);
+        const nd = createEmptyDraft(7);
         assignedPairs.push({ draftId: nd.draftId, file: f, isFirst: false });
         return nd;
       });
@@ -487,12 +602,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleAddDraftSlot = () => {
     setBatchSaveError(null);
-    setTicketDrafts(prev => [...prev, createEmptyDraft(14)]);
+    setTicketDrafts(prev => [...prev, createEmptyDraft(7)]);
   };
 
   const handleRemoveDraftSlot = (draftId: string) => {
     setBatchSaveError(null);
-    setTicketDrafts(prev => (prev.length > 1 ? prev.filter(d => d.draftId !== draftId) : [createEmptyDraft(14)]));
+    setTicketDrafts(prev =>
+      prev.length > 1 ? prev.filter(d => d.draftId !== draftId) : [createEmptyDraft(44)]
+    );
   };
 
   // Formulario de escrutinio manual
@@ -619,22 +736,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const parsedBatch: Array<{
       draft: TicketDraftItem;
       nums: number[];
+      betType: MultipleBetType;
+      modalityLabel: string;
+      betsCount: number;
     }> = [];
 
     for (let i = 0; i < ticketDrafts.length; i++) {
       const draft = ticketDrafts[i];
-      const nums = draft.numbers
-        .split(/[,;\s-]+/)
-        .map(s => parseInt(s.trim(), 10))
-        .filter(n => !isNaN(n) && n >= 1 && n <= 49);
+      const nums = parseDraftNumbersList(draft.numbers);
 
       if (nums.length === 0) {
         setBatchSaveError(
-          `El Boleto #${i + 1} no tiene números válidos (1-49). Escribe su combinación manualmente o quita ese bloque antes de guardar.`
+          `El Resguardo #${i + 1} no tiene números válidos (1-49). Marca sus números en la cuadrícula 1-49 o quita ese bloque antes de guardar.`
         );
         return;
       }
-      parsedBatch.push({ draft, nums });
+
+      const preset =
+        MODALITY_PRESETS.find(p => p.key === draft.modalityKey) ||
+        inferModalityPresetFromCount(nums.length);
+      const modalityLabel =
+        draft.modalityLabel?.trim() || preset.label;
+      const betsCount =
+        draft.betsCount > 0 ? draft.betsCount : preset.betsCount;
+
+      parsedBatch.push({
+        draft,
+        nums,
+        betType: preset.betType,
+        modalityLabel,
+        betsCount,
+      });
     }
 
     const drawDateClean = newTicketDrawDate || getNextPrimitivaDrawDate();
@@ -657,34 +789,95 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     let syncedCount = 0;
     const savedBatchTickets: Array<{ ticket: TicketDraw; alreadySentWaByGas: boolean }> = [];
 
-    for (let idx = 0; idx < parsedBatch.length; idx++) {
-      const { draft, nums } = parsedBatch[idx];
-      const inferredBetType: MultipleBetType =
-        nums.length === 5
-          ? 'MULTIPLE_5'
-          : nums.length === 7
-          ? 'MULTIPLE_7'
-          : nums.length === 8
-          ? 'MULTIPLE_8'
-          : nums.length === 9
-          ? 'MULTIPLE_9'
-          : nums.length === 10
-          ? 'MULTIPLE_10'
-          : nums.length === 11
-          ? 'MULTIPLE_11'
-          : 'COMBINADA';
-
+    const batchPayloadItems = parsedBatch.map((item, idx) => {
+      const { draft, nums, modalityLabel, betsCount } = item;
       const normalizedInputImage = normalizeReceiptImageUrl(draft.image);
       const safeCost = isNaN(draft.cost) || draft.cost < 0 ? 0 : draft.cost;
       const safeReintegro = isNaN(draft.reintegro) ? 0 : draft.reintegro;
+      const ticketId = `t-${baseTs}-${idx + 1}`;
+      return {
+        ticketId,
+        item,
+        normalizedInputImage,
+        safeCost,
+        safeReintegro,
+        gasPayload: {
+          id: ticketId,
+          modalidad: modalityLabel,
+          apuestas: betsCount,
+          numeros: nums,
+          combinacion: formatDraftNumbers(nums),
+          reintegro: safeReintegro,
+          importe: safeCost,
+          imagenBase64: draft.image.startsWith('data:') ? draft.image : undefined,
+          imagenUrl: !draft.image.startsWith('data:') ? normalizedInputImage : undefined,
+          fileName:
+            draft.fileName || `resguardo_j${newTicketJornada}_b${idx + 1}_${drawDateClean}.jpg`,
+        },
+      };
+    });
 
-      const newTicket: TicketDraw = {
-        id: `t-${baseTs}-${idx + 1}`,
+    // Envío en lote único a Google Apps Script (action: 'programarJornadaMultiple')
+    const batchRes = await syncJornadaBatchWithAppsScript(settings.googleAppsScriptUrl, {
+      ciclo: settings.currentCycle,
+      jornada: newTicketJornada,
+      fechaSorteo: drawDateClean,
+      horaPublicacion: publishTimeClean,
+      publicarAhora: shouldPublishImmediately,
+      jugadoresActivos: activePlayersCount,
+      boletos: batchPayloadItems.map(b => b.gasPayload),
+    });
+
+    if (batchRes.synced) {
+      syncedCount = batchPayloadItems.length;
+    }
+
+    for (let idx = 0; idx < batchPayloadItems.length; idx++) {
+      const { ticketId, item, normalizedInputImage, safeCost, safeReintegro, gasPayload } =
+        batchPayloadItems[idx];
+      const { nums, betType, modalityLabel } = item;
+
+      let driveImageUrl: string | undefined;
+      let alreadySentWaByGas = Boolean(batchRes.whatsappEnviadoAhora);
+
+      if (batchRes.synced && Array.isArray(batchRes.results)) {
+        const matchedResult =
+          batchRes.results.find(r => r.id === ticketId) || batchRes.results[idx];
+        driveImageUrl = matchedResult?.driveImageUrl;
+        if (matchedResult && typeof matchedResult.whatsappEnviadoAhora === 'boolean') {
+          alreadySentWaByGas = matchedResult.whatsappEnviadoAhora;
+        }
+      } else if (!batchRes.synced && settings.googleAppsScriptUrl?.trim()) {
+        // Respaldo individual por compatibilidad con despliegues anteriores
+        const singleRes = await syncTicketWithAppsScript(settings.googleAppsScriptUrl, {
+          id: ticketId,
+          ciclo: settings.currentCycle,
+          jornada: newTicketJornada,
+          fechaSorteo: drawDateClean,
+          horaPublicacion: publishTimeClean,
+          publicarAhora: shouldPublishImmediately,
+          modalidad: modalityLabel,
+          combinacion: gasPayload.combinacion,
+          reintegro: safeReintegro,
+          importe: safeCost,
+          jugadoresActivos: activePlayersCount,
+          imagenBase64: gasPayload.imagenBase64,
+          imagenUrl: gasPayload.imagenUrl,
+          fileName: gasPayload.fileName,
+        });
+        if (singleRes.synced) syncedCount++;
+        driveImageUrl = singleRes.driveImageUrl;
+        alreadySentWaByGas = Boolean(singleRes.whatsappEnviadoAhora);
+      }
+
+      const ticketToStore: TicketDraw = {
+        id: ticketId,
         cycleNumber: settings.currentCycle,
         jornadaNumber: newTicketJornada,
         drawDate: drawDateClean,
-        receiptImageUrl: normalizedInputImage,
-        betType: inferredBetType,
+        receiptImageUrl: normalizeReceiptImageUrl(driveImageUrl || normalizedInputImage),
+        betType,
+        modalityLabel,
         numbersPlayedCount: nums.length,
         cost: safeCost,
         activePlayersCount,
@@ -700,43 +893,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         scheduledNotificationSent: shouldPublishImmediately,
       };
 
-      const syncRes = await syncTicketWithAppsScript(settings.googleAppsScriptUrl, {
-        id: newTicket.id,
-        ciclo: settings.currentCycle,
-        jornada: newTicketJornada,
-        fechaSorteo: drawDateClean,
-        horaPublicacion: publishTimeClean,
-        publicarAhora: shouldPublishImmediately,
-        combinacion: nums.map(n => (n < 10 ? `0${n}` : `${n}`)).join(', '),
-        reintegro: safeReintegro,
-        importe: safeCost,
-        jugadoresActivos: activePlayersCount,
-        imagenBase64: draft.image.startsWith('data:') ? draft.image : undefined,
-        imagenUrl: !draft.image.startsWith('data:') ? normalizedInputImage : undefined,
-        fileName: draft.fileName || `resguardo_j${newTicketJornada}_b${idx + 1}_${drawDateClean}.jpg`,
-      });
-
-      if (syncRes.synced) syncedCount++;
-
-      const ticketToStore: TicketDraw = {
-        ...newTicket,
-        receiptImageUrl: normalizeReceiptImageUrl(syncRes.driveImageUrl || newTicket.receiptImageUrl),
-      };
-
       updatedTicketsList = archivePreviousPendingTicketsForNewSchedule(
         updatedTicketsList,
         ticketToStore
       );
       savedBatchTickets.push({
         ticket: ticketToStore,
-        alreadySentWaByGas: Boolean(syncRes.whatsappEnviadoAhora),
+        alreadySentWaByGas,
       });
     }
 
     onUpdateTickets(updatedTicketsList);
     setIsSavingTicket(false);
     setTicketSaveSuccess(true);
-    setTicketDrafts([createEmptyDraft(14)]);
+    setTicketDrafts([createEmptyDraft(44)]);
 
     const totalBoletos = savedBatchTickets.length;
 
@@ -2271,6 +2441,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               const draftPreviewSrc =
                 draftCandidates[draft.previewCandidateIdx] || normalizeReceiptImageUrl(draft.image);
               const individualInputId = `ticket-file-single-${draft.draftId}`;
+              const selectedNums = parseDraftNumbersList(draft.numbers);
 
               return (
                 <div
@@ -2278,12 +2449,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="rounded-2xl border-2 border-slate-200 bg-white p-4 sm:p-5 space-y-4"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <span className="px-3 py-1 rounded-xl bg-[#0A2540] text-white text-sm font-black">
-                        Boleto #{idx + 1}
+                        Resguardo #{idx + 1}
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg bg-orange-50 border border-orange-200 text-[#FF6B00] text-xs font-extrabold">
+                        {draft.modalityLabel}
                       </span>
                       {draft.fileName && (
-                        <span className="text-xs sm:text-sm font-mono text-slate-600 truncate max-w-[220px]">
+                        <span className="text-xs sm:text-sm font-mono text-slate-600 truncate max-w-[200px]">
                           {draft.fileName}
                         </span>
                       )}
@@ -2327,7 +2501,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {draft.isScanningAI && (
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 text-sm font-bold text-[#0A2540] border border-blue-200 animate-pulse">
                       <Loader2 className="w-4 h-4 animate-spin text-[#FF6B00]" />
-                      <span>Escaneando números del Boleto #{idx + 1} con IA...</span>
+                      <span>Preprocesando imagen y escaneando números con OCR...</span>
                     </div>
                   )}
 
@@ -2349,7 +2523,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div className="space-y-3.5">
                       <div>
                         <label className="font-bold text-[#0A2540] block mb-1.5">
-                          Combinación Jugada (Boleto #{idx + 1}):
+                          Modalidad / Apuestas (Resguardo #{idx + 1}):
+                        </label>
+                        <select
+                          value={draft.modalityKey}
+                          onChange={e => handleSelectModalityPreset(draft.draftId, e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 min-h-[46px] font-bold text-[#0A2540]"
+                        >
+                          {MODALITY_PRESETS.map(p => (
+                            <option key={p.key} value={p.key}>
+                              {p.key === 'CUSTOM'
+                                ? p.label
+                                : `${p.label} — ${p.betsCount} apuestas (${p.betsCount} €)`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-[#0A2540] block mb-1.5">
+                          Combinación Jugada (01–49):
                         </label>
                         <input
                           type="text"
@@ -2386,12 +2579,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             step="0.01"
                             min={0}
                             value={draft.cost}
-                            onChange={e =>
+                            onChange={e => {
+                              const nextCost = parseFloat(e.target.value) || 0;
                               updateDraft(draft.draftId, d => ({
                                 ...d,
-                                cost: parseFloat(e.target.value) || 0,
-                              }))
-                            }
+                                cost: nextCost,
+                                betsCount: Math.round(nextCost) || d.betsCount,
+                              }));
+                            }}
                             className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-emerald-800"
                           />
                         </div>
@@ -2429,7 +2624,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-bold text-slate-600 uppercase">
-                            Vista Previa Boleto #{idx + 1}
+                            Vista Previa Resguardo #{idx + 1}
                           </span>
                           {draft.image && (
                             <button
@@ -2494,7 +2689,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             >
                               <Upload className="w-8 h-8 text-slate-400 mx-auto mb-1" />
                               <span className="text-xs sm:text-sm font-semibold block">
-                                Pulsa aquí para subir la imagen del Boleto #{idx + 1}
+                                Pulsa aquí para subir la imagen del Resguardo #{idx + 1}
                               </span>
                             </label>
                           )}
@@ -2503,7 +2698,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 text-xs sm:text-sm space-y-1">
                         <div>
-                          <strong>Combinación:</strong> {draft.numbers || 'Pendiente de introducir'}
+                          <strong>Modalidad:</strong> {draft.modalityLabel} ({draft.betsCount} apuestas)
+                        </div>
+                        <div>
+                          <strong>Combinación:</strong> {draft.numbers || 'Pendiente de marcar'}
                         </div>
                         <div>
                           <strong>Reintegro:</strong> [{draft.reintegro}] · <strong>Coste:</strong>{' '}
@@ -2511,6 +2709,104 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Chips editables de números detectados + Botón & Cuadrícula táctil 1-49 */}
+                  <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div>
+                        <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-[#0A2540] block">
+                          Números Detectados / Marcados ({selectedNums.length})
+                        </span>
+                        <span className="text-xs text-slate-600">
+                          Pulsa la «×» de cualquier etiqueta para quitar un número erróneo o abre la cuadrícula rápida del 1 al 49.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateDraft(draft.draftId, d => ({
+                            ...d,
+                            isNumberGridOpen: !d.isNumberGridOpen,
+                          }))
+                        }
+                        className={`inline-flex items-center justify-center gap-2 px-4 min-h-[42px] rounded-xl text-xs sm:text-sm font-extrabold transition cursor-pointer shrink-0 ${
+                          draft.isNumberGridOpen
+                            ? 'bg-[#FF6B00] text-white shadow-xs'
+                            : 'bg-[#0A2540] hover:bg-[#13375B] text-white'
+                        }`}
+                      >
+                        <LayoutGrid className="w-4 h-4" />
+                        <span>
+                          {draft.isNumberGridOpen
+                            ? 'Ocultar cuadrícula 1-49'
+                            : 'Editar / Marcar números manualmente'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Etiquetas / Chips editables */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {selectedNums.length > 0 ? (
+                        selectedNums.map(num => (
+                          <button
+                            key={`chip-${draft.draftId}-${num}`}
+                            type="button"
+                            onClick={() => toggleDraftGridNumber(draft.draftId, num)}
+                            title={`Quitar número ${num < 10 ? `0${num}` : num}`}
+                            className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-xl bg-[#0A2540] hover:bg-rose-700 text-white font-mono font-extrabold text-sm shadow-2xs transition cursor-pointer tabular-nums"
+                          >
+                            <span>{num < 10 ? `0${num}` : num}</span>
+                            <X className="w-3.5 h-3.5 text-[#FF6B00]" />
+                          </button>
+                        ))
+                      ) : (
+                        <span className="text-xs sm:text-sm text-slate-500 italic">
+                          Sin números marcados todavía. Sube una foto o pulsa «Editar / Marcar números manualmente».
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Cuadrícula Táctil Compacta del 1 al 49 (estilo boleto oficial) */}
+                    {draft.isNumberGridOpen && (
+                      <div className="rounded-xl bg-white border-2 border-[#0A2540]/15 p-3 sm:p-4 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs sm:text-sm font-extrabold text-[#0A2540]">
+                            Selector Táctil La Primitiva (01 – 49) · Marcados: {selectedNums.length}
+                          </span>
+                          {selectedNums.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateDraft(draft.draftId, d => ({ ...d, numbers: '' }))
+                              }
+                              className="text-xs font-bold text-rose-700 hover:underline cursor-pointer"
+                            >
+                              Limpiar selección
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                          {Array.from({ length: 49 }, (_, i) => i + 1).map(num => {
+                            const isSelected = selectedNums.includes(num);
+                            return (
+                              <button
+                                key={`grid-${draft.draftId}-${num}`}
+                                type="button"
+                                onClick={() => toggleDraftGridNumber(draft.draftId, num)}
+                                className={`min-h-[38px] sm:min-h-[42px] rounded-lg border font-mono font-extrabold text-sm sm:text-base tabular-nums transition cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#FF6B00] border-[#FF6B00] text-white shadow-xs scale-[1.03]'
+                                    : 'bg-[#F4F6F9] border-slate-200 text-[#0A2540] hover:border-[#FF6B00] hover:bg-orange-50'
+                                }`}
+                              >
+                                {num < 10 ? `0${num}` : num}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -2524,7 +2820,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           )}
 
-          {/* Botones Añadir otro boleto + Guardar/Publicar lote */}
+          {/* Botones Añadir otro resguardo + Guardar / Programar Jornada */}
           <div className="flex flex-col sm:flex-row gap-3">
             <button
               type="button"
@@ -2532,7 +2828,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               className="sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[50px] rounded-xl border-2 border-[#0A2540] bg-white hover:bg-slate-100 text-[#0A2540] font-extrabold text-base transition cursor-pointer shrink-0"
             >
               <Plus className="w-5 h-5 text-[#FF6B00]" />
-              <span>Añadir otro boleto a esta jornada</span>
+              <span>+ Añadir otro resguardo a esta jornada</span>
             </button>
 
             <button
@@ -2549,14 +2845,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               ) : ticketSaveSuccess ? (
                 <span>
                   {newTicketPublishMode === 'PROGRAMADO'
-                    ? '¡Resguardos Programados Correctamente!'
-                    : '¡Resguardos Publicados y Notificados!'}
+                    ? '¡Jornada Programada Correctamente!'
+                    : '¡Jornada Publicada y Notificada!'}
                 </span>
               ) : (
                 <span>
                   {newTicketPublishMode === 'PROGRAMADO'
-                    ? `Programar ${ticketDrafts.length === 1 ? 'Resguardo' : `${ticketDrafts.length} Resguardos`} para el ${newTicketDrawDate} (${newTicketPublishTime} h)`
-                    : `Publicar y Notificar ${ticketDrafts.length === 1 ? 'Resguardo' : `${ticketDrafts.length} Resguardos`} Ahora`}
+                    ? `Guardar / Programar Jornada (${ticketDrafts.length} ${ticketDrafts.length === 1 ? 'resguardo' : 'resguardos'} · ${newTicketDrawDate} ${newTicketPublishTime} h)`
+                    : `Guardar / Publicar Jornada Ahora (${ticketDrafts.length} ${ticketDrafts.length === 1 ? 'resguardo' : 'resguardos'})`}
                 </span>
               )}
             </button>
@@ -2607,7 +2903,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         )}
                         <div className="space-y-1">
                           <div className="font-extrabold text-[#0A2540] text-sm sm:text-base">
-                            Boleto #{idx + 1} · Jornada {pt.jornadaNumber}/10 · {pt.drawDate}
+                            Resguardo #{idx + 1}{pt.modalityLabel ? ` — ${pt.modalityLabel}` : ''} · Jornada {pt.jornadaNumber}/10 · {pt.drawDate}
                           </div>
                           <div className="text-sm font-mono text-slate-700">
                             [{pt.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(', ')}] · R: {pt.playedReintegro} · {pt.cost.toFixed(2)} €
@@ -2660,7 +2956,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         )}
                         <div className="space-y-1">
                           <div className="font-extrabold text-[#0A2540] text-sm sm:text-base">
-                            Boleto #{idx + 1} · Jornada {st.jornadaNumber}/10 · {formatScheduledDateTimeLabel(st.publishAt, st.drawDate)}
+                            Resguardo #{idx + 1}{st.modalityLabel ? ` — ${st.modalityLabel}` : ''} · Jornada {st.jornadaNumber}/10 · {formatScheduledDateTimeLabel(st.publishAt, st.drawDate)}
                           </div>
                           <div className="text-sm font-mono text-slate-700">
                             [{st.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(', ')}] · R: {st.playedReintegro} · {st.cost.toFixed(2)} €
@@ -3066,7 +3362,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
                   Apuesta Activa de la Peña
                 </span>
-                {cycleScrutiny?.apuestaPena && cycleScrutiny.apuestaPena.length > 0 ? (
+                {cycleScrutiny?.detalleBoletos && cycleScrutiny.detalleBoletos.length > 1 ? (
+                  <div className="space-y-2.5">
+                    {cycleScrutiny.detalleBoletos.map(det => (
+                      <div
+                        key={`det-${det.indice}`}
+                        className="rounded-xl bg-white border border-slate-200 p-2.5 space-y-1.5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-extrabold text-[#0A2540]">
+                          <span>
+                            Resguardo #{det.indice}
+                            {det.modalidad ? ` — ${det.modalidad}` : ''}
+                          </span>
+                          <span className="text-emerald-700">{det.textoAciertos || `${det.cantidadAciertos} aciertos`}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(det.apuestaPena || []).map((n, nIdx) => {
+                            const isHit = det.aciertosNumeros?.includes(n);
+                            return (
+                              <span
+                                key={`det-${det.indice}-${n}-${nIdx}`}
+                                className={`w-8 h-8 rounded-full border font-mono font-extrabold text-xs flex items-center justify-center tabular-nums ${
+                                  isHit
+                                    ? 'bg-emerald-700 border-emerald-400 text-white'
+                                    : 'bg-slate-50 border-slate-300 text-[#0A2540]'
+                                }`}
+                              >
+                                {n < 10 ? `0${n}` : n}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : cycleScrutiny?.apuestaPena && cycleScrutiny.apuestaPena.length > 0 ? (
                   <>
                     <div className="flex flex-wrap gap-2">
                       {cycleScrutiny.apuestaPena.map((n, idx) => {
@@ -3345,6 +3675,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {listToCheck.map((tk, idx) => {
                     const hits = tk.playedNumbers.filter(n => winNums.includes(n));
                     const reintegroMatch = scrutinyReintegro === tk.playedReintegro;
+                    const itemResult = liveSummary?.items[idx]?.result;
                     return (
                       <div
                         key={tk.id}
@@ -3352,31 +3683,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                           <span className="font-extrabold text-[#0A2540]">
-                            Boleto #{idx + 1} ({tk.cost.toFixed(2)} €)
+                            Resguardo #{idx + 1}
+                            {tk.modalityLabel ? ` — ${tk.modalityLabel}` : ''} ({tk.cost.toFixed(2)} €)
                           </span>
                           <span className="font-mono text-slate-600 font-semibold tabular-nums">
                             [{tk.playedNumbers.join(', ')}] · R: {tk.playedReintegro}
                           </span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-slate-700 text-sm font-medium">Aciertos:</span>
-                          {hits.length > 0 ? (
-                            hits.map((h, hIdx) => (
-                              <span
-                                key={`hit-${tk.id}-${h}-${hIdx}`}
-                                className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-mono font-bold text-xs sm:text-sm"
-                              >
-                                {h}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-slate-700 text-sm font-medium">Aciertos:</span>
+                            {hits.length > 0 ? (
+                              hits.map((h, hIdx) => (
+                                <span
+                                  key={`hit-${tk.id}-${h}-${hIdx}`}
+                                  className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-mono font-bold text-xs sm:text-sm"
+                                >
+                                  {h}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-600 text-sm font-semibold">
+                                0 aciertos en combinación
                               </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-600 text-sm font-semibold">
-                              0 aciertos en combinación
-                            </span>
-                          )}
-                          {reintegroMatch && (
-                            <span className="px-2.5 py-0.5 rounded-lg bg-[#0A2540] text-white font-bold text-xs sm:text-sm">
-                              Reintegro Acertado ({scrutinyReintegro})
+                            )}
+                            {reintegroMatch && (
+                              <span className="px-2.5 py-0.5 rounded-lg bg-[#0A2540] text-white font-bold text-xs sm:text-sm">
+                                Reintegro Acertado ({scrutinyReintegro})
+                              </span>
+                            )}
+                          </div>
+                          {itemResult && (
+                            <span className="text-xs sm:text-sm font-extrabold text-emerald-800 tabular-nums">
+                              Premio boleto: {itemResult.prizeAmount.toFixed(2)} €
                             </span>
                           )}
                         </div>

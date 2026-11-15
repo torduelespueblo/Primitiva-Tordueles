@@ -310,6 +310,7 @@ export default function App() {
               drawDate: String(item.fecha || ''),
               receiptImageUrl: '', // Solo datos numéricos, sin imagen
               betType: inferBetTypeFromCount(nums.length),
+              modalityLabel: item.modalidad ? String(item.modalidad) : undefined,
               numbersPlayedCount: nums.length,
               cost: Number(item.importeJugado) || 0,
               activePlayersCount: Number(item.jugadoresActivos) || 0,
@@ -441,7 +442,13 @@ export default function App() {
                 ? normalizedImg
                 : normalizeReceiptImageUrl(existingMatch.receiptImageUrl);
             nextTickets = nextTickets.map(t =>
-              t.id === existingMatch.id ? { ...t, receiptImageUrl: nextImg } : t
+              t.id === existingMatch.id
+                ? {
+                    ...t,
+                    receiptImageUrl: nextImg,
+                    modalityLabel: srv.modalidad ? String(srv.modalidad) : t.modalityLabel,
+                  }
+                : t
             );
             return;
           }
@@ -453,6 +460,7 @@ export default function App() {
             drawDate: String(srv.fecha),
             receiptImageUrl: normalizedImg,
             betType: inferBetTypeFromCount(nums.length),
+            modalityLabel: srv.modalidad ? String(srv.modalidad) : undefined,
             numbersPlayedCount: nums.length,
             cost: Number(srv.importeJugado) || 0,
             activePlayersCount: Number(srv.jugadoresActivos) || 0,

@@ -77,6 +77,7 @@ export interface ScheduleTicketAppsScriptPayload {
   fechaSorteo: string; // YYYY-MM-DD
   horaPublicacion: string; // HH:mm
   publicarAhora: boolean;
+  modalidad?: string;
   combinacion: string;
   reintegro: number;
   importe: number;
@@ -84,6 +85,137 @@ export interface ScheduleTicketAppsScriptPayload {
   imagenBase64?: string;
   imagenUrl?: string;
   fileName?: string;
+}
+
+export interface BatchTicketItemPayload {
+  id: string;
+  modalidad: string;
+  apuestas: number;
+  numeros: number[];
+  combinacion: string;
+  reintegro: number;
+  importe: number;
+  imagenBase64?: string;
+  imagenUrl?: string;
+  fileName?: string;
+}
+
+export interface ScheduleJornadaBatchPayload {
+  ciclo: number;
+  jornada: number;
+  fechaSorteo: string; // YYYY-MM-DD
+  horaPublicacion: string; // HH:mm
+  publicarAhora: boolean;
+  jugadoresActivos: number;
+  boletos: BatchTicketItemPayload[];
+}
+
+export interface BatchSyncResponse {
+  success: boolean;
+  synced: boolean;
+  whatsappEnviadoAhora?: boolean;
+  boletosActivos?: Array<{
+    id?: string;
+    jornada: number;
+    fecha: string;
+    fotoResguardo?: string;
+    importeJugado?: number;
+    combinacionJugada?: string;
+    modalidad?: string;
+    ciclo?: number;
+    reintegro?: number;
+    jugadoresActivos?: number;
+  }>;
+  ultimosJugados?: Array<{
+    id?: string;
+    jornada: number;
+    ciclo?: number;
+    fecha: string;
+    importeJugado?: number;
+    combinacionJugada?: string;
+    modalidad?: string;
+    combinacionGanadora?: string;
+    aciertos?: number | null;
+    cantidadPremiada?: number;
+    reintegro?: number;
+    jugadoresActivos?: number;
+  }>;
+  results?: Array<{
+    id?: string;
+    driveImageUrl?: string;
+    whatsappEnviadoAhora?: boolean;
+  }>;
+  message?: string;
+}
+
+export async function syncJornadaBatchWithAppsScript(
+  googleAppsScriptUrl: string | undefined,
+  payload: ScheduleJornadaBatchPayload
+): Promise<BatchSyncResponse> {
+  const endpoint = (googleAppsScriptUrl || '').trim();
+  if (!endpoint) {
+    return {
+      success: false,
+      synced: false,
+      message: 'Falta la URL de Google Apps Script en Ajustes.',
+    };
+  }
+
+  const cleanEndpoint = endpoint.endsWith('/exe') ? `${endpoint}c` : endpoint;
+
+  try {
+    const res = await fetch(cleanEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        action: 'programarJornadaMultiple',
+        datos: payload,
+      }),
+    });
+
+    if (!res.ok) {
+      return {
+        success: false,
+        synced: false,
+        message: `Apps Script devolvió HTTP ${res.status}`,
+      };
+    }
+
+    const text = await res.text();
+    try {
+      const json = JSON.parse(text);
+      if (json && json.success) {
+        return {
+          success: true,
+          synced: true,
+          whatsappEnviadoAhora: Boolean(json.whatsappEnviadoAhora),
+          boletosActivos: Array.isArray(json.boletosActivos) ? json.boletosActivos : undefined,
+          ultimosJugados: Array.isArray(json.ultimosJugados) ? json.ultimosJugados : undefined,
+          results: Array.isArray(json.results) ? json.results : undefined,
+          message: json.message,
+        };
+      }
+      return {
+        success: false,
+        synced: false,
+        message: json?.message || 'Apps Script no pudo guardar el lote de resguardos.',
+      };
+    } catch {
+      return {
+        success: true,
+        synced: true,
+        message: 'Lote sincronizado con Google Apps Script.',
+      };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      synced: false,
+      message: err instanceof Error ? err.message : 'No se pudo conectar con Apps Script.',
+    };
+  }
 }
 
 export async function syncTicketWithAppsScript(
@@ -101,6 +233,7 @@ export async function syncTicketWithAppsScript(
     fecha: string;
     importeJugado?: number;
     combinacionJugada?: string;
+    modalidad?: string;
     combinacionGanadora?: string;
     aciertos?: number | null;
     cantidadPremiada?: number;

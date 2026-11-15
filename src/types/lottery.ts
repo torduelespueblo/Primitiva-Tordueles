@@ -44,6 +44,19 @@ export interface ScrutinyCycleResult {
   textoAciertos?: string;
   filaSorteos?: number | null;
   premioGuardado?: number | null;
+  detalleBoletos?: Array<{
+    indice: number;
+    filaSorteos?: number | null;
+    modalidad?: string;
+    apuestaPena: number[];
+    reintegroJugado?: number | null;
+    importeJugado?: number;
+    aciertosNumeros: number[];
+    cantidadAciertos: number;
+    complementarioAcertado?: boolean;
+    reintegroAcertado?: boolean;
+    textoAciertos?: string;
+  }>;
   message?: string;
 }
 
@@ -74,6 +87,7 @@ export interface TicketDraw {
   drawDate: string; // Ej. '2026-11-12' (Jueves / Sábado)
   receiptImageUrl: string; // Foto del resguardo sellado
   betType: MultipleBetType;
+  modalityLabel?: string; // Ej. 'Múltiple 44 (5 Fijos)', 'Múltiple 7'
   numbersPlayedCount: number; // Ej. 8 números
   cost: number; // Ej. 84€
   activePlayersCount: number; // Ej. 84 jugadores

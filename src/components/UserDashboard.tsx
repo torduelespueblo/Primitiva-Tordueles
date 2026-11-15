@@ -319,8 +319,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
             )}
             <div className={pendingPublished.length > 1 ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'max-w-2xl'}>
-              {pendingPublished.map(t => (
-                <TicketCard key={t.id} ticket={t} googleAppsScriptUrl={googleAppsScriptUrl} />
+              {pendingPublished.map((t, idx) => (
+                <TicketCard
+                  key={t.id}
+                  ticket={t}
+                  googleAppsScriptUrl={googleAppsScriptUrl}
+                  ticketIndex={idx + 1}
+                  totalTickets={pendingPublished.length}
+                />
               ))}
             </div>
           </div>

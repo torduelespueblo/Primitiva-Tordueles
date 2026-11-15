@@ -528,8 +528,20 @@
         jornadaEl.innerText = 'Jornada ' + firstB.jornada + ' · ' + firstB.fecha;
       }
 
+      function inferirNombreModalidad(b, numsLen) {
+        if (b && b.modalidad) return String(b.modalidad).trim();
+        if (numsLen === 5) return 'Múltiple 44';
+        if (numsLen === 7) return 'Múltiple 7';
+        if (numsLen === 8) return 'Múltiple 8';
+        if (numsLen === 9) return 'Múltiple 9';
+        if (numsLen === 10) return 'Múltiple 10';
+        if (numsLen === 11) return 'Múltiple 11';
+        return numsLen + ' números';
+      }
+
       multiWrap.innerHTML = boletosActivos.map(function (b, idx) {
         const nums = String(b.combinacionJugada || '').split(',').map(function (n) { return n.trim(); }).filter(Boolean);
+        const modLabel = inferirNombreModalidad(b, nums.length);
         const ballsHtml = nums.map(function (num) {
           return '<div class="ball tabular-nums">' + (num.length === 1 ? '0' + num : num) + '</div>';
         }).join('');
@@ -542,8 +554,8 @@
         return (
           '<div class="multi-ticket-item">' +
             (boletosActivos.length > 1
-              ? '<div style="font-size: 0.76rem; font-weight: 800; color: var(--navy-deep); text-align: center;">Resguardo #' + (idx + 1) + ' (' + nums.length + ' números)</div>'
-              : '') +
+              ? '<div style="font-size: 0.78rem; font-weight: 800; color: var(--navy-deep); text-align: center;">Resguardo ' + (idx + 1) + ' — ' + escapeHtml(modLabel) + '</div>'
+              : (modLabel ? '<div style="font-size: 0.74rem; font-weight: 700; color: var(--text-muted); text-align: center;">' + escapeHtml(modLabel) + '</div>' : '')) +
             '<div class="balls-row">' + ballsHtml + '</div>' +
             '<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">Importe jugado: ' + formatearMoneda(b.importeJugado) + reintHtml + '</p>' +
             fotoHtml +
@@ -1058,6 +1070,7 @@
         multiListEl.style.display = 'block';
         multiListEl.innerHTML = res.detalleBoletos.map(function (b, idx) {
           const hits = Array.isArray(b.aciertosNumeros) ? b.aciertosNumeros : [];
+          const modB = b.modalidad ? (' — ' + escapeHtml(b.modalidad)) : '';
           const numsHtml = (b.apuestaPena || []).map(function (n) {
             const s = n < 10 ? '0' + n : String(n);
             const esAcierto = hits.indexOf(n) !== -1;
@@ -1067,7 +1080,7 @@
           return (
             '<div style="padding:10px 12px;border:1px solid var(--border-hairline);border-radius:10px;background:#FFF;margin-bottom:8px;">' +
               '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:0.8rem;font-weight:800;color:var(--navy-deep);">' +
-                '<span>Resguardo #' + (idx + 1) + ' (R: ' + (b.reintegroJugado !== null && b.reintegroJugado !== undefined ? b.reintegroJugado : '-') + ')</span>' +
+                '<span>Resguardo #' + (idx + 1) + modB + ' (R: ' + (b.reintegroJugado !== null && b.reintegroJugado !== undefined ? b.reintegroJugado : '-') + ')</span>' +
                 '<span style="color:var(--orange-hover);">' + escapeHtml(b.textoAciertos || '') + '</span>' +
               '</div>' +
               '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + numsHtml + '</div>' +

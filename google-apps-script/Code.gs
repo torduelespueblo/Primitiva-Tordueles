@@ -527,8 +527,8 @@ function normalizarFechaAYMD(fechaTexto) {
   return s;
 }
 
-function enviarBoletoDeFilaPorWhatsApp(sheetSorteos, rowNum) {
-  var numCols = Math.max(16, sheetSorteos.getLastColumn());
+function enviarBoletoDeFilaPorWhatsApp(sheetSorteos, rowNum, indiceOpt, totalOpt) {
+  var numCols = Math.max(18, sheetSorteos.getLastColumn());
   var fila = sheetSorteos.getRange(rowNum, 1, 1, numCols).getValues()[0];
   var jornada = fila[0];
   var fecha = fila[1] instanceof Date
@@ -540,13 +540,18 @@ function enviarBoletoDeFilaPorWhatsApp(sheetSorteos, rowNum) {
   var ciclo = fila[13] || 1;
   var reintegro = (fila[14] !== '' && fila[14] !== undefined) ? fila[14] : 0;
   var jugadores = fila[15] || 14;
+  var modalidad = String(fila[17] || '').trim();
 
   if (!combinacion) return;
+
+  var etiquetaResguardo = (totalOpt && totalOpt > 1)
+    ? ('Resguardo ' + (indiceOpt || 1) + ' de ' + totalOpt + (modalidad ? ' — ' + modalidad : ''))
+    : ('Resguardo Sellado Oficial Validado' + (modalidad ? ' (' + modalidad + ')' : ''));
 
   var mensaje = '🌲 *PEÑA LA PRIMITIVA TORDUELES* 🌲\n' +
     '📅 *Jornada ' + jornada + '/10 (Ciclo ' + ciclo + ') · Sorteo ' + fecha + '*\n' +
     '⏰ *Publicación oficial: 20:35 h*\n\n' +
-    '🎟️ *Resguardo Sellado Oficial Validado:*\n' +
+    '🎟️ *' + etiquetaResguardo + ':*\n' +
     '• Jugadores Activos: ' + jugadores + ' socios (1€/semana)\n' +
     '• Importe Jugado: ' + importe + ' €\n' +
     '• Combinación Jugada: ' + combinacion + '\n' +
@@ -555,7 +560,7 @@ function enviarBoletoDeFilaPorWhatsApp(sheetSorteos, rowNum) {
     '📱 Consulta el resguardo oficial completo en la WebApp.';
 
   if (fotoUrl && fotoUrl.indexOf('http') === 0) {
-    var enviadoConFoto = enviarImagenGreenApi(fotoUrl, 'resguardo_jornada_' + jornada + '.jpg', mensaje);
+    var enviadoConFoto = enviarImagenGreenApi(fotoUrl, 'resguardo_jornada_' + jornada + (indiceOpt ? '_b' + indiceOpt : '') + '.jpg', mensaje);
     if (enviadoConFoto) return;
   }
 
@@ -1259,7 +1264,7 @@ function forzarResultadosManuales(numeros, complementario, reintegro, fechaOpcio
     }
 
     var lastRow = sheetSorteos.getLastRow();
-    var numColsManual = Math.max(16, sheetSorteos.getLastColumn());
+    var numColsManual = Math.max(18, sheetSorteos.getLastColumn());
     var todasFilas = sheetSorteos.getRange(2, 1, lastRow - 1, numColsManual).getValues();
     var zonaManual = PROYECTO_CONFIG.TIMEZONE || 'Europe/Madrid';
 
@@ -1292,6 +1297,7 @@ function forzarResultadosManuales(numeros, complementario, reintegro, fechaOpcio
         boletosJornada.push({
           rowNum: bi + 2,
           jugados: combB,
+          modalidad: String(rB[17] || '').trim(),
           importeJugado: parseFloat(rB[4]) || 0,
           reintegroJugado: (rB[14] !== '' && rB[14] !== null && rB[14] !== undefined && !isNaN(parseInt(rB[14], 10)))
             ? parseInt(rB[14], 10)
@@ -1330,12 +1336,12 @@ function forzarResultadosManuales(numeros, complementario, reintegro, fechaOpcio
       sheetSorteos.getRange(bItem.rowNum, 7).setValue(numsArray.join(', '));
       sheetSorteos.getRange(bItem.rowNum, 8).setValue(calcB.cantidadAciertos);
       // Guardar premio agregado únicamente en el primer boleto de la jornada para no duplicar SUM(Sorteos!J:J)
-      var premioFila = (bj === 0) ? Math.round(premioEstimadoTotal * 100) / 100 : 0;
-      sheetSorteos.getRange(bItem.rowNum, 9).setValue(bj === 0 ? 0 : 0);
+      sheetSorteos.getRange(bItem.rowNum, 9).setValue(0);
       sheetSorteos.getRange(bItem.rowNum, 10).setValue(0);
 
       detalleBoletos.push({
         apuestaPena: bItem.jugados,
+        modalidad: bItem.modalidad,
         reintegroJugado: bItem.reintegroJugado,
         aciertosNumeros: calcB.aciertosNumeros,
         cantidadAciertos: calcB.cantidadAciertos,
@@ -2243,7 +2249,7 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
   var sheetSorteos = ss.getSheetByName(PROYECTO_CONFIG.SHEET_SORTEOS || 'Sorteos');
   if (sheetSorteos && sheetSorteos.getLastRow() >= 2) {
     var lastRowS = sheetSorteos.getLastRow();
-    var numColsS = Math.max(16, sheetSorteos.getLastColumn());
+    var numColsS = Math.max(18, sheetSorteos.getLastColumn());
     var rowsS = sheetSorteos.getRange(2, 1, lastRowS - 1, numColsS).getValues();
 
     var listaMetasS = [];
@@ -2267,6 +2273,7 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
         ciclo: parseInt(rS[13], 10) || 1,
         importeJugado: parseFloat(rS[4]) || 0,
         apuestaNumeros: combJugadaS,
+        modalidad: String(rS[17] || '').trim(),
         reintegroJugado: (rS[14] !== '' && rS[14] !== null && rS[14] !== undefined && !isNaN(parseInt(rS[14], 10)))
           ? parseInt(rS[14], 10)
           : null,
@@ -2464,6 +2471,7 @@ function ejecutarEscrutinioAutomatico() {
         detalleBoletos.push({
           indice: bIdx + 1,
           filaSorteos: ap.rowNum || null,
+          modalidad: ap.modalidad || '',
           apuestaPena: ap.apuestaNumeros,
           reintegroJugado: ap.reintegroJugado,
           importeJugado: ap.importeJugado || 0,
@@ -2477,6 +2485,7 @@ function ejecutarEscrutinioAutomatico() {
         detalleBoletos.push({
           indice: bIdx + 1,
           filaSorteos: ap.rowNum || null,
+          modalidad: ap.modalidad || '',
           apuestaPena: ap.apuestaNumeros || [],
           reintegroJugado: ap.reintegroJugado,
           importeJugado: ap.importeJugado || 0,

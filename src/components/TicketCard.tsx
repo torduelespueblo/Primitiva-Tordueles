@@ -25,9 +25,16 @@ import {
 interface TicketCardProps {
   ticket: TicketDraw;
   googleAppsScriptUrl?: string;
+  ticketIndex?: number;
+  totalTickets?: number;
 }
 
-export const TicketCard: React.FC<TicketCardProps> = ({ ticket, googleAppsScriptUrl }) => {
+export const TicketCard: React.FC<TicketCardProps> = ({
+  ticket,
+  googleAppsScriptUrl,
+  ticketIndex,
+  totalTickets,
+}) => {
   const [showModal, setShowModal] = useState(false);
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [proxyDataUrl, setProxyDataUrl] = useState<string | null>(null);
@@ -109,8 +116,25 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, googleAppsScript
   const hasReceipt = Boolean(ticket.receiptImageUrl && ticket.receiptImageUrl.trim().length > 0);
   const isPdfReceipt = hasReceipt && ticket.receiptImageUrl.startsWith('data:application/pdf');
 
+  const shortModalityLabel =
+    ticket.modalityLabel ||
+    (ticket.betType === 'MULTIPLE_5'
+      ? 'Múltiple 44'
+      : ticket.betType === 'MULTIPLE_7'
+      ? 'Múltiple 7'
+      : ticket.betType === 'MULTIPLE_8'
+      ? 'Múltiple 8'
+      : ticket.betType === 'MULTIPLE_9'
+      ? 'Múltiple 9'
+      : ticket.betType === 'MULTIPLE_10'
+      ? 'Múltiple 10'
+      : ticket.betType === 'MULTIPLE_11'
+      ? 'Múltiple 11'
+      : `Combinación ${ticket.numbersPlayedCount} núm.`);
+
   const betTypeLabel =
-    ticket.betType === 'MULTIPLE_5'
+    ticket.modalityLabel ||
+    (ticket.betType === 'MULTIPLE_5'
       ? 'Múltiple 5 Números (44 apuestas)'
       : ticket.betType === 'MULTIPLE_7'
       ? 'Múltiple 7 Números (7 apuestas)'
@@ -122,7 +146,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, googleAppsScript
       ? 'Múltiple 10 Números (210 apuestas)'
       : ticket.betType === 'MULTIPLE_11'
       ? 'Múltiple 11 Números (462 apuestas)'
-      : `Combinación ${ticket.numbersPlayedCount} números`;
+      : `Combinación ${ticket.numbersPlayedCount} números`);
+
+  const showMultiHeader = Boolean(totalTickets && totalTickets > 1);
 
   return (
     <>
@@ -130,6 +156,11 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, googleAppsScript
         {/* Ticket Header */}
         <div className="bg-[#0A2540] p-5 sm:p-6 text-white flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
+            {showMultiHeader && (
+              <span className="inline-flex items-center px-2.5 py-0.5 mb-2 rounded-lg bg-[#FF6B00] text-white text-xs font-black tracking-wide">
+                Resguardo {ticketIndex || 1} — {shortModalityLabel}
+              </span>
+            )}
             <span className="text-sm uppercase font-extrabold tracking-wider text-[#FF6B00] block tabular-nums">
               Ciclo {ticket.cycleNumber} · Jornada {ticket.jornadaNumber}/10
             </span>
