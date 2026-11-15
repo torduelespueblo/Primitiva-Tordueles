@@ -45,38 +45,50 @@ function toNumericOnlyPlayedTicket(t: TicketDraw): TicketDraw {
   };
 }
 
+export function getTicketJornadaKey(t: Pick<TicketDraw, 'cycleNumber' | 'jornadaNumber' | 'drawDate' | 'id'>): string {
+  return `${t.cycleNumber || 1}-${t.jornadaNumber || 1}-${t.drawDate || t.id}`;
+}
+
 export function capTicketsKeepingPlayed(tickets: TicketDraw[]): TicketDraw[] {
   const sorted = sortTicketsNewestFirst(tickets);
   const rawPending = sorted.filter(t => !t.isScrutinized);
   const rawPlayed = sorted.filter(t => t.isScrutinized);
 
-  // Solo se conserva 1 boleto en curso/programado (el más reciente); cualquier otro pendiente anterior pasa al historial numérico
-  const activePending: TicketDraw[] =
-    rawPending.length > 0
-      ? [
-          {
-            ...rawPending[0],
-            receiptImageUrl: normalizeReceiptImageUrl(rawPending[0].receiptImageUrl),
-          },
-        ]
-      : [];
+  // Se conservan TODOS los resguardos activos/programados de la jornada pendiente más reciente
+  const activeKey = rawPending.length > 0 ? getTicketJornadaKey(rawPending[0]) : null;
+  const activePending: TicketDraw[] = [];
+  const retiredPending: TicketDraw[] = [];
 
-  const retiredPending = rawPending.slice(1).map(toNumericOnlyPlayedTicket);
+  for (const t of rawPending) {
+    if (activeKey && getTicketJornadaKey(t) === activeKey) {
+      activePending.push({
+        ...t,
+        receiptImageUrl: normalizeReceiptImageUrl(t.receiptImageUrl),
+      });
+    } else {
+      retiredPending.push(toNumericOnlyPlayedTicket(t));
+    }
+  }
 
   const combinedPlayed = sortTicketsNewestFirst([
     ...retiredPending,
     ...rawPlayed.map(toNumericOnlyPlayedTicket),
   ]);
 
-  // Deduplicar por ciclo+jornada+fecha conservando el registro con más información de escrutinio
-  const seenKeys = new Set<string>();
+  // Conservar todas las combinaciones de las últimas 4 jornadas (MAX_STORED_TICKETS = 4 jornadas)
+  const seenIds = new Set<string>();
+  const keptJornadaKeys = new Set<string>();
   const dedupedPlayed: TicketDraw[] = [];
+
   for (const t of combinedPlayed) {
-    const key = `${t.cycleNumber || 1}-${t.jornadaNumber || 1}-${t.drawDate || t.id}`;
-    if (seenKeys.has(key)) continue;
-    seenKeys.add(key);
+    if (seenIds.has(t.id)) continue;
+    const jKey = getTicketJornadaKey(t);
+    if (!keptJornadaKeys.has(jKey)) {
+      if (keptJornadaKeys.size >= MAX_STORED_TICKETS) continue;
+      keptJornadaKeys.add(jKey);
+    }
+    seenIds.add(t.id);
     dedupedPlayed.push(t);
-    if (dedupedPlayed.length >= MAX_STORED_TICKETS) break;
   }
 
   return [...activePending, ...dedupedPlayed];
@@ -86,14 +98,18 @@ export function archivePreviousPendingTicketsForNewSchedule(
   existingTickets: TicketDraw[],
   incomingTicket: TicketDraw
 ): TicketDraw[] {
-  const isSameTicketSlot = (t: TicketDraw) =>
-    t.cycleNumber === incomingTicket.cycleNumber &&
-    t.jornadaNumber === incomingTicket.jornadaNumber &&
-    t.drawDate === incomingTicket.drawDate;
+  const incomingJornadaKey = getTicketJornadaKey(incomingTicket);
 
   const transitioned = existingTickets
-    .filter(t => !isSameTicketSlot(t) && t.id !== incomingTicket.id)
-    .map(t => (!t.isScrutinized ? toNumericOnlyPlayedTicket(t) : toNumericOnlyPlayedTicket(t)));
+    .filter(t => t.id !== incomingTicket.id)
+    .map(t => {
+      // Si pertenece a la MISMA jornada y sigue activo/pendiente, se conserva en juego junto al nuevo resguardo
+      if (!t.isScrutinized && getTicketJornadaKey(t) === incomingJornadaKey) {
+        return t;
+      }
+      // Si pertenece a una jornada anterior, pasa al historial numérico sin imagen
+      return toNumericOnlyPlayedTicket(t);
+    });
 
   return capTicketsKeepingPlayed([incomingTicket, ...transitioned]);
 }
@@ -108,6 +124,7 @@ const DEFAULT_SETTINGS: SyndicateSettings = {
   currentJornada: 1,
   prizeFundBalance: 0,
   weeklyPrizeGain: 0,
+  initialRecruitmentMode: false,
   googleFormUrl: '',
   googleAppsScriptUrl: 'https://script.google.com/macros/s/AKfycbxFolqBPLovSHOHM0ST-bBtyzlCzTG64ZmzNvNSaDgawIT6MP1RXwg9BhE2ZKJt_weJCw/exec',
   googleSheetUrl: 'https://docs.google.com/spreadsheets/d/18R_F67pOt4pYBD5VqzBln12H-VMxUx-qmoeCewwz8qw/edit',

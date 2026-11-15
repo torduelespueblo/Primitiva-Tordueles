@@ -174,6 +174,15 @@ export const whatsappService = {
       complementarioMatched?: boolean;
       prizeFundBalance?: number;
       drawDate?: string;
+      ticketBreakdowns?: Array<{
+        playedNumbers: number[];
+        playedReintegro: number;
+        matchedNumbers: number[];
+        hits: number;
+        complementarioMatched: boolean;
+        reintegroMatched: boolean;
+        prize: number;
+      }>;
     },
     customConfig?: Partial<WhatsAppServiceConfig>
   ): Promise<SendResult> {
@@ -208,36 +217,56 @@ export const whatsappService = {
     lines.push(
       `🔴 *Primitiva:* ${params.winningNumbers.map(pad2).join(' · ')}  (C: ${pad2(params.complementario)} | R: ${params.reintegro})`
     );
-    if (played.length > 0) {
-      lines.push(
-        `🎟️ *Peña:* ${played.map(pad2).join(' · ')}${params.playedReintegro !== undefined ? `  (R: ${params.playedReintegro})` : ''}`
-      );
-    }
 
-    lines.push('');
-
-    if (matched.length > 0) {
-      lines.push(
-        `✅ *Acertados (${matched.length}):* ${matched.map(pad2).join(' · ')}${compMatched ? ` + *Comp. (${pad2(params.complementario)})*` : ''}`
-      );
+    if (params.ticketBreakdowns && params.ticketBreakdowns.length > 1) {
+      lines.push('');
+      lines.push(`🎟️ *Boletos sellados en la jornada (${params.ticketBreakdowns.length}):*`);
+      params.ticketBreakdowns.forEach((tb, idx) => {
+        const hitText =
+          tb.matchedNumbers.length > 0
+            ? `${tb.hits} aciertos (${tb.matchedNumbers.map(pad2).join(' · ')})`
+            : '0 aciertos';
+        lines.push(
+          `• *Boleto ${idx + 1}:* ${tb.playedNumbers.map(pad2).join(' · ')} (R: ${tb.playedReintegro}) → ✅ *${hitText}*` +
+            (tb.complementarioMatched ? ' + C' : '') +
+            (tb.reintegroMatched ? ' + R' : '') +
+            (tb.prize > 0 ? ` · ${formatEur(tb.prize)}` : '')
+        );
+      });
+      lines.push('');
+      lines.push(`📊 *Aciertos totales sumados:* ${params.hits}`);
     } else {
-      lines.push(
-        `❌ *Acertados (0):* Ninguno en esta jornada${compMatched ? ` (➕ *Comp.:* ${pad2(params.complementario)})` : ''}`
-      );
-    }
+      if (played.length > 0) {
+        lines.push(
+          `🎟️ *Peña:* ${played.map(pad2).join(' · ')}${params.playedReintegro !== undefined ? `  (R: ${params.playedReintegro})` : ''}`
+        );
+      }
 
-    if (params.playedReintegro !== undefined) {
-      lines.push(
-        reintMatched
-          ? `♻️ *Reintegro:* *¡Acertado!* (salió el ${params.reintegro})`
-          : `♻️ *Reintegro:* No acertado (jugamos ${params.playedReintegro}, salió ${params.reintegro})`
-      );
-    } else {
-      lines.push(`♻️ *Reintegro sorteo:* ${params.reintegro}`);
+      lines.push('');
+
+      if (matched.length > 0) {
+        lines.push(
+          `✅ *Acertados (${matched.length}):* ${matched.map(pad2).join(' · ')}${compMatched ? ` + *Comp. (${pad2(params.complementario)})*` : ''}`
+        );
+      } else {
+        lines.push(
+          `❌ *Acertados (0):* Ninguno en esta jornada${compMatched ? ` (➕ *Comp.:* ${pad2(params.complementario)})` : ''}`
+        );
+      }
+
+      if (params.playedReintegro !== undefined) {
+        lines.push(
+          reintMatched
+            ? `♻️ *Reintegro:* *¡Acertado!* (salió el ${params.reintegro})`
+            : `♻️ *Reintegro:* No acertado (jugamos ${params.playedReintegro}, salió ${params.reintegro})`
+        );
+      } else {
+        lines.push(`♻️ *Reintegro sorteo:* ${params.reintegro}`);
+      }
     }
 
     lines.push(
-      `💰 *Premio:* ${formatEur(params.prize)}` +
+      `💰 *Premio Total:* ${formatEur(params.prize)}` +
         (params.prizeFundBalance !== undefined
           ? `  |  🏦 *Bolsa Común:* ${formatEur(params.prizeFundBalance)}`
           : '')

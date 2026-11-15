@@ -205,7 +205,7 @@ function configurarPestanaConfiguracion(ss) {
   var sheet = ss.getSheetByName(PROYECTO_CONFIG.SHEET_CONFIGURACION) || ss.insertSheet(PROYECTO_CONFIG.SHEET_CONFIGURACION);
   sheet.clear();
 
-  var headers = ['ModoResumen', 'NotificarTodos'];
+  var headers = ['ModoResumen', 'NotificarTodos', 'ModoCaptacionInicial'];
   var headerRange = sheet.getRange(1, 1, 1, headers.length);
   headerRange.setValues([headers]);
   aplicarEstiloEncabezado(headerRange);
@@ -214,15 +214,54 @@ function configurarPestanaConfiguracion(ss) {
   // Activado por defecto para enviar el Boletín Diario Real ONLAE + ONCE cada noche
   sheet.getRange('A2').setValue('SÍ');
   sheet.getRange('B2').setValue('NO');
+  sheet.getRange('C2').setValue('NO');
 
   var reglaSiNo = SpreadsheetApp.newDataValidation()
     .requireValueInList(['SÍ', 'NO'], true)
     .setAllowInvalid(false)
     .build();
-  sheet.getRange('A2:B2').setDataValidation(reglaSiNo);
+  sheet.getRange('A2:C2').setDataValidation(reglaSiNo);
 
   sheet.autoResizeColumns(1, headers.length);
   return sheet;
+}
+
+function asegurarColumnasConfiguracion(ss) {
+  var sheet = ss.getSheetByName(PROYECTO_CONFIG.SHEET_CONFIGURACION);
+  if (!sheet) {
+    return configurarPestanaConfiguracion(ss);
+  }
+  var headerC = String(sheet.getRange('C1').getValue() || '').trim();
+  if (!headerC) {
+    sheet.getRange('C1').setValue('ModoCaptacionInicial');
+    var bg = sheet.getRange('A1').getBackground();
+    var fg = sheet.getRange('A1').getFontColor();
+    if (bg) sheet.getRange('C1').setBackground(bg);
+    if (fg) sheet.getRange('C1').setFontColor(fg);
+    sheet.getRange('C1').setFontWeight('bold').setHorizontalAlignment('center');
+  }
+  var valC2 = String(sheet.getRange('C2').getValue() || '').trim();
+  if (!valC2) {
+    sheet.getRange('C2').setValue('NO');
+  }
+  try {
+    var reglaSiNo = SpreadsheetApp.newDataValidation()
+      .requireValueInList(['SÍ', 'NO'], true)
+      .setAllowInvalid(false)
+      .build();
+    sheet.getRange('C2').setDataValidation(reglaSiNo);
+  } catch (eRule) {}
+  return sheet;
+}
+
+function obtenerModoCaptacionInicialConfig(ss) {
+  try {
+    var sheet = asegurarColumnasConfiguracion(ss);
+    var raw = String(sheet.getRange('C2').getValue() || 'NO').trim().toUpperCase();
+    return raw === 'SÍ' || raw === 'SI' || raw === 'TRUE' || raw === '1';
+  } catch (e) {
+    return false;
+  }
 }
 
 function configurarPestanaApuestasActivas(ss) {
@@ -1221,31 +1260,104 @@ function forzarResultadosManuales(numeros, complementario, reintegro, fechaOpcio
 
     var lastRow = sheetSorteos.getLastRow();
     var numColsManual = Math.max(16, sheetSorteos.getLastColumn());
-    var filaSorteo = sheetSorteos.getRange(lastRow, 1, 1, numColsManual).getValues()[0];
-    var jornada = parseInt(filaSorteo[0], 10) || 1;
-    var cicloManual = parseInt(filaSorteo[13], 10) || 1;
-    var importeJugadoManual = parseFloat(filaSorteo[4]) || 0;
-    var jugados = parsearCombinacionEnteros(filaSorteo[5]);
-    var reintJugadoManual = (filaSorteo[14] !== '' && filaSorteo[14] !== null && filaSorteo[14] !== undefined && !isNaN(parseInt(filaSorteo[14], 10)))
-      ? parseInt(filaSorteo[14], 10)
-      : null;
+    var todasFilas = sheetSorteos.getRange(2, 1, lastRow - 1, numColsManual).getValues();
+    var zonaManual = PROYECTO_CONFIG.TIMEZONE || 'Europe/Madrid';
 
-    var calcManual = calcularAciertosCombinacion(jugados, reintJugadoManual, numsArray, comp, r);
-    var aciertos = calcManual.cantidadAciertos;
-    var acertados = calcManual.aciertosNumeros;
+    // Identificar el boleto más reciente y todos los boletos de esa misma jornada/fecha
+    var refIdx = todasFilas.length - 1;
+    for (var ri = todasFilas.length - 1; ri >= 0; ri--) {
+      if (parsearCombinacionEnteros(todasFilas[ri][5]).length > 0) {
+        refIdx = ri;
+        break;
+      }
+    }
+    var refRow = todasFilas[refIdx];
+    var jornada = parseInt(refRow[0], 10) || 1;
+    var cicloManual = parseInt(refRow[13], 10) || 1;
+    var fechaRefYMD = (refRow[1] instanceof Date)
+      ? Utilities.formatDate(refRow[1], zonaManual, 'yyyy-MM-dd')
+      : normalizarFechaAYMD(String(refRow[1] || ''));
 
-    var premioEstimado = 0;
-    if (aciertos === 6) premioEstimado = 1500000;
-    else if (aciertos === 5) premioEstimado = 2450.50;
-    else if (aciertos === 4) premioEstimado = 78.20;
-    else if (aciertos === 3) premioEstimado = 8.00;
-    if (calcManual.reintegroAcertado) premioEstimado += (importeJugadoManual > 0 ? importeJugadoManual : 44.0);
+    var boletosJornada = [];
+    for (var bi = 0; bi < todasFilas.length; bi++) {
+      var rB = todasFilas[bi];
+      var combB = parsearCombinacionEnteros(rB[5]);
+      if (combB.length === 0) continue;
+      var jB = parseInt(rB[0], 10) || 1;
+      var cB = parseInt(rB[13], 10) || 1;
+      var fB = (rB[1] instanceof Date)
+        ? Utilities.formatDate(rB[1], zonaManual, 'yyyy-MM-dd')
+        : normalizarFechaAYMD(String(rB[1] || ''));
+      if (jB === jornada && cB === cicloManual && fB === fechaRefYMD) {
+        boletosJornada.push({
+          rowNum: bi + 2,
+          jugados: combB,
+          importeJugado: parseFloat(rB[4]) || 0,
+          reintegroJugado: (rB[14] !== '' && rB[14] !== null && rB[14] !== undefined && !isNaN(parseInt(rB[14], 10)))
+            ? parseInt(rB[14], 10)
+            : null
+        });
+      }
+    }
 
-    sheetSorteos.getRange(lastRow, 7).setValue(numsArray.join(', '));
-    sheetSorteos.getRange(lastRow, 8).setValue(aciertos);
-    sheetSorteos.getRange(lastRow, 9).setValue(premioEstimado);
-    sheetSorteos.getRange(lastRow, 10).setValue(premioEstimado <= 2000 ? premioEstimado : 0);
+    var aciertosTotales = 0;
+    var acertadosUnicos = [];
+    var compAcertadoGlobal = false;
+    var reintAcertadoGlobal = false;
+    var premioEstimadoTotal = 0;
+    var detalleBoletos = [];
+
+    for (var bj = 0; bj < boletosJornada.length; bj++) {
+      var bItem = boletosJornada[bj];
+      var calcB = calcularAciertosCombinacion(bItem.jugados, bItem.reintegroJugado, numsArray, comp, r);
+      aciertosTotales += calcB.cantidadAciertos;
+      for (var ai = 0; ai < calcB.aciertosNumeros.length; ai++) {
+        if (acertadosUnicos.indexOf(calcB.aciertosNumeros[ai]) === -1) {
+          acertadosUnicos.push(calcB.aciertosNumeros[ai]);
+        }
+      }
+      if (calcB.complementarioAcertado) compAcertadoGlobal = true;
+      if (calcB.reintegroAcertado) reintAcertadoGlobal = true;
+
+      var premioB = 0;
+      if (calcB.cantidadAciertos === 6) premioB = 1500000;
+      else if (calcB.cantidadAciertos === 5) premioB = 2450.50;
+      else if (calcB.cantidadAciertos === 4) premioB = 78.20;
+      else if (calcB.cantidadAciertos === 3) premioB = 8.00;
+      if (calcB.reintegroAcertado) premioB += (bItem.importeJugado > 0 ? bItem.importeJugado : 44.0);
+      premioEstimadoTotal += premioB;
+
+      sheetSorteos.getRange(bItem.rowNum, 7).setValue(numsArray.join(', '));
+      sheetSorteos.getRange(bItem.rowNum, 8).setValue(calcB.cantidadAciertos);
+      // Guardar premio agregado únicamente en el primer boleto de la jornada para no duplicar SUM(Sorteos!J:J)
+      var premioFila = (bj === 0) ? Math.round(premioEstimadoTotal * 100) / 100 : 0;
+      sheetSorteos.getRange(bItem.rowNum, 9).setValue(bj === 0 ? 0 : 0);
+      sheetSorteos.getRange(bItem.rowNum, 10).setValue(0);
+
+      detalleBoletos.push({
+        apuestaPena: bItem.jugados,
+        reintegroJugado: bItem.reintegroJugado,
+        aciertosNumeros: calcB.aciertosNumeros,
+        cantidadAciertos: calcB.cantidadAciertos,
+        complementarioAcertado: calcB.complementarioAcertado,
+        reintegroAcertado: calcB.reintegroAcertado,
+        premioEstimado: premioB
+      });
+    }
+
+    premioEstimadoTotal = Math.round(premioEstimadoTotal * 100) / 100;
+    if (boletosJornada.length > 0) {
+      var filaPrincipal = boletosJornada[0].rowNum;
+      sheetSorteos.getRange(filaPrincipal, 9).setValue(premioEstimadoTotal);
+      sheetSorteos.getRange(filaPrincipal, 10).setValue(premioEstimadoTotal <= 2000 ? premioEstimadoTotal : 0);
+    }
     SpreadsheetApp.flush();
+
+    var jugadosPrincipal = boletosJornada.length > 0 ? boletosJornada[0].jugados : [];
+    var reintJugadoPrincipal = boletosJornada.length > 0 ? boletosJornada[0].reintegroJugado : null;
+    var aciertos = aciertosTotales;
+    var acertados = acertadosUnicos.sort(function(a, b) { return a - b; });
+    var premioEstimado = premioEstimadoTotal;
 
     var fechaStr = fechaOpcional || Utilities.formatDate(new Date(), PROYECTO_CONFIG.TIMEZONE, 'dd/MM/yyyy');
     var diaTextoManual = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'][new Date().getDay()];
@@ -1254,14 +1366,15 @@ function forzarResultadosManuales(numeros, complementario, reintegro, fechaOpcio
       {
         ciclo: cicloManual,
         jornada: jornada,
-        jugados: jugados,
-        reintegroJugado: reintJugadoManual,
+        jugados: jugadosPrincipal,
+        reintegroJugado: reintJugadoPrincipal,
         aciertos: aciertos,
         acertados: acertados,
-        complementarioAcertado: calcManual.complementarioAcertado,
-        reintegroAcertado: calcManual.reintegroAcertado,
+        complementarioAcertado: compAcertadoGlobal,
+        reintegroAcertado: reintAcertadoGlobal,
         premio: premioEstimado,
-        bolsaComun: bolsaManual
+        bolsaComun: bolsaManual,
+        detalleBoletos: detalleBoletos
       },
       { combinacion: numsArray, complementario: comp, reintegro: r },
       diaTextoManual,
@@ -1348,7 +1461,24 @@ function construirBloqueWhatsAppPenaOpcionC(resumenPena, primitiva, diaTexto, fe
     );
   }
 
-  if (jugados.length > 0) {
+  var detalleBoletos = Array.isArray(resumenPena.detalleBoletos) ? resumenPena.detalleBoletos : [];
+
+  if (detalleBoletos.length > 1) {
+    for (var db = 0; db < detalleBoletos.length; db++) {
+      var itemB = detalleBoletos[db];
+      var numsB = Array.isArray(itemB.apuestaPena) ? itemB.apuestaPena : [];
+      var rB = (itemB.reintegroJugado !== null && itemB.reintegroJugado !== undefined && !isNaN(parseInt(itemB.reintegroJugado, 10)))
+        ? parseInt(itemB.reintegroJugado, 10)
+        : null;
+      var hitsB = Array.isArray(itemB.aciertosNumeros) ? itemB.aciertosNumeros : [];
+      bloques.push(
+        '🎟️ *Boleto #' + (db + 1) + ':* ' + numsB.map(pad2Num).join(' · ') +
+        (rB !== null ? '  (R: ' + rB + ')' : '') +
+        ' → ' + hitsB.length + ' acierto' + (hitsB.length === 1 ? '' : 's') +
+        (hitsB.length > 0 ? ' [' + hitsB.map(pad2Num).join(', ') + ']' : '')
+      );
+    }
+  } else if (jugados.length > 0) {
     bloques.push(
       '🎟️ *Peña:* ' + jugados.map(pad2Num).join(' · ') +
       (reintJug !== null ? '  (R: ' + reintJug + ')' : '')
@@ -1361,7 +1491,10 @@ function construirBloqueWhatsAppPenaOpcionC(resumenPena, primitiva, diaTexto, fe
     var compExtra = compAcertado && primitiva && primitiva.complementario !== null && primitiva.complementario !== undefined
       ? ' + *Comp. (' + pad2Num(primitiva.complementario) + ')*'
       : '';
-    bloques.push('✅ *Acertados (' + acertados.length + '):* ' + acertados.map(pad2Num).join(' · ') + compExtra);
+    var totalAciertosTexto = (resumenPena.aciertos !== undefined && resumenPena.aciertos !== null)
+      ? resumenPena.aciertos
+      : acertados.length;
+    bloques.push('✅ *Acertados (' + totalAciertosTexto + '):* ' + acertados.map(pad2Num).join(' · ') + compExtra);
   } else {
     var soloComp = compAcertado && primitiva && primitiva.complementario !== null && primitiva.complementario !== undefined
       ? ' (➕ *Comp.:* ' + pad2Num(primitiva.complementario) + ')'
@@ -1374,10 +1507,10 @@ function construirBloqueWhatsAppPenaOpcionC(resumenPena, primitiva, diaTexto, fe
     : null;
 
   if (reintJug !== null && reintGan !== null) {
-    if (resumenPena.reintegroAcertado || reintJug === reintGan) {
+    if (resumenPena.reintegroAcertado) {
       bloques.push('♻️ *Reintegro:* *¡Acertado!* (salió el ' + reintGan + ')');
     } else {
-      bloques.push('♻️ *Reintegro:* No acertado (jugamos ' + reintJug + ', salió ' + reintGan + ')');
+      bloques.push('♻️ *Reintegro:* No acertado (salió el ' + reintGan + ')');
     }
   } else if (reintGan !== null) {
     bloques.push('♻️ *Reintegro sorteo:* ' + reintGan);
@@ -1433,36 +1566,72 @@ function obtenerBoletinDiarioLive(fechaReferencia, datosPrimitivaConsenso, resum
     try {
       var ss = obtenerSpreadsheetConfigurado();
       var contexto = determinarSorteoYApuestaActiva(ss, fecha);
-      if (contexto && contexto.apuestaNumeros && contexto.apuestaNumeros.length > 0 &&
-          contexto.fechaSorteo === hoyYMD) {
-        var calcAuto = calcularAciertosCombinacion(
-          contexto.apuestaNumeros,
-          contexto.reintegroJugado,
-          primitiva.combinacion,
-          primitiva.complementario,
-          primitiva.reintegro
-        );
+      var listaApuestasDia = (contexto && Array.isArray(contexto.apuestasDelDia) && contexto.apuestasDelDia.length > 0)
+        ? contexto.apuestasDelDia
+        : ((contexto && contexto.apuestaNumeros && contexto.apuestaNumeros.length > 0)
+          ? [{
+              apuestaNumeros: contexto.apuestaNumeros,
+              reintegroJugado: contexto.reintegroJugado,
+              importeJugado: contexto.importeJugado
+            }]
+          : []);
+      if (contexto && listaApuestasDia.length > 0 && contexto.fechaSorteo === hoyYMD) {
+        var totalHitsAuto = 0;
+        var acertadosAuto = [];
+        var compHitAuto = false;
+        var reintHitAuto = false;
         var premioAuto = 0;
+        var detalleAuto = [];
+        for (var ai2 = 0; ai2 < listaApuestasDia.length; ai2++) {
+          var apItem = listaApuestasDia[ai2];
+          var calcItem = calcularAciertosCombinacion(
+            apItem.apuestaNumeros,
+            apItem.reintegroJugado,
+            primitiva.combinacion,
+            primitiva.complementario,
+            primitiva.reintegro
+          );
+          totalHitsAuto += calcItem.cantidadAciertos;
+          for (var xi = 0; xi < calcItem.aciertosNumeros.length; xi++) {
+            if (acertadosAuto.indexOf(calcItem.aciertosNumeros[xi]) === -1) {
+              acertadosAuto.push(calcItem.aciertosNumeros[xi]);
+            }
+          }
+          if (calcItem.complementarioAcertado) compHitAuto = true;
+          if (calcItem.reintegroAcertado) reintHitAuto = true;
+
+          var pItem = 0;
+          if (calcItem.cantidadAciertos === 6) pItem = 1500000;
+          else if (calcItem.cantidadAciertos === 5) pItem = 2450.50;
+          else if (calcItem.cantidadAciertos === 4) pItem = 78.20;
+          else if (calcItem.cantidadAciertos === 3) pItem = 8.00;
+          if (calcItem.reintegroAcertado) pItem += (apItem.importeJugado > 0 ? apItem.importeJugado : 44.0);
+          premioAuto += pItem;
+
+          detalleAuto.push({
+            apuestaPena: apItem.apuestaNumeros,
+            reintegroJugado: apItem.reintegroJugado,
+            aciertosNumeros: calcItem.aciertosNumeros,
+            cantidadAciertos: calcItem.cantidadAciertos,
+            complementarioAcertado: calcItem.complementarioAcertado,
+            reintegroAcertado: calcItem.reintegroAcertado
+          });
+        }
         if (contexto.premioGuardado !== null && contexto.premioGuardado !== undefined && !isNaN(contexto.premioGuardado)) {
           premioAuto = contexto.premioGuardado;
-        } else {
-          if (calcAuto.cantidadAciertos === 6) premioAuto = 1500000;
-          else if (calcAuto.cantidadAciertos === 5) premioAuto = 2450.50;
-          else if (calcAuto.cantidadAciertos === 4) premioAuto = 78.20;
-          else if (calcAuto.cantidadAciertos === 3) premioAuto = 8.00;
-          if (calcAuto.reintegroAcertado) premioAuto += (contexto.importeJugado > 0 ? contexto.importeJugado : 44.0);
         }
         resumenEfectivo = {
           ciclo: contexto.ciclo || 1,
           jornada: contexto.jornada || 1,
           jugados: contexto.apuestaNumeros,
           reintegroJugado: contexto.reintegroJugado,
-          aciertos: calcAuto.cantidadAciertos,
-          acertados: calcAuto.aciertosNumeros,
-          complementarioAcertado: calcAuto.complementarioAcertado,
-          reintegroAcertado: calcAuto.reintegroAcertado,
-          premio: premioAuto,
-          bolsaComun: obtenerBolsaComunActual(ss)
+          aciertos: totalHitsAuto,
+          acertados: acertadosAuto.sort(function(a, b) { return a - b; }),
+          complementarioAcertado: compHitAuto,
+          reintegroAcertado: reintHitAuto,
+          premio: Math.round(premioAuto * 100) / 100,
+          bolsaComun: obtenerBolsaComunActual(ss),
+          detalleBoletos: detalleAuto
         };
       }
     } catch (eAuto) {}
@@ -1994,10 +2163,12 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
     apuestaNumeros: [],
     reintegroJugado: null,
     origenApuesta: 'SIN_APUESTA',
-    filaSorteos: null
+    filaSorteos: null,
+    filasSorteos: [],
+    apuestasDelDia: []
   };
 
-  // 1. Buscar en pestaña 'Apuestas Activas'
+  var apuestasActivasList = [];
   var sheetApuestas = ss.getSheetByName(PROYECTO_CONFIG.SHEET_APUESTAS_ACTIVAS || 'Apuestas Activas');
   if (!sheetApuestas) {
     try {
@@ -2008,8 +2179,8 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
   if (sheetApuestas && sheetApuestas.getLastRow() >= 2) {
     var numRowsA = sheetApuestas.getLastRow() - 1;
     var rowsA = sheetApuestas.getRange(2, 1, numRowsA, 7).getValues();
-    var candidataCoincidente = null;
-    var candidataActiva = null;
+    var coincidenciasHoyA = [];
+    var ultimaActivaA = null;
 
     for (var i = rowsA.length - 1; i >= 0; i--) {
       var rA = rowsA[i];
@@ -2036,20 +2207,27 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
         ciclo: parseInt(rA[2], 10) || 1,
         jornada: parseInt(rA[3], 10) || 1,
         apuestaNumeros: combA,
-        reintegroJugado: reintValA
+        reintegroJugado: reintValA,
+        importeJugado: 0,
+        origenApuesta: 'Apuestas Activas'
       };
 
       if (fechaYMDA === hoyYMD || (diaTextoA && diaTextoA.indexOf(nombreDiaHoy.toLowerCase()) !== -1)) {
-        candidataCoincidente = itemA;
-        break;
+        coincidenciasHoyA.unshift(itemA);
       }
-      if (!candidataActiva) {
-        candidataActiva = itemA;
+      if (!ultimaActivaA) {
+        ultimaActivaA = itemA;
       }
     }
 
-    var elegidaA = candidataCoincidente || candidataActiva;
-    if (elegidaA) {
+    if (coincidenciasHoyA.length > 0) {
+      apuestasActivasList = coincidenciasHoyA;
+    } else if (ultimaActivaA) {
+      apuestasActivasList = [ultimaActivaA];
+    }
+
+    if (apuestasActivasList.length > 0) {
+      var elegidaA = apuestasActivasList[0];
       info.nombreSorteo = elegidaA.nombreSorteo;
       info.fechaSorteo = elegidaA.fechaSorteo;
       info.ciclo = elegidaA.ciclo;
@@ -2057,16 +2235,18 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
       info.apuestaNumeros = elegidaA.apuestaNumeros;
       info.reintegroJugado = elegidaA.reintegroJugado;
       info.origenApuesta = 'Apuestas Activas';
+      info.apuestasDelDia = apuestasActivasList.slice();
     }
   }
 
-  // 2. Complementar o tomar respaldo desde la pestaña 'Sorteos' (apuesta activa / pendiente / última)
+  // 2. Complementar o tomar respaldo desde la pestaña 'Sorteos' (soporte multi-boleto por misma jornada/fecha)
   var sheetSorteos = ss.getSheetByName(PROYECTO_CONFIG.SHEET_SORTEOS || 'Sorteos');
   if (sheetSorteos && sheetSorteos.getLastRow() >= 2) {
     var lastRowS = sheetSorteos.getLastRow();
     var numColsS = Math.max(16, sheetSorteos.getLastColumn());
     var rowsS = sheetSorteos.getRange(2, 1, lastRowS - 1, numColsS).getValues();
 
+    var listaMetasS = [];
     var filaCoincidenteS = null;
     var filaPendienteS = null;
     var filaUltimaConApuestaS = null;
@@ -2093,12 +2273,13 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
         combinacionGanadoraGuardada: parsearCombinacionEnteros(rS[6]),
         premioGuardado: (rS[8] !== '' && rS[8] !== null && rS[8] !== undefined && !isNaN(parseFloat(rS[8])))
           ? parseFloat(rS[8])
-          : null
+          : null,
+        origenApuesta: 'Sorteos'
       };
+      listaMetasS.push(metaS);
 
-      if (fechaS === info.fechaSorteo || fechaS === hoyYMD) {
+      if (!filaCoincidenteS && (fechaS === info.fechaSorteo || fechaS === hoyYMD)) {
         filaCoincidenteS = metaS;
-        break;
       }
       if (!filaPendienteS && metaS.combinacionGanadoraGuardada.length === 0) {
         filaPendienteS = metaS;
@@ -2110,9 +2291,28 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
 
     var elegidaS = filaCoincidenteS || filaPendienteS || filaUltimaConApuestaS;
     if (elegidaS) {
+      var delMismoDiaS = listaMetasS.filter(function(m) {
+        return m.fechaSorteo === elegidaS.fechaSorteo &&
+          m.jornada === elegidaS.jornada &&
+          m.ciclo === elegidaS.ciclo;
+      }).reverse(); // Orden original ascendente de fila
+
+      var sumaImporteS = 0;
+      var sumaPremioS = null;
+      var filasS = [];
+      for (var dIdx = 0; dIdx < delMismoDiaS.length; dIdx++) {
+        var dm = delMismoDiaS[dIdx];
+        filasS.push(dm.rowNum);
+        sumaImporteS += dm.importeJugado;
+        if (dm.premioGuardado !== null) {
+          sumaPremioS = (sumaPremioS === null ? 0 : sumaPremioS) + dm.premioGuardado;
+        }
+      }
+
       info.filaSorteos = elegidaS.rowNum;
-      info.importeJugado = elegidaS.importeJugado;
-      info.premioGuardado = elegidaS.premioGuardado;
+      info.filasSorteos = filasS;
+      info.importeJugado = Math.round(sumaImporteS * 100) / 100;
+      info.premioGuardado = sumaPremioS !== null ? Math.round(sumaPremioS * 100) / 100 : null;
       info.combinacionGanadoraGuardada = elegidaS.combinacionGanadoraGuardada;
       if (info.apuestaNumeros.length === 0) {
         info.fechaSorteo = elegidaS.fechaSorteo;
@@ -2120,6 +2320,10 @@ function determinarSorteoYApuestaActiva(ss, fechaRef) {
         info.jornada = elegidaS.jornada;
         info.apuestaNumeros = elegidaS.apuestaNumeros;
         info.reintegroJugado = elegidaS.reintegroJugado;
+        info.origenApuesta = 'Sorteos';
+        info.apuestasDelDia = delMismoDiaS;
+      } else if (delMismoDiaS.length > info.apuestasDelDia.length) {
+        info.apuestasDelDia = delMismoDiaS;
         info.origenApuesta = 'Sorteos';
       }
     }
@@ -2175,8 +2379,8 @@ function calcularAciertosCombinacion(apuestaNumeros, reintegroJugado, combinacio
 
 /**
  * Motor de Escrutinio Automático del Ciclo (JSON estructurado).
- * Determina el sorteo del día + apuesta activa de la peña, consulta la combinación
- * ganadora mediante el motor de consenso oficial y calcula los aciertos exactos.
+ * Determina el sorteo del día + todas las apuestas activas de la peña, consulta la combinación
+ * ganadora mediante el motor de consenso oficial y suma los aciertos entre todos los boletos sellados.
  */
 function ejecutarEscrutinioAutomatico() {
   try {
@@ -2222,25 +2426,78 @@ function ejecutarEscrutinioAutomatico() {
       fechaResultado = resConsenso.datos.fecha || contexto.fechaSorteo;
     }
 
-    var calculo = {
-      aciertosNumeros: [],
-      cantidadAciertos: 0,
-      complementarioAcertado: false,
-      reintegroAcertado: false,
-      textoAciertos: consensoDisponible
-        ? (contexto.apuestaNumeros.length > 0 ? 'Aciertos: 0 números' : 'Sin apuesta activa registrada en la peña')
-        : 'Pendiente de combinación ganadora oficial por consenso'
-    };
+    var listaApuestas = (Array.isArray(contexto.apuestasDelDia) && contexto.apuestasDelDia.length > 0)
+      ? contexto.apuestasDelDia
+      : (contexto.apuestaNumeros.length > 0
+        ? [{
+            rowNum: contexto.filaSorteos,
+            apuestaNumeros: contexto.apuestaNumeros,
+            reintegroJugado: contexto.reintegroJugado,
+            importeJugado: contexto.importeJugado || 0
+          }]
+        : []);
 
-    if (consensoDisponible && contexto.apuestaNumeros.length > 0) {
-      calculo = calcularAciertosCombinacion(
-        contexto.apuestaNumeros,
-        contexto.reintegroJugado,
-        combinacionGanadora,
-        complementario,
-        reintegroGanador
-      );
+    var detalleBoletos = [];
+    var totalAciertos = 0;
+    var aciertosUnicos = [];
+    var hayComplementario = false;
+    var hayReintegro = false;
+
+    for (var bIdx = 0; bIdx < listaApuestas.length; bIdx++) {
+      var ap = listaApuestas[bIdx];
+      if (consensoDisponible && ap.apuestaNumeros && ap.apuestaNumeros.length > 0) {
+        var cB = calcularAciertosCombinacion(
+          ap.apuestaNumeros,
+          ap.reintegroJugado,
+          combinacionGanadora,
+          complementario,
+          reintegroGanador
+        );
+        totalAciertos += cB.cantidadAciertos;
+        for (var k = 0; k < cB.aciertosNumeros.length; k++) {
+          if (aciertosUnicos.indexOf(cB.aciertosNumeros[k]) === -1) {
+            aciertosUnicos.push(cB.aciertosNumeros[k]);
+          }
+        }
+        if (cB.complementarioAcertado) hayComplementario = true;
+        if (cB.reintegroAcertado) hayReintegro = true;
+        detalleBoletos.push({
+          indice: bIdx + 1,
+          filaSorteos: ap.rowNum || null,
+          apuestaPena: ap.apuestaNumeros,
+          reintegroJugado: ap.reintegroJugado,
+          importeJugado: ap.importeJugado || 0,
+          aciertosNumeros: cB.aciertosNumeros,
+          cantidadAciertos: cB.cantidadAciertos,
+          complementarioAcertado: cB.complementarioAcertado,
+          reintegroAcertado: cB.reintegroAcertado,
+          textoAciertos: cB.textoAciertos
+        });
+      } else {
+        detalleBoletos.push({
+          indice: bIdx + 1,
+          filaSorteos: ap.rowNum || null,
+          apuestaPena: ap.apuestaNumeros || [],
+          reintegroJugado: ap.reintegroJugado,
+          importeJugado: ap.importeJugado || 0,
+          aciertosNumeros: [],
+          cantidadAciertos: 0,
+          complementarioAcertado: false,
+          reintegroAcertado: false,
+          textoAciertos: 'Pendiente de combinación ganadora'
+        });
+      }
     }
+
+    aciertosUnicos.sort(function(a, b) { return a - b; });
+    var textoAciertosFinal = !consensoDisponible
+      ? 'Pendiente de combinación ganadora oficial por consenso'
+      : (listaApuestas.length === 0
+        ? 'Sin apuesta activa registrada en la peña'
+        : ('Aciertos' + (listaApuestas.length > 1 ? ' totales (' + listaApuestas.length + ' boletos)' : '') + ': ' +
+          totalAciertos + (totalAciertos === 1 ? ' número' : ' números') +
+          (hayComplementario ? ' + Complementario' : '') +
+          (hayReintegro ? ' + Reintegro' : '')));
 
     return {
       success: true,
@@ -2253,18 +2510,20 @@ function ejecutarEscrutinioAutomatico() {
       origenApuesta: contexto.origenApuesta,
       apuestaPena: contexto.apuestaNumeros,
       reintegroJugado: contexto.reintegroJugado,
+      detalleBoletos: detalleBoletos,
       consensoDisponible: consensoDisponible,
       mensajeConsenso: mensajeConsenso,
       fuentesConsenso: fuentesConsenso,
       combinacionGanadora: combinacionGanadora,
       complementario: complementario,
       reintegroGanador: reintegroGanador,
-      aciertosNumeros: calculo.aciertosNumeros,
-      cantidadAciertos: calculo.cantidadAciertos,
-      complementarioAcertado: calculo.complementarioAcertado,
-      reintegroAcertado: calculo.reintegroAcertado,
-      textoAciertos: calculo.textoAciertos,
+      aciertosNumeros: aciertosUnicos,
+      cantidadAciertos: totalAciertos,
+      complementarioAcertado: hayComplementario,
+      reintegroAcertado: hayReintegro,
+      textoAciertos: textoAciertosFinal,
       filaSorteos: contexto.filaSorteos,
+      filasSorteos: contexto.filasSorteos || (contexto.filaSorteos ? [contexto.filaSorteos] : []),
       premioGuardado: contexto.premioGuardado !== undefined ? contexto.premioGuardado : null
     };
   } catch (err) {
@@ -2279,7 +2538,7 @@ function ejecutarEscrutinioAutomatico() {
 
 /**
  * Registra manualmente el importe oficial del premio en euros en la hoja 'Sorteos'
- * (y actualiza automáticamente la fórmula de 'Tesorería').
+ * (y actualiza automáticamente la fórmula de 'Tesorería' sin duplicar premios en jornadas multi-boleto).
  */
 function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
   try {
@@ -2309,8 +2568,17 @@ function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
       ? parseInt(datosOpcionales.filaSorteos, 10)
       : (escrutinioActual && escrutinioActual.filaSorteos ? parseInt(escrutinioActual.filaSorteos, 10) : null);
 
+    var filasObjetivo = [];
+    if (datosOpcionales && Array.isArray(datosOpcionales.filasSorteos) && datosOpcionales.filasSorteos.length > 0) {
+      filasObjetivo = datosOpcionales.filasSorteos.map(function(f) { return parseInt(f, 10); }).filter(function(f) { return !isNaN(f) && f >= 2; });
+    } else if (escrutinioActual && Array.isArray(escrutinioActual.filasSorteos) && escrutinioActual.filasSorteos.length > 0) {
+      filasObjetivo = escrutinioActual.filasSorteos.map(function(f) { return parseInt(f, 10); }).filter(function(f) { return !isNaN(f) && f >= 2; });
+    }
+
     if (!filaObjetivo || isNaN(filaObjetivo) || filaObjetivo < 2) {
-      if (sheetSorteos.getLastRow() >= 2) {
+      if (filasObjetivo.length > 0) {
+        filaObjetivo = filasObjetivo[0];
+      } else if (sheetSorteos.getLastRow() >= 2) {
         filaObjetivo = sheetSorteos.getLastRow();
       } else {
         filaObjetivo = 2;
@@ -2325,30 +2593,56 @@ function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
       }
     }
 
-    // Si hay combinación ganadora y aciertos detectados automáticamente, asegurarlos en columnas G y H
+    if (filasObjetivo.length === 0) {
+      filasObjetivo = [filaObjetivo];
+    } else if (filasObjetivo.indexOf(filaObjetivo) === -1) {
+      filasObjetivo.unshift(filaObjetivo);
+    }
+
+    // Si hay combinación ganadora y aciertos detectados automáticamente, asegurarlos en columnas G y H de todas las filas de esa jornada
     var combGanadoraGuardar = (datosOpcionales && Array.isArray(datosOpcionales.combinacionGanadora) && datosOpcionales.combinacionGanadora.length === 6)
       ? datosOpcionales.combinacionGanadora
       : (escrutinioActual && escrutinioActual.combinacionGanadora && escrutinioActual.combinacionGanadora.length === 6 ? escrutinioActual.combinacionGanadora : null);
-
-    if (combGanadoraGuardar) {
-      sheetSorteos.getRange(filaObjetivo, 7).setValue(combGanadoraGuardar.join(', '));
-    }
 
     var aciertosGuardar = (datosOpcionales && typeof datosOpcionales.cantidadAciertos === 'number')
       ? datosOpcionales.cantidadAciertos
       : (escrutinioActual && typeof escrutinioActual.cantidadAciertos === 'number' ? escrutinioActual.cantidadAciertos : null);
 
-    if (aciertosGuardar !== null) {
-      sheetSorteos.getRange(filaObjetivo, 8).setValue(aciertosGuardar);
+    var detalleMap = {};
+    if (escrutinioActual && Array.isArray(escrutinioActual.detalleBoletos)) {
+      for (var dMap = 0; dMap < escrutinioActual.detalleBoletos.length; dMap++) {
+        var dItem = escrutinioActual.detalleBoletos[dMap];
+        if (dItem && dItem.filaSorteos) {
+          detalleMap[dItem.filaSorteos] = dItem.cantidadAciertos;
+        }
+      }
     }
 
-    // Capturar premio menor previo en la fila por si Tesorería!D2 tiene un ajuste manual (sin fórmula)
-    var prevPremioMenor = parseFloat(sheetSorteos.getRange(filaObjetivo, 10).getValue());
-    if (isNaN(prevPremioMenor)) prevPremioMenor = 0;
-
+    var prevPremioMenorTotal = 0;
+    var filaPrincipal = filasObjetivo[0];
     var premioMenor = importe <= 2000 ? importe : 0;
-    sheetSorteos.getRange(filaObjetivo, 9).setValue(importe).setNumberFormat('#,##0.00 €');
-    sheetSorteos.getRange(filaObjetivo, 10).setValue(premioMenor).setNumberFormat('#,##0.00 €');
+
+    for (var fi = 0; fi < filasObjetivo.length; fi++) {
+      var rTarget = filasObjetivo[fi];
+      var prevVal = parseFloat(sheetSorteos.getRange(rTarget, 10).getValue());
+      if (!isNaN(prevVal)) prevPremioMenorTotal += prevVal;
+
+      if (combGanadoraGuardar) {
+        sheetSorteos.getRange(rTarget, 7).setValue(combGanadoraGuardar.join(', '));
+      }
+      var hitsRow = detalleMap[rTarget] !== undefined ? detalleMap[rTarget] : aciertosGuardar;
+      if (hitsRow !== null && hitsRow !== undefined) {
+        sheetSorteos.getRange(rTarget, 8).setValue(hitsRow);
+      }
+
+      if (rTarget === filaPrincipal) {
+        sheetSorteos.getRange(rTarget, 9).setValue(importe).setNumberFormat('#,##0.00 €');
+        sheetSorteos.getRange(rTarget, 10).setValue(premioMenor).setNumberFormat('#,##0.00 €');
+      } else {
+        sheetSorteos.getRange(rTarget, 9).setValue(0).setNumberFormat('#,##0.00 €');
+        sheetSorteos.getRange(rTarget, 10).setValue(0).setNumberFormat('#,##0.00 €');
+      }
+    }
 
     SpreadsheetApp.flush();
 
@@ -2360,7 +2654,7 @@ function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
       if (!formulaBolsa) {
         var bolsaActualManual = parseFloat(celdaBolsa.getValue());
         if (isNaN(bolsaActualManual)) bolsaActualManual = 0;
-        var deltaMenor = Math.round((premioMenor - prevPremioMenor) * 100) / 100;
+        var deltaMenor = Math.round((premioMenor - prevPremioMenorTotal) * 100) / 100;
         var bolsaAjustada = Math.max(0, Math.round((bolsaActualManual + deltaMenor) * 100) / 100);
         celdaBolsa.setValue(bolsaAjustada).setNumberFormat('#,##0.00 €');
         SpreadsheetApp.flush();
@@ -2371,7 +2665,8 @@ function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
 
     return {
       success: true,
-      fila: filaObjetivo,
+      fila: filaPrincipal,
+      filasSorteos: filasObjetivo,
       cantidad: importe,
       bolsaPremios: nuevaBolsa,
       message: 'Premio oficial de ' + importe.toFixed(2) + ' € guardado en la base de datos.'

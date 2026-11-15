@@ -40,16 +40,16 @@ export const OFFICIAL_RULES_SECTIONS: RuleSection[] = [
     paragraphs: [
       {
         code: '2.1.',
-        heading: 'Ajuste Automático al Presupuesto y Escalado de Jugadores:',
-        text: 'El importe y tamaño de la apuesta múltiple oficial se adaptará automáticamente al número exacto de jugadores que hayan completado el pago en cada ciclo. Dado que cada jugador aporta 1,00 € por sorteo, para aumentar el tamaño de la peña y jugar una combinación mayor, el número total de participantes deberá coincidir siempre con el número exacto de apuestas directas que exige cada bloque múltiple oficial. No se admitirán cifras intermedias de jugadores.',
-        subText: 'Las opciones de apuestas múltiples de La Primitiva y los cupos exactos requeridos son:',
+        heading: 'Ajuste al Presupuesto, Combinaciones Múltiples y Escalado de Jugadores:',
+        text: 'El importe y la estructura de las apuestas oficiales se adaptarán al número exacto de jugadores que participen en cada ciclo. Dado que cada jugador aporta 1,00 € por sorteo, la peña podrá jugar un único resguardo múltiple o combinar varios resguardos múltiples oficiales en un mismo sorteo (por ejemplo, duplicando o triplicando bloques, o combinando distintas modalidades) con el objetivo de absorber al mayor número posible de inscritos y reducir al mínimo la lista de suplentes. En cualquier caso, la suma total de apuestas selladas en el conjunto de los resguardos deberá coincidir exactamente con el número de titulares al corriente de pago (1,00 € por apuesta), sin admitirse cifras intermedias.',
+        subText: 'Los bloques oficiales de apuestas múltiples de La Primitiva disponibles para jugar de forma individual o combinada son:',
         bullets: [
-          'Múltiple de 7 números: 7 apuestas (requiere exactamente 7 jugadores al corriente por 7,00 €).',
-          'Múltiple de 8 números: 28 apuestas (requiere exactamente 28 jugadores al corriente por 28,00 €).',
-          'Múltiple de 5 números (fijo): 44 apuestas (requiere exactamente 44 jugadores al corriente por 44,00 €).',
-          'Múltiple de 9 números: 84 apuestas (requiere exactamente 84 jugadores al corriente por 84,00 €).',
-          'Múltiple de 10 números: 210 apuestas (requiere exactamente 210 jugadores al corriente por 210,00 €).',
-          'Múltiple de 11 números: 462 apuestas (requiere exactamente 462 jugadores al corriente por 462,00 €).',
+          'Múltiple de 7 números: 7 apuestas (7,00 €).',
+          'Múltiple de 8 números: 28 apuestas (28,00 €).',
+          'Múltiple de 5 números (fijo): 44 apuestas (44,00 €).',
+          'Múltiple de 9 números: 84 apuestas (84,00 €).',
+          'Múltiple de 10 números: 210 apuestas (210,00 €).',
+          'Múltiple de 11 números: 462 apuestas (462,00 €).',
         ],
       },
       {
@@ -70,8 +70,8 @@ export const OFFICIAL_RULES_SECTIONS: RuleSection[] = [
       },
       {
         code: '3.2.',
-        heading: 'Orden Cronológico Inalterable:',
-        text: 'Las vacantes se asignarán por estricto orden cronológico de inscripción registrado al completar el alta para fijar la prelación exacta en la lista de espera.',
+        heading: 'Orden Cronológico Inalterable y Asignación Inicial de Plazas:',
+        text: 'Las plazas y vacantes se asignarán por estricto orden cronológico de inscripción registrado al completar el alta. Durante la fase inicial de captación o mientras se evalúa la combinación óptima de boletos múltiples a jugar, el listado público de socios podrá permanecer oculto o mostrar únicamente la condición de inscrito sin asignar orden definitivo de titularidad o suplencia, hasta que la Administración cierre el cupo y apruebe la modalidad o combinación de apuestas definitiva para el ciclo.',
       },
       {
         code: '3.3.',

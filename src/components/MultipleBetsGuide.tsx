@@ -105,7 +105,7 @@ export const MultipleBetsGuide: React.FC = () => {
           </div>
         </div>
         <p className="text-base text-slate-200 mt-4 leading-relaxed">
-          Las apuestas múltiples permiten marcar más (o menos, en el caso de 5) números en el boleto oficial. El importe de la peña se adapta al presupuesto exacto de los socios activos a razón de 1,00 € por semana.
+          Las apuestas múltiples permiten marcar más (o menos, en el caso de 5) números en el boleto oficial. La peña puede jugar un único resguardo múltiple o combinar varios en un mismo sorteo (1,00 € por apuesta) para ajustarse al número exacto de participantes.
         </p>
       </div>
 

@@ -58,7 +58,14 @@ export interface WaitingListEntry {
   status: 'ESPERANDO' | 'NOTIFICADO_24H' | 'ADMITIDO' | 'RECHAZADO_EXPIRADO';
 }
 
-export type MultipleBetType = 'MULTIPLE_5' | 'MULTIPLE_7' | 'MULTIPLE_8' | 'MULTIPLE_9' | 'MULTIPLE_10' | 'COMBINADA';
+export type MultipleBetType =
+  | 'MULTIPLE_5'
+  | 'MULTIPLE_7'
+  | 'MULTIPLE_8'
+  | 'MULTIPLE_9'
+  | 'MULTIPLE_10'
+  | 'MULTIPLE_11'
+  | 'COMBINADA';
 
 export interface TicketDraw {
   id: string;
@@ -103,6 +110,7 @@ export interface SyndicateSettings {
   currentJornada: number;
   prizeFundBalance: number; // Bolsa acumulada de premios menores (Bote General)
   weeklyPrizeGain?: number; // Última ganancia semanal editable que se suma al bote general
+  initialRecruitmentMode?: boolean; // Modo Captación Inicial (oculta orden y listado nominal)
   googleFormUrl: string; // Enlace al formulario de Google para lista de espera
   googleAppsScriptUrl: string; // Endpoint WebApp de Google Apps Script
   googleSheetUrl: string;

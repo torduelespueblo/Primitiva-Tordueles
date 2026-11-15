@@ -9,7 +9,8 @@ import {
   ScrutinyCycleResult
 } from '../types/lottery';
 import {
-  calculateScrutiny
+  calculateMultiTicketScrutiny,
+  generateBlockCombinations
 } from '../services/lotteryRules';
 import { whatsappService } from '../services/whatsappService';
 import { pushNotificationService } from '../services/pushNotifications';
@@ -18,7 +19,8 @@ import { fetchLiveDailyBulletinFromAppsScript } from '../services/lotteryDailySe
 import { getPublicRegistrationShareUrl } from '../services/registrationService';
 import {
   archivePreviousPendingTicketsForNewSchedule,
-  capTicketsKeepingPlayed
+  capTicketsKeepingPlayed,
+  getTicketJornadaKey
 } from '../services/storage';
 import {
   getNextPrimitivaDrawDate,
@@ -56,7 +58,9 @@ import {
   Wallet,
   RotateCcw,
   CalendarClock,
-  Clock
+  Clock,
+  Calculator,
+  EyeOff
 } from 'lucide-react';
 
 interface AppInstallationEntry {
@@ -142,6 +146,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   );
   const [isSavingPrizeFund, setIsSavingPrizeFund] = useState(false);
   const [prizeFundFeedback, setPrizeFundFeedback] = useState<string | null>(null);
+
+  // Modo Captación Inicial y Calculadora de Combinaciones
+  const [isSavingRecruitmentMode, setIsSavingRecruitmentMode] = useState(false);
+  const [recruitmentModeFeedback, setRecruitmentModeFeedback] = useState<string | null>(null);
+  const [showAllCombinations, setShowAllCombinations] = useState(false);
 
   useEffect(() => {
     setPrizeFundInput(settings.prizeFundBalance.toFixed(2));
@@ -415,6 +424,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     onUpdateSettings({ ...settings, sendDailyGeneralSummary: val });
   };
 
+  const handleToggleInitialRecruitment = async (val: boolean) => {
+    onUpdateSettings({ ...settings, initialRecruitmentMode: val });
+    setRecruitmentModeFeedback(null);
+    const endpoint = getCleanGasUrl();
+    if (!endpoint || !adminPassword) {
+      setRecruitmentModeFeedback(
+        val
+          ? 'Modo Captación Inicial activado en local.'
+          : 'Modo Captación Inicial desactivado en local.'
+      );
+      return;
+    }
+
+    setIsSavingRecruitmentMode(true);
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'actualizarModoCaptacion',
+          password: adminPassword,
+          activo: val,
+        }),
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        setRecruitmentModeFeedback(
+          val
+            ? 'Modo Captación Inicial ACTIVADO y guardado en "Configuracion" de Google Sheets.'
+            : 'Modo Captación Inicial DESACTIVADO: listado público visible por orden cronológico.'
+        );
+      } else {
+        setRecruitmentModeFeedback(
+          data?.error || 'Guardado en local (verifica despliegue de Apps Script para guardar en Sheets).'
+        );
+      }
+    } catch {
+      setRecruitmentModeFeedback('Guardado en local (sin conexión con Apps Script).');
+    } finally {
+      setIsSavingRecruitmentMode(false);
+      setTimeout(() => setRecruitmentModeFeedback(null), 6000);
+    }
+  };
+
   const handleToggleBulletinPreview = async () => {
     if (showBulletinPreview) {
       setShowBulletinPreview(false);
@@ -511,6 +564,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         ? 'MULTIPLE_9'
         : nums.length === 10
         ? 'MULTIPLE_10'
+        : nums.length === 11
+        ? 'MULTIPLE_11'
         : 'COMBINADA';
 
     const activePlayersCount = players.filter(p => p.status === 'TITULAR').length;
@@ -839,108 +894,136 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       return;
     }
 
-    const targetTicket =
+    const refTicket =
       tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t)) ||
       tickets.find(t => t.isScrutinized && (!t.winningNumbers || t.winningNumbers.length === 0)) ||
       tickets.find(t => !t.isScrutinized) ||
       tickets[0];
-    if (!targetTicket) {
+    if (!refTicket) {
       setScrutinyResult('No hay ningún boleto publicado para escrutar.');
       return;
     }
 
-    const result = calculateScrutiny(
-      targetTicket.playedNumbers,
-      targetTicket.playedReintegro,
+    const refKey = getTicketJornadaKey(refTicket);
+    const targetJornadaTickets = tickets.filter(t => {
+      if (getTicketJornadaKey(t) !== refKey) return false;
+      if (!refTicket.isScrutinized) return !t.isScrutinized;
+      return !t.winningNumbers || t.winningNumbers.length === 0;
+    });
+
+    const ticketsToEvaluate =
+      targetJornadaTickets.length > 0 ? targetJornadaTickets : [refTicket];
+
+    const summary = calculateMultiTicketScrutiny(
+      ticketsToEvaluate,
       winNums,
       scrutinyComp,
       scrutinyReintegro,
-      targetTicket.betType,
-      targetTicket.activePlayersCount
+      refTicket.activePlayersCount || 44
     );
 
+    const resultById = new Map(summary.items.map(item => [item.ticketId, item.result]));
+
     const updated = tickets.map(t => {
-      if (t.id === targetTicket.id) {
-        return {
-          ...t,
-          isScrutinized: true,
-          receiptImageUrl: '',
-          winningNumbers: winNums,
-          complementario: scrutinyComp,
-          reintegro: scrutinyReintegro,
-          hitsCount: result.hits,
-          hasReintegro: result.reintegroHit,
-          prizeCategory: result.category,
-          totalPrize: result.prizeAmount,
-          prizeType: result.isMayor ? ('MAYOR_BANCO' as const) : result.prizeAmount > 0 ? ('MENOR_BOLSA' as const) : ('NINGUNO' as const),
-        };
-      }
-      return t;
+      const res = resultById.get(t.id);
+      if (!res) return t;
+      return {
+        ...t,
+        isScrutinized: true,
+        receiptImageUrl: '',
+        winningNumbers: winNums,
+        complementario: scrutinyComp,
+        reintegro: scrutinyReintegro,
+        hitsCount: res.hits,
+        hasReintegro: res.reintegroHit,
+        prizeCategory: res.category,
+        totalPrize: res.prizeAmount,
+        prizeType: res.isMayor
+          ? ('MAYOR_BANCO' as const)
+          : res.prizeAmount > 0
+          ? ('MENOR_BOLSA' as const)
+          : ('NINGUNO' as const),
+      };
     });
 
     onUpdateTickets(capTicketsKeepingPlayed(updated));
 
     // Registrar en el histórico permanente de premios obtenidos si hay premio > 0
-    if (result.prizeAmount > 0) {
+    if (summary.totalPrizeAmount > 0) {
+      const entryId = `prize-j${refTicket.cycleNumber}-${refTicket.jornadaNumber}-${refTicket.drawDate}`;
       const entry: PrizeHistoryEntry = {
-        id: `prize-${targetTicket.id}`,
-        ticketId: targetTicket.id,
-        cycleNumber: targetTicket.cycleNumber,
-        jornadaNumber: targetTicket.jornadaNumber,
-        drawDate: targetTicket.drawDate,
-        hitsCount: result.hits,
-        hasReintegro: result.reintegroHit,
-        prizeCategory: result.category,
-        prizeAmount: result.prizeAmount,
-        prizeType: result.isMayor ? 'MAYOR_BANCO' : 'MENOR_BOLSA',
+        id: entryId,
+        ticketId: refTicket.id,
+        cycleNumber: refTicket.cycleNumber,
+        jornadaNumber: refTicket.jornadaNumber,
+        drawDate: refTicket.drawDate,
+        hitsCount: summary.totalHits,
+        hasReintegro: summary.anyReintegroHit,
+        prizeCategory: summary.combinedCategory,
+        prizeAmount: summary.totalPrizeAmount,
+        prizeType: summary.isMayor ? 'MAYOR_BANCO' : 'MENOR_BOLSA',
       };
-      const withoutDuplicate = prizeHistory.filter(p => p.ticketId !== targetTicket.id);
+      const evaluatedIds = new Set(ticketsToEvaluate.map(t => t.id));
+      const withoutDuplicate = prizeHistory.filter(
+        p => p.id !== entryId && !evaluatedIds.has(p.ticketId)
+      );
       onUpdatePrizeHistory([entry, ...withoutDuplicate]);
     }
 
     // Acumular al Bote Total de Premios si hay premio obtenido
-    if (result.prizeAmount > 0) {
+    if (summary.totalPrizeAmount > 0) {
       onUpdateSettings({
         ...settings,
-        prizeFundBalance: settings.prizeFundBalance + result.prizeAmount,
+        prizeFundBalance: settings.prizeFundBalance + summary.totalPrizeAmount,
       });
     }
 
     setScrutinyResult(
-      `Escrutinio completado: ${result.hits} aciertos. Premio: ${result.prizeAmount.toFixed(2)} € (${result.category}).`
+      ticketsToEvaluate.length > 1
+        ? `Escrutinio de ${ticketsToEvaluate.length} boletos completado: ${summary.totalHits} aciertos totales sumados. Premio total: ${summary.totalPrizeAmount.toFixed(2)} € (${summary.combinedCategory}).`
+        : `Escrutinio completado: ${summary.totalHits} aciertos. Premio: ${summary.totalPrizeAmount.toFixed(2)} € (${summary.combinedCategory}).`
     );
 
     // Enviar push y WhatsApp mediante Green API
     pushNotificationService.notifyScrutinyCompleted(
-      targetTicket.jornadaNumber,
-      result.hits,
-      result.prizeAmount
+      refTicket.jornadaNumber,
+      summary.totalHits,
+      summary.totalPrizeAmount
     );
 
     if (settings.sendScrutinyAlert) {
-      const matchedNums = targetTicket.playedNumbers
+      const matchedNums = refTicket.playedNumbers
         .filter(n => winNums.includes(n))
         .sort((a, b) => a - b);
 
       whatsappService.sendScrutinyResult(
         {
-          jornada: targetTicket.jornadaNumber,
-          cycle: targetTicket.cycleNumber,
+          jornada: refTicket.jornadaNumber,
+          cycle: refTicket.cycleNumber,
           winningNumbers: winNums,
           complementario: scrutinyComp,
           reintegro: scrutinyReintegro,
-          hits: result.hits,
-          prize: result.prizeAmount,
-          category: result.category,
-          isMayor: result.isMayor,
-          activePlayersCount: targetTicket.activePlayersCount,
-          playedNumbers: targetTicket.playedNumbers,
-          playedReintegro: targetTicket.playedReintegro,
+          hits: summary.totalHits,
+          prize: summary.totalPrizeAmount,
+          category: summary.combinedCategory,
+          isMayor: summary.isMayor,
+          activePlayersCount: refTicket.activePlayersCount,
+          playedNumbers: refTicket.playedNumbers,
+          playedReintegro: refTicket.playedReintegro,
           matchedNumbers: matchedNums,
-          reintegroMatched: result.reintegroHit,
-          complementarioMatched: targetTicket.playedNumbers.includes(scrutinyComp),
-          prizeFundBalance: settings.prizeFundBalance + result.prizeAmount,
-          drawDate: targetTicket.drawDate,
+          reintegroMatched: summary.anyReintegroHit,
+          complementarioMatched: summary.anyComplementarioHit,
+          prizeFundBalance: settings.prizeFundBalance + summary.totalPrizeAmount,
+          drawDate: refTicket.drawDate,
+          ticketBreakdowns: summary.items.map(item => ({
+            playedNumbers: item.ticket.playedNumbers,
+            playedReintegro: item.ticket.playedReintegro,
+            matchedNumbers: item.matchedNumbers,
+            hits: item.result.hits,
+            complementarioMatched: item.result.complementarioHit,
+            reintegroMatched: item.result.reintegroHit,
+            prize: item.result.prizeAmount,
+          })),
         },
         {
           instanceId: settings.greenApiInstanceId,
@@ -1127,8 +1210,158 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </button>
                 </div>
               </div>
+
+              <div className="pt-5 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <strong className="text-base text-[#0A2540] flex items-center gap-2">
+                      <EyeOff className="w-5 h-5 text-[#FF6B00] shrink-0" />
+                      Modo Captación Inicial (Ocultar listado y orden de socios)
+                    </strong>
+                    <p className="text-base text-slate-600 mt-1 leading-relaxed">
+                      Cuando está <strong>ACTIVO</strong>, la pestaña «Socios» oculta temporalmente la lista ordenada y las etiquetas <em>Titular/Suplente</em>, mostrando únicamente el total de inscritos mientras se cierra el cupo inicial (Art. 3.2).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={`text-sm font-extrabold ${settings.initialRecruitmentMode ? 'text-[#FF6B00]' : 'text-slate-500'}`}>
+                      {settings.initialRecruitmentMode ? 'ACTIVO' : 'INACTIVO'}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isSavingRecruitmentMode}
+                      onClick={() => handleToggleInitialRecruitment(!settings.initialRecruitmentMode)}
+                      className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden disabled:opacity-60 ${
+                        settings.initialRecruitmentMode ? 'bg-[#FF6B00]' : 'bg-slate-300'
+                      }`}
+                      aria-label="Alternar Modo Captación Inicial"
+                    >
+                      <span
+                        className={`inline-block h-7 w-7 transform rounded-full bg-white shadow-sm transition duration-200 ${
+                          settings.initialRecruitmentMode ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+                {recruitmentModeFeedback && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-950">
+                    {recruitmentModeFeedback}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Calculadora Dinámica de Combinaciones y Cupos */}
+          {(() => {
+            const adminTitulares = players.filter(p => p.status === 'TITULAR').length;
+            const adminSuplentes = players.some(p => p.sheetRow !== undefined)
+              ? players.filter(p => p.status === 'SUPLENTE').length
+              : waitingList.length;
+            const totalEnrolled = adminTitulares + adminSuplentes;
+            const allCombos = generateBlockCombinations(totalEnrolled);
+            const suggestedCombos = allCombos.filter(
+              c => c.status === 'READY' || c.status === 'CLOSE' || c.blocks.length === 1
+            );
+            const displayedCombos = showAllCombinations
+              ? allCombos
+              : suggestedCombos.length > 0
+              ? suggestedCombos
+              : allCombos.slice(0, 14);
+
+            return (
+              <div className="rounded-3xl bg-white border-2 border-[#0A2540]/15 p-5 sm:p-7 shadow-xs space-y-5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
+                      <Calculator className="w-6 h-6 text-[#FF6B00]" />
+                      Calculadora de Combinaciones y Cupos
+                    </h2>
+                    <p className="text-base text-slate-600 mt-1">
+                      Bloques oficiales de La Primitiva (7, 28, 44, 84, 210, 462 apuestas a 1 €/apuesta) combinados para aprovechar al máximo los inscritos actuales.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0 tabular-nums">
+                    <div className="rounded-2xl bg-[#0A2540] text-white px-4 py-2.5">
+                      <span className="text-xs uppercase font-bold text-slate-300 block">
+                        Inscritos Activos
+                      </span>
+                      <span className="text-xl font-black text-[#FF6B00]">
+                        {totalEnrolled} ({adminTitulares}T + {adminSuplentes}S)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCombinations(prev => !prev)}
+                      className="px-4 min-h-[46px] rounded-xl border border-slate-300 bg-[#F4F6F9] hover:bg-slate-200 text-sm font-bold text-[#0A2540] transition cursor-pointer"
+                    >
+                      {showAllCombinations
+                        ? `Ver sugeridas (${suggestedCombos.length})`
+                        : `Ver todas (${allCombos.length})`}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 max-h-96 overflow-y-auto">
+                  <table className="w-full text-left text-sm sm:text-base text-slate-800">
+                    <thead className="bg-[#0A2540] text-white uppercase text-xs tracking-wider sticky top-0 z-10">
+                      <tr>
+                        <th className="py-3.5 px-4">Descripción de boletos</th>
+                        <th className="py-3.5 px-4">Jugadores necesarios</th>
+                        <th className="py-3.5 px-4">Faltan / Sobran</th>
+                        <th className="py-3.5 px-4">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 tabular-nums">
+                      {displayedCombos.map(combo => (
+                        <tr
+                          key={combo.id}
+                          className={
+                            combo.diffFromEnrolled === 0
+                              ? 'bg-emerald-50/90 font-semibold'
+                              : combo.status === 'READY'
+                              ? 'bg-emerald-50/35 hover:bg-emerald-50/60'
+                              : combo.status === 'CLOSE'
+                              ? 'bg-amber-50/40 hover:bg-amber-50/70'
+                              : 'hover:bg-slate-50'
+                          }
+                        >
+                          <td className="py-3 px-4 font-extrabold text-[#0A2540]">
+                            <span>{combo.description}</span>
+                            <span className="block text-xs font-medium text-slate-500">
+                              {combo.ticketsCount}{' '}
+                              {combo.ticketsCount === 1 ? 'resguardo' : 'resguardos'} ·{' '}
+                              {combo.totalCost.toFixed(2)} €
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-mono font-black text-[#0A2540]">
+                            {combo.totalPlayers} jugadores
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-slate-700">
+                            {combo.gapLabel}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap font-bold">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs sm:text-sm font-extrabold ${
+                                combo.status === 'READY'
+                                  ? 'bg-emerald-100 text-emerald-900'
+                                  : combo.status === 'CLOSE'
+                                  ? 'bg-amber-100 text-amber-900'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {combo.statusLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-5">
             <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
@@ -2057,6 +2290,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
+          {/* Resguardos ya publicados en la jornada actual */}
+          {(() => {
+            const publishedActiveTickets = tickets.filter(
+              t => !t.isScrutinized && isTicketPublishedNow(t)
+            );
+            if (publishedActiveTickets.length === 0) return null;
+            return (
+              <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-4 sm:p-5 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[#0A2540]">
+                  <h3 className="font-extrabold text-base sm:text-lg flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>
+                      Resguardos Activos en «Mi Jugada» ({publishedActiveTickets.length})
+                    </span>
+                  </h3>
+                  <span className="text-sm font-black text-emerald-900 tabular-nums">
+                    Total sellado: {publishedActiveTickets.reduce((s, t) => s + (t.cost || 0), 0).toFixed(2)} €
+                  </span>
+                </div>
+                <p className="text-sm text-slate-700">
+                  Puedes subir más resguardos para esta misma jornada arriba (se añadirán juntos) o subir un resguardo con distinta jornada/fecha para archivar esta jornada en «Últimos Jugados».
+                </p>
+                <div className="space-y-2.5">
+                  {publishedActiveTickets.map((pt, idx) => (
+                    <div
+                      key={pt.id}
+                      className="rounded-xl bg-white border border-emerald-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-extrabold text-[#0A2540] text-sm sm:text-base">
+                          Boleto #{idx + 1} · Jornada {pt.jornadaNumber}/10 · {pt.drawDate}
+                        </div>
+                        <div className="text-sm font-mono text-slate-700">
+                          [{pt.playedNumbers.map(n => (n < 10 ? `0${n}` : n)).join(', ')}] · R: {pt.playedReintegro} · {pt.cost.toFixed(2)} €
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteScheduledTicket(pt.id)}
+                        className="px-3 min-h-[40px] rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs sm:text-sm font-bold cursor-pointer shrink-0"
+                      >
+                        Quitar resguardo
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Boletos Programados (solo visibles para el Administrador hasta el día del sorteo) */}
           {(() => {
             const scheduledTickets = tickets.filter(t => !t.isScrutinized && !isTicketPublishedNow(t));
@@ -2716,47 +2999,92 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
 
           {(() => {
-            const targetScrutinyTicket =
+            const refTicket =
               tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t)) ||
               tickets.find(t => t.isScrutinized && (!t.winningNumbers || t.winningNumbers.length === 0)) ||
               tickets.find(t => !t.isScrutinized) ||
               tickets[0];
-            if (!targetScrutinyTicket) return null;
+            if (!refTicket) return null;
+
+            const refKey = getTicketJornadaKey(refTicket);
+            const targetJornadaTickets = tickets.filter(t => {
+              if (getTicketJornadaKey(t) !== refKey) return false;
+              if (!refTicket.isScrutinized) return !t.isScrutinized;
+              return !t.winningNumbers || t.winningNumbers.length === 0;
+            });
+            const listToCheck =
+              targetJornadaTickets.length > 0 ? targetJornadaTickets : [refTicket];
+            const winNums = scrutinyWinning
+              .split(/[,;\s-]+/)
+              .map(s => parseInt(s.trim(), 10))
+              .filter(n => !isNaN(n));
+            const liveSummary =
+              winNums.length === 6
+                ? calculateMultiTicketScrutiny(
+                    listToCheck,
+                    winNums,
+                    scrutinyComp,
+                    scrutinyReintegro,
+                    refTicket.activePlayersCount || 44
+                  )
+                : null;
+
             return (
-              <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-2.5 text-base">
+              <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-3 text-base">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-bold text-[#0A2540]">
-                    Comprobación en vivo (Jornada {targetScrutinyTicket.jornadaNumber}):
+                    Comprobación en vivo (Jornada {refTicket.jornadaNumber} · {listToCheck.length}{' '}
+                    {listToCheck.length === 1 ? 'resguardo' : 'resguardos'}):
                   </span>
-                  <span className="font-mono text-slate-600 text-sm font-semibold tabular-nums">
-                    Apuesta: [{targetScrutinyTicket.playedNumbers.join(', ')}] · R: {targetScrutinyTicket.playedReintegro}
-                  </span>
+                  {liveSummary && (
+                    <span className="px-3 py-1 rounded-xl bg-[#0A2540] text-white text-xs sm:text-sm font-extrabold tabular-nums">
+                      Total sumado: {liveSummary.totalHits} aciertos · {liveSummary.totalPrizeAmount.toFixed(2)} €
+                    </span>
+                  )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="text-slate-700 font-medium">Aciertos:</span>
-                  {(() => {
-                    const winNums = scrutinyWinning.split(/[,;\s-]+/).map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-                    const hits = targetScrutinyTicket.playedNumbers.filter(n => winNums.includes(n));
-                    const reintegroMatch = scrutinyReintegro === targetScrutinyTicket.playedReintegro;
+
+                <div className="space-y-2.5">
+                  {listToCheck.map((tk, idx) => {
+                    const hits = tk.playedNumbers.filter(n => winNums.includes(n));
+                    const reintegroMatch = scrutinyReintegro === tk.playedReintegro;
                     return (
-                      <div className="flex flex-wrap items-center gap-2">
-                        {hits.length > 0 ? (
-                          hits.map((h, idx) => (
-                            <span key={`hit-${h}-${idx}`} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-mono font-bold text-sm">
-                              {h}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-slate-600 font-semibold">0 aciertos en combinación</span>
-                        )}
-                        {reintegroMatch && (
-                          <span className="px-2.5 py-1 rounded-lg bg-[#0A2540] text-white font-bold text-sm">
-                            Reintegro Acertado ({scrutinyReintegro})
+                      <div
+                        key={tk.id}
+                        className="rounded-xl bg-white border border-slate-200 p-3 space-y-1.5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                          <span className="font-extrabold text-[#0A2540]">
+                            Boleto #{idx + 1} ({tk.cost.toFixed(2)} €)
                           </span>
-                        )}
+                          <span className="font-mono text-slate-600 font-semibold tabular-nums">
+                            [{tk.playedNumbers.join(', ')}] · R: {tk.playedReintegro}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-slate-700 text-sm font-medium">Aciertos:</span>
+                          {hits.length > 0 ? (
+                            hits.map((h, hIdx) => (
+                              <span
+                                key={`hit-${tk.id}-${h}-${hIdx}`}
+                                className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-mono font-bold text-xs sm:text-sm"
+                              >
+                                {h}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-600 text-sm font-semibold">
+                              0 aciertos en combinación
+                            </span>
+                          )}
+                          {reintegroMatch && (
+                            <span className="px-2.5 py-0.5 rounded-lg bg-[#0A2540] text-white font-bold text-xs sm:text-sm">
+                              Reintegro Acertado ({scrutinyReintegro})
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
-                  })()}
+                  })}
                 </div>
               </div>
             );

@@ -271,6 +271,8 @@ export default function App() {
       ? 'MULTIPLE_9'
       : count === 10
       ? 'MULTIPLE_10'
+      : count === 11
+      ? 'MULTIPLE_11'
       : 'COMBINADA';
 
   const parseNumbersList = (raw: string | undefined): number[] =>
@@ -281,6 +283,7 @@ export default function App() {
 
   const applyServerTicketsState = (params: {
     boletoActivo?: MemberAccessResponse['boletoActivo'];
+    boletosActivos?: MemberAccessResponse['boletosActivos'];
     ultimosJugados?: MemberAccessResponse['ultimosJugados'];
     boletoResumen?: {
       hayBoleto: boolean;
@@ -291,17 +294,17 @@ export default function App() {
       fechaHoraPublicacion?: string;
     };
   }) => {
-    const { boletoActivo, ultimosJugados, boletoResumen } = params;
+    const { boletoActivo, boletosActivos, ultimosJugados, boletoResumen } = params;
     const serverPlayedTickets: TicketDraw[] = Array.isArray(ultimosJugados)
       ? ultimosJugados
-          .map((item): TicketDraw | null => {
+          .map((item, idx): TicketDraw | null => {
             const nums = parseNumbersList(item.combinacionJugada);
             if (nums.length === 0) return null;
             const winNums = parseNumbersList(item.combinacionGanadora);
             const prizeAmount = Number(item.cantidadPremiada) || 0;
             const hasHits = typeof item.aciertos === 'number' && !isNaN(item.aciertos);
             return {
-              id: item.id || `gas-hist-${item.fecha}-${item.jornada}`,
+              id: item.id || `gas-hist-${item.fecha}-${item.jornada}-${idx + 1}`,
               cycleNumber: Number(item.ciclo) || 1,
               jornadaNumber: Number(item.jornada) || 1,
               drawDate: String(item.fecha || ''),
@@ -339,47 +342,61 @@ export default function App() {
     setTickets(prev => {
       let working = [...prev];
 
-      // Integrar los últimos boletos jugados del servidor (conservando escrutinio local si ya existe)
+      // Integrar los últimos boletos jugados del servidor (agrupando múltiples boletos de una misma jornada por ID o combinación)
       if (serverPlayedTickets.length > 0) {
-        const mergedBySlot = new Map<string, TicketDraw>();
+        const mergedById = new Map<string, TicketDraw>();
         for (const t of working) {
           if (t.isScrutinized) {
-            const key = `${t.cycleNumber}-${t.jornadaNumber}-${t.drawDate}`;
-            mergedBySlot.set(key, { ...t, receiptImageUrl: '' });
+            mergedById.set(t.id, { ...t, receiptImageUrl: '' });
           }
         }
         for (const st of serverPlayedTickets) {
-          const key = `${st.cycleNumber}-${st.jornadaNumber}-${st.drawDate}`;
-          const existing = mergedBySlot.get(key);
-          if (existing) {
-            mergedBySlot.set(key, {
+          const existingById =
+            mergedById.get(st.id) ||
+            Array.from(mergedById.values()).find(
+              t =>
+                t.cycleNumber === st.cycleNumber &&
+                t.jornadaNumber === st.jornadaNumber &&
+                t.drawDate === st.drawDate &&
+                t.playedNumbers.join(',') === st.playedNumbers.join(',')
+            );
+          if (existingById) {
+            mergedById.set(existingById.id, {
               ...st,
+              id: existingById.id,
               winningNumbers:
                 st.winningNumbers && st.winningNumbers.length > 0
                   ? st.winningNumbers
-                  : existing.winningNumbers,
-              complementario: existing.complementario,
-              reintegro: existing.reintegro,
-              hitsCount: st.hitsCount !== undefined ? st.hitsCount : existing.hitsCount,
-              hasReintegro: existing.hasReintegro,
-              totalPrize: st.totalPrize > 0 ? st.totalPrize : existing.totalPrize,
+                  : existingById.winningNumbers,
+              complementario: existingById.complementario,
+              reintegro: existingById.reintegro,
+              hitsCount: st.hitsCount !== undefined ? st.hitsCount : existingById.hitsCount,
+              hasReintegro: existingById.hasReintegro,
+              totalPrize: st.totalPrize > 0 ? st.totalPrize : existingById.totalPrize,
               prizeCategory:
-                existing.prizeCategory && existing.prizeCategory !== 'Jugada finalizada'
-                  ? existing.prizeCategory
+                existingById.prizeCategory && existingById.prizeCategory !== 'Jugada finalizada'
+                  ? existingById.prizeCategory
                   : st.prizeCategory,
-              prizeType: st.totalPrize > 0 ? st.prizeType : existing.prizeType,
+              prizeType: st.totalPrize > 0 ? st.prizeType : existingById.prizeType,
               receiptImageUrl: '',
             });
           } else {
-            mergedBySlot.set(key, st);
+            mergedById.set(st.id, st);
           }
         }
         const pendingOnly = working.filter(t => !t.isScrutinized);
-        working = [...pendingOnly, ...Array.from(mergedBySlot.values())];
+        working = [...pendingOnly, ...Array.from(mergedById.values())];
       }
 
+      const activeServerList =
+        Array.isArray(boletosActivos) && boletosActivos.length > 0
+          ? boletosActivos
+          : boletoActivo
+          ? [boletoActivo]
+          : [];
+
       // Caso 1: El servidor indica que la nueva jornada está PROGRAMADA para más adelante -> retirar imagen del boleto anterior
-      if (!boletoActivo && boletoResumen?.hayBoleto && boletoResumen?.programado) {
+      if (activeServerList.length === 0 && boletoResumen?.hayBoleto && boletoResumen?.programado) {
         working = working.map(t => {
           if (t.isScrutinized) return t;
           const isSameScheduled =
@@ -399,44 +416,49 @@ export default function App() {
         return next;
       }
 
-      // Caso 2: Hay un boleto activo publicado desde el servidor
-      if (boletoActivo && boletoActivo.combinacionJugada) {
-        const nums = parseNumbersList(boletoActivo.combinacionJugada);
-        if (nums.length > 0) {
-          const normalizedImg = normalizeReceiptImageUrl(String(boletoActivo.fotoResguardo || ''));
-          const existingSamePending = working.find(
+      // Caso 2: Hay 1 o varios boletos activos publicados desde el servidor
+      if (activeServerList.length > 0) {
+        let nextTickets = [...working];
+        activeServerList.forEach((srv, idx) => {
+          if (!srv || !srv.combinacionJugada) return;
+          const nums = parseNumbersList(srv.combinacionJugada);
+          if (nums.length === 0) return;
+          const normalizedImg = normalizeReceiptImageUrl(String(srv.fotoResguardo || ''));
+          const numsKey = nums.join(',');
+
+          const existingMatch = nextTickets.find(
             t =>
               !t.isScrutinized &&
-              t.jornadaNumber === Number(boletoActivo.jornada) &&
-              t.drawDate === String(boletoActivo.fecha)
+              ((srv.id && t.id === srv.id) ||
+                (t.jornadaNumber === Number(srv.jornada) &&
+                  t.drawDate === String(srv.fecha) &&
+                  t.playedNumbers.join(',') === numsKey))
           );
 
-          if (existingSamePending) {
+          if (existingMatch) {
             const nextImg =
-              normalizedImg && !existingSamePending.receiptImageUrl.startsWith('data:')
+              normalizedImg && !existingMatch.receiptImageUrl.startsWith('data:')
                 ? normalizedImg
-                : normalizeReceiptImageUrl(existingSamePending.receiptImageUrl);
-            working = working.map(t =>
-              t.id === existingSamePending.id ? { ...t, receiptImageUrl: nextImg } : t
+                : normalizeReceiptImageUrl(existingMatch.receiptImageUrl);
+            nextTickets = nextTickets.map(t =>
+              t.id === existingMatch.id ? { ...t, receiptImageUrl: nextImg } : t
             );
-            const next = capTicketsKeepingPlayed(working);
-            storageService.saveTickets(next);
-            return next;
+            return;
           }
 
           const syncedTicket: TicketDraw = {
-            id: `gas-${boletoActivo.fecha}-${boletoActivo.jornada}`,
-            cycleNumber: Number(boletoActivo.ciclo) || 1,
-            jornadaNumber: Number(boletoActivo.jornada) || 1,
-            drawDate: String(boletoActivo.fecha),
+            id: srv.id || `gas-${srv.fecha}-${srv.jornada}-${idx + 1}`,
+            cycleNumber: Number(srv.ciclo) || 1,
+            jornadaNumber: Number(srv.jornada) || 1,
+            drawDate: String(srv.fecha),
             receiptImageUrl: normalizedImg,
             betType: inferBetTypeFromCount(nums.length),
             numbersPlayedCount: nums.length,
-            cost: Number(boletoActivo.importeJugado) || 0,
-            activePlayersCount: Number(boletoActivo.jugadoresActivos) || 0,
+            cost: Number(srv.importeJugado) || 0,
+            activePlayersCount: Number(srv.jugadoresActivos) || 0,
             costPerPlayer: 1.0,
             playedNumbers: nums,
-            playedReintegro: Number(boletoActivo.reintegro) || 0,
+            playedReintegro: Number(srv.reintegro) || 0,
             jokerPlayed: true,
             isScrutinized: false,
             totalPrize: 0,
@@ -445,10 +467,12 @@ export default function App() {
             scheduledNotificationSent: true,
           };
 
-          const next = archivePreviousPendingTicketsForNewSchedule(working, syncedTicket);
-          storageService.saveTickets(next);
-          return next;
-        }
+          nextTickets = archivePreviousPendingTicketsForNewSchedule(nextTickets, syncedTicket);
+        });
+
+        const next = capTicketsKeepingPlayed(nextTickets);
+        storageService.saveTickets(next);
+        return next;
       }
 
       const next = capTicketsKeepingPlayed(working);
@@ -522,13 +546,26 @@ export default function App() {
         suplentes: accessData.conteoSuplentes,
       });
     }
+    if (typeof accessData?.modoCaptacionInicial === 'boolean') {
+      const nextSettings = {
+        ...settings,
+        initialRecruitmentMode: accessData.modoCaptacionInicial,
+      };
+      setSettings(nextSettings);
+      storageService.saveSettings(nextSettings);
+    }
     if (Array.isArray(accessData?.listaPublica)) {
       applyPublicListFromServer(accessData.listaPublica, settings.currentCycle);
     }
     if (resolvedRole === 'TITULAR') {
-      if (accessData?.boletoActivo || (accessData?.ultimosJugados && accessData.ultimosJugados.length > 0)) {
+      if (
+        accessData?.boletoActivo ||
+        (accessData?.boletosActivos && accessData.boletosActivos.length > 0) ||
+        (accessData?.ultimosJugados && accessData.ultimosJugados.length > 0)
+      ) {
         applyServerTicketsState({
           boletoActivo: accessData?.boletoActivo,
+          boletosActivos: accessData?.boletosActivos,
           ultimosJugados: accessData?.ultimosJugados,
         });
       }
@@ -629,23 +666,31 @@ export default function App() {
         .then(data => {
           if (data && data.status === 'OK') {
             const cicloNum = Number(data.ciclo) || settings.currentCycle;
-            setSettings(prev => ({
-              ...prev,
-              currentCycle: Number(data.ciclo) || prev.currentCycle,
-              currentJornada: Number(data.jornada) || prev.currentJornada,
-              prizeFundBalance:
-                data.bolsaPremios !== undefined && !isNaN(Number(data.bolsaPremios))
-                  ? Number(data.bolsaPremios)
-                  : prev.prizeFundBalance,
-              weeklyPrizeGain:
-                data.gananciaSemanal !== undefined && !isNaN(Number(data.gananciaSemanal))
-                  ? Number(data.gananciaSemanal)
-                  : prev.weeklyPrizeGain ?? 0,
-              sendDailyGeneralSummary:
-                data.boletinDiarioActivo !== undefined
-                  ? Boolean(data.boletinDiarioActivo)
-                  : prev.sendDailyGeneralSummary,
-            }));
+            setSettings(prev => {
+              const updatedSettings: SyndicateSettings = {
+                ...prev,
+                currentCycle: Number(data.ciclo) || prev.currentCycle,
+                currentJornada: Number(data.jornada) || prev.currentJornada,
+                prizeFundBalance:
+                  data.bolsaPremios !== undefined && !isNaN(Number(data.bolsaPremios))
+                    ? Number(data.bolsaPremios)
+                    : prev.prizeFundBalance,
+                weeklyPrizeGain:
+                  data.gananciaSemanal !== undefined && !isNaN(Number(data.gananciaSemanal))
+                    ? Number(data.gananciaSemanal)
+                    : prev.weeklyPrizeGain ?? 0,
+                sendDailyGeneralSummary:
+                  data.boletinDiarioActivo !== undefined
+                    ? Boolean(data.boletinDiarioActivo)
+                    : prev.sendDailyGeneralSummary,
+                initialRecruitmentMode:
+                  data.modoCaptacionInicial !== undefined
+                    ? Boolean(data.modoCaptacionInicial)
+                    : prev.initialRecruitmentMode,
+              };
+              storageService.saveSettings(updatedSettings);
+              return updatedSettings;
+            });
 
             if (
               typeof data.conteoTitulares === 'number' ||
@@ -697,11 +742,13 @@ export default function App() {
             if (
               canHydrateTicket &&
               (data.boletoActivo ||
+                (Array.isArray(data.boletosActivos) && data.boletosActivos.length > 0) ||
                 (Array.isArray(data.ultimosJugados) && data.ultimosJugados.length > 0) ||
                 data.boletoResumen?.programado)
             ) {
               applyServerTicketsState({
                 boletoActivo: data.boletoActivo,
+                boletosActivos: data.boletosActivos,
                 ultimosJugados: data.ultimosJugados,
                 boletoResumen: data.boletoResumen,
               });

@@ -27,6 +27,18 @@ export interface RegistrationResponse {
   message?: string;
 }
 
+export interface ServerActiveTicketDto {
+  id?: string;
+  jornada: number;
+  fecha: string;
+  fotoResguardo?: string;
+  importeJugado?: number;
+  combinacionJugada?: string;
+  ciclo?: number;
+  reintegro?: number;
+  jugadoresActivos?: number;
+}
+
 export interface MemberAccessResponse {
   success: boolean;
   notFound?: boolean;
@@ -35,17 +47,10 @@ export interface MemberAccessResponse {
   rol?: 'TITULAR' | 'SUPLENTE';
   conteoTitulares?: number;
   conteoSuplentes?: number;
+  modoCaptacionInicial?: boolean;
   listaPublica?: PublicListRow[];
-  boletoActivo?: {
-    jornada: number;
-    fecha: string;
-    fotoResguardo?: string;
-    importeJugado?: number;
-    combinacionJugada?: string;
-    ciclo?: number;
-    reintegro?: number;
-    jugadoresActivos?: number;
-  } | null;
+  boletoActivo?: ServerActiveTicketDto | null;
+  boletosActivos?: ServerActiveTicketDto[];
   ultimosJugados?: Array<{
     id?: string;
     jornada: number;

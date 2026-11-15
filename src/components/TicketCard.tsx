@@ -120,6 +120,8 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, googleAppsScript
       ? 'Múltiple 9 Números (84 apuestas)'
       : ticket.betType === 'MULTIPLE_10'
       ? 'Múltiple 10 Números (210 apuestas)'
+      : ticket.betType === 'MULTIPLE_11'
+      ? 'Múltiple 11 Números (462 apuestas)'
       : `Combinación ${ticket.numbersPlayedCount} números`;
 
   return (

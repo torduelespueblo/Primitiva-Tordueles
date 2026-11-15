@@ -113,8 +113,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       setPushStatusMsg(res.message);
     }
   };
-  const pendingTicket = tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t));
-  const scheduledTicket = tickets.find(t => !t.isScrutinized && !isTicketPublishedNow(t));
+  const pendingAll = tickets.filter(t => !t.isScrutinized);
+  const pendingPublished = pendingAll.filter(t => isTicketPublishedNow(t));
+  const pendingTicket = pendingPublished[0];
+  const scheduledTickets = pendingAll.filter(t => !isTicketPublishedNow(t));
+  const scheduledTicket = scheduledTickets[0];
+  const isInitialRecruitment = Boolean(settings.initialRecruitmentMode);
+  const totalEnrolled = displayTitulares + displaySuplentes;
   const hasPlayedHistory = tickets.some(t => t.isScrutinized);
   const lastScrutinized = tickets.find(
     t =>
@@ -177,12 +182,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <strong className="text-[#0A2540]">{memberName || 'Socio'}</strong>{' '}
               <span
                 className={`ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
-                  isTitular
+                  isInitialRecruitment
+                    ? 'bg-slate-100 text-[#0A2540]'
+                    : isTitular
                     ? 'bg-emerald-100 text-emerald-900'
                     : 'bg-orange-100 text-[#FF6B00]'
                 }`}
               >
-                {isTitular ? 'Titular' : 'Suplente (Lista de Espera)'}
+                {isInitialRecruitment
+                  ? 'Socio Inscrito'
+                  : isTitular
+                  ? 'Titular'
+                  : 'Suplente (Lista de Espera)'}
               </span>
             </span>
           </div>
@@ -211,7 +222,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </h1>
             <p className="text-base text-slate-600 mt-1 max-w-2xl leading-relaxed">
               {isTitular
-                ? 'Combinación múltiple sellada por terminal oficial de SELAE pendiente de sorteo para todos los socios activos.'
+                ? 'Resguardo(s) múltiple(s) sellado(s) por terminal oficial de SELAE pendiente(s) de sorteo para todos los socios activos.'
                 : 'Combinación múltiple oficial de La Primitiva sellada por terminal de SELAE para los socios titulares del ciclo.'}
             </p>
           </div>
@@ -295,9 +306,23 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
             )}
           </div>
-        ) : pendingTicket ? (
-          <div className="max-w-2xl">
-            <TicketCard ticket={pendingTicket} googleAppsScriptUrl={googleAppsScriptUrl} />
+        ) : pendingPublished.length > 0 ? (
+          <div className="space-y-4">
+            {pendingPublished.length > 1 && (
+              <div className="rounded-2xl bg-[#0A2540] text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm sm:text-base font-bold">
+                  🎟️ Jornada con <strong>{pendingPublished.length} resguardos múltiples</strong> sellados en juego
+                </span>
+                <span className="text-sm sm:text-base font-black text-[#FF6B00] tabular-nums">
+                  Total jugado: {pendingPublished.reduce((sum, t) => sum + (t.cost || 0), 0).toFixed(2)} €
+                </span>
+              </div>
+            )}
+            <div className={pendingPublished.length > 1 ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'max-w-2xl'}>
+              {pendingPublished.map(t => (
+                <TicketCard key={t.id} ticket={t} googleAppsScriptUrl={googleAppsScriptUrl} />
+              ))}
+            </div>
           </div>
         ) : scheduledTicket || (ticketSummary?.hayBoleto && ticketSummary?.programado) ? (
           <div className="p-7 sm:p-8 text-center bg-white rounded-3xl border border-amber-200 text-slate-700 space-y-3">
@@ -305,7 +330,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <CalendarClock className="w-8 h-8" />
             </div>
             <p className="text-lg sm:text-xl font-extrabold text-[#0A2540]">
-              Resguardo programado para el día del sorteo
+              {scheduledTickets.length > 1
+                ? `${scheduledTickets.length} resguardos programados para el día del sorteo`
+                : 'Resguardo programado para el día del sorteo'}
             </p>
             <p className="text-base text-slate-600 max-w-xl mx-auto leading-relaxed">
               El resguardo oficial ya ha sido validado y programado por administración. Se publicará automáticamente en la App y en el grupo de WhatsApp el{' '}
@@ -416,30 +443,49 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </div>
 
         {/* Cifras globales de jugadores (sin nombres) */}
-        <div className="grid grid-cols-2 gap-3 pt-1 tabular-nums">
-          <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-3.5 sm:p-4 flex items-center gap-3">
-            <Users className="w-5 h-5 text-[#0A2540] shrink-0" />
-            <div>
-              <span className="text-xs font-bold uppercase text-slate-500 block">
-                Titulares Activos
-              </span>
-              <span className="text-lg sm:text-xl font-black text-[#0A2540]">
-                {displayTitulares}
-              </span>
+        {isInitialRecruitment ? (
+          <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 tabular-nums">
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5 text-[#FF6B00] shrink-0" />
+              <div>
+                <span className="text-xs font-bold uppercase text-slate-500 block">
+                  Inscritos Actuales (Captación Inicial)
+                </span>
+                <span className="text-lg sm:text-xl font-black text-[#0A2540]">
+                  {totalEnrolled} {totalEnrolled === 1 ? 'jugador' : 'jugadores'}
+                </span>
+              </div>
+            </div>
+            <span className="text-xs sm:text-sm font-semibold text-slate-600">
+              Cupo y combinación definitiva pendientes de cierre inicial
+            </span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 pt-1 tabular-nums">
+            <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-3.5 sm:p-4 flex items-center gap-3">
+              <Users className="w-5 h-5 text-[#0A2540] shrink-0" />
+              <div>
+                <span className="text-xs font-bold uppercase text-slate-500 block">
+                  Titulares Activos
+                </span>
+                <span className="text-lg sm:text-xl font-black text-[#0A2540]">
+                  {displayTitulares}
+                </span>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-orange-50/70 border border-orange-200 p-3.5 sm:p-4 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-[#FF6B00] shrink-0" />
+              <div>
+                <span className="text-xs font-bold uppercase text-slate-600 block">
+                  Lista de Espera
+                </span>
+                <span className="text-lg sm:text-xl font-black text-[#0A2540]">
+                  {displaySuplentes}
+                </span>
+              </div>
             </div>
           </div>
-          <div className="rounded-2xl bg-orange-50/70 border border-orange-200 p-3.5 sm:p-4 flex items-center gap-3">
-            <Clock className="w-5 h-5 text-[#FF6B00] shrink-0" />
-            <div>
-              <span className="text-xs font-bold uppercase text-slate-600 block">
-                Lista de Espera
-              </span>
-              <span className="text-lg sm:text-xl font-black text-[#0A2540]">
-                {displaySuplentes}
-              </span>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Aviso de renovación & WhatsApp */}
         <div className="pt-4 border-t border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">

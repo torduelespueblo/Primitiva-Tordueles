@@ -9,7 +9,11 @@
 
   const ESTADO_APP = {
     usuario: null,
-    adminPassword: ''
+    adminPassword: '',
+    modoCaptacionInicial: false,
+    calcShowAll: false,
+    ultimoConteoTitulares: 0,
+    ultimoConteoSuplentes: 0
   };
 
   (function initSplashScreen() {
@@ -370,7 +374,10 @@
             }
             y += 2.8;
           } else {
-            const isSubIntro = tag === 'P' && txt.indexOf('opciones de apuestas') !== -1;
+            const isSubIntro = tag === 'P' && (
+              txt.indexOf('bloques oficiales de apuestas múltiples') !== -1 ||
+              txt.indexOf('opciones de apuestas') !== -1
+            );
             doc.setFont('helvetica', isSubIntro ? 'bold' : 'normal');
             doc.setFontSize(isSubIntro ? 11 : bodyFontSize);
             doc.setTextColor(isSubIntro ? 51 : 30, isSubIntro ? 65 : 41, isSubIntro ? 85 : 59);
@@ -468,6 +475,7 @@
     const user = ESTADO_APP.usuario || {};
     const tes = data.tesoreria || {};
     const jInfo = data.jornadaInfo || {};
+    ESTADO_APP.modoCaptacionInicial = Boolean(data.modoCaptacionInicial);
 
     document.getElementById('dashBolsaPremios').innerText = formatearMoneda(tes.bolsaPremios);
     const adminBoteLbl = document.getElementById('adminBoteActualLabel');
@@ -484,7 +492,9 @@
     }
     document.getElementById('dashNombreUsuario').innerText = user.nombreCompleto || 'Socio en Alta';
     document.getElementById('dashDniUsuario').innerText = user.dni ? ('DNI: ' + user.dni) : 'Pendiente de asignación de DNI';
-    document.getElementById('dashCondicion').innerText = user.estado || 'Suplente';
+    document.getElementById('dashCondicion').innerText = ESTADO_APP.modoCaptacionInicial
+      ? 'Inscrito'
+      : (user.estado || 'Suplente');
     document.getElementById('dashPago').innerText = user.estadoPago || user.pago || 'Pendiente';
     document.getElementById('dashCiclo').innerText = 'Ciclo ' + (jInfo.cicloActual || user.cicloActual || 1) + ' · J' + (jInfo.jornadaEnCiclo || 1);
     document.getElementById('dashParticipacion').innerText = user.porcentajeParticipacion || '0.00%';
@@ -499,19 +509,47 @@
     }
 
     const cardBoleto = document.getElementById('cardApuestaActiva');
-    const sorteo = data.ultimoSorteo;
-    if (cardBoleto && sorteo && sorteo.combinacionJugada) {
+    const multiWrap = document.getElementById('dashBoletosMultiContainer');
+    const titleEl = document.getElementById('dashBoletoTitle');
+    const jornadaEl = document.getElementById('dashJornadaBoleto');
+    const boletosActivos = Array.isArray(data.boletosActivos) && data.boletosActivos.length > 0
+      ? data.boletosActivos
+      : (data.ultimoSorteo && data.ultimoSorteo.combinacionJugada ? [data.ultimoSorteo] : []);
+
+    if (cardBoleto && multiWrap && boletosActivos.length > 0) {
       cardBoleto.style.display = 'block';
-      document.getElementById('dashJornadaBoleto').innerText = 'Jornada ' + sorteo.jornada + ' · ' + sorteo.fecha;
-      document.getElementById('dashBoletoMeta').innerText = 'Importe jugado: ' + formatearMoneda(sorteo.importeJugado);
-      const ballsWrap = document.getElementById('dashBolasContainer');
-      ballsWrap.innerHTML = '';
-      sorteo.combinacionJugada.split(',').map(function (n) { return n.trim(); }).filter(Boolean).forEach(function (num) {
-        const div = document.createElement('div');
-        div.className = 'ball tabular-nums';
-        div.innerText = num.length === 1 ? '0' + num : num;
-        ballsWrap.appendChild(div);
-      });
+      const firstB = boletosActivos[0];
+      if (titleEl) {
+        titleEl.innerText = boletosActivos.length > 1
+          ? ('Apuestas Oficiales en Juego (' + boletosActivos.length + ' resguardos)')
+          : 'Apuesta Oficial en Juego';
+      }
+      if (jornadaEl) {
+        jornadaEl.innerText = 'Jornada ' + firstB.jornada + ' · ' + firstB.fecha;
+      }
+
+      multiWrap.innerHTML = boletosActivos.map(function (b, idx) {
+        const nums = String(b.combinacionJugada || '').split(',').map(function (n) { return n.trim(); }).filter(Boolean);
+        const ballsHtml = nums.map(function (num) {
+          return '<div class="ball tabular-nums">' + (num.length === 1 ? '0' + num : num) + '</div>';
+        }).join('');
+        const reintHtml = (b.reintegro !== undefined && b.reintegro !== null && b.reintegro !== '')
+          ? (' · Reintegro: ' + b.reintegro)
+          : '';
+        const fotoHtml = b.fotoResguardo
+          ? '<div style="margin-top: 8px; text-align: center;"><img src="' + escapeHtml(b.fotoResguardo) + '" alt="Resguardo ' + (idx + 1) + '" style="max-width: 100%; max-height: 220px; border-radius: 10px; border: 1px solid var(--border-hairline);" /></div>'
+          : '';
+        return (
+          '<div class="multi-ticket-item">' +
+            (boletosActivos.length > 1
+              ? '<div style="font-size: 0.76rem; font-weight: 800; color: var(--navy-deep); text-align: center;">Resguardo #' + (idx + 1) + ' (' + nums.length + ' números)</div>'
+              : '') +
+            '<div class="balls-row">' + ballsHtml + '</div>' +
+            '<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">Importe jugado: ' + formatearMoneda(b.importeJugado) + reintHtml + '</p>' +
+            fotoHtml +
+          '</div>'
+        );
+      }).join('');
     } else if (cardBoleto) {
       cardBoleto.style.display = 'none';
     }
@@ -560,6 +598,26 @@
   function renderizarTablaPublica(lista) {
     const tbody = document.getElementById('publicPlayersBody');
     const countLbl = document.getElementById('publicCountText');
+    const tableWrap = document.getElementById('publicTableWrap');
+    const recruitNotice = document.getElementById('publicRecruitmentNotice');
+    const totalInscritosLbl = document.getElementById('publicTotalInscritosLabel');
+    const subLbl = document.getElementById('publicPlayersSubtitle');
+
+    const total = Array.isArray(lista) ? lista.length : 0;
+
+    if (ESTADO_APP.modoCaptacionInicial) {
+      if (tableWrap) tableWrap.style.display = 'none';
+      if (recruitNotice) recruitNotice.style.display = 'block';
+      if (totalInscritosLbl) totalInscritosLbl.innerText = total + (total === 1 ? ' inscrito' : ' inscritos');
+      if (countLbl) countLbl.innerText = total + ' inscritos';
+      if (subLbl) subLbl.innerText = 'Periodo de captación inicial activo · Asignación al cierre del cupo.';
+      return;
+    }
+
+    if (tableWrap) tableWrap.style.display = 'block';
+    if (recruitNotice) recruitNotice.style.display = 'none';
+    if (subLbl) subLbl.innerText = 'Listado oficial visible únicamente con Nombre, Apellidos y Estado.';
+
     if (!tbody) return;
 
     if (!lista || lista.length === 0) {
@@ -624,6 +682,10 @@
         mostrarCargando(false);
         if (res && res.success) {
           ESTADO_APP.adminPassword = pass;
+          if (typeof res.modoCaptacionInicial === 'boolean') {
+            ESTADO_APP.modoCaptacionInicial = res.modoCaptacionInicial;
+            actualizarBotonModoCaptacionUI();
+          }
           cerrarModalAdmin();
           cambiarVista('viewAdminPanel');
           renderizarTablaAdmin(res.jugadores || []);
@@ -646,6 +708,10 @@
       .withSuccessHandler(function (res) {
         mostrarCargando(false);
         if (res && res.success) {
+          if (typeof res.modoCaptacionInicial === 'boolean') {
+            ESTADO_APP.modoCaptacionInicial = res.modoCaptacionInicial;
+            actualizarBotonModoCaptacionUI();
+          }
           renderizarTablaAdmin(res.jugadores || []);
         }
       })
@@ -752,6 +818,160 @@
     tbodyBajas.innerHTML = bajas.length > 0
       ? bajas.map(function (j) { return construirFilaTablaAdmin(j, false); }).join('')
       : '<tr><td colspan="6" style="text-align: center; padding: 18px; color: var(--text-muted);">No hay bajas definitivas registradas.</td></tr>';
+
+    ESTADO_APP.ultimoConteoTitulares = titulares.length;
+    ESTADO_APP.ultimoConteoSuplentes = suplentes.length;
+    renderizarCalculadoraCombinaciones(titulares.length, suplentes.length);
+  }
+
+  function actualizarBotonModoCaptacionUI() {
+    const btn = document.getElementById('btnToggleModoCaptacion');
+    if (!btn) return;
+    if (ESTADO_APP.modoCaptacionInicial) {
+      btn.classList.remove('off');
+      btn.classList.add('on');
+      btn.innerText = 'Activado (Listado oculto)';
+    } else {
+      btn.classList.remove('on');
+      btn.classList.add('off');
+      btn.innerText = 'Desactivado (Listado visible)';
+    }
+  }
+
+  function toggleModoCaptacionInicial() {
+    if (!ESTADO_APP.adminPassword || !tieneAppsScript()) return;
+    const nuevoEstado = !ESTADO_APP.modoCaptacionInicial;
+    mostrarCargando(true, nuevoEstado ? 'Activando Modo Captación Inicial...' : 'Desactivando Modo Captación Inicial...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          ESTADO_APP.modoCaptacionInicial = Boolean(res.modoCaptacionInicial);
+          actualizarBotonModoCaptacionUI();
+          mostrarToast(res.message || 'Configuración actualizada.', 'success');
+          cargarListaPublicaJugadores();
+        } else {
+          mostrarToast((res && res.message) || 'No se pudo actualizar el modo.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error: ' + (err.message || err), 'error');
+      })
+      .actualizarModoCaptacionAdmin(nuevoEstado, ESTADO_APP.adminPassword);
+  }
+
+  function generarCombinacionesBloques(totalInscritos) {
+    const bloques = [
+      { bets: 7, label: '7 (Múltiple 7)' },
+      { bets: 28, label: '28 (Múltiple 8)' },
+      { bets: 44, label: '44 (5 Fijos)' },
+      { bets: 84, label: '84 (Múltiple 9)' },
+      { bets: 210, label: '210 (Múltiple 10)' },
+      { bets: 462, label: '462 (Múltiple 11)' }
+    ];
+
+    const byTotal = {};
+    function registerCombo(parts) {
+      const counts = {};
+      let sum = 0;
+      parts.forEach(function (p) {
+        counts[p] = (counts[p] || 0) + 1;
+        sum += p;
+      });
+      if (sum <= 0 || sum > 600) return;
+
+      const sortedKeys = Object.keys(counts).map(Number).sort(function (a, b) { return b - a; });
+      const desc = sortedKeys.map(function (k) {
+        return counts[k] > 1 ? (k + ' × ' + counts[k]) : String(k);
+      }).join(' + ');
+      const totalTickets = parts.length;
+      const existing = byTotal[sum];
+      if (!existing || totalTickets < existing.ticketCount) {
+        const diff = sum - totalInscritos;
+        let status = 'WAITING';
+        if (totalInscritos >= sum) status = 'READY';
+        else if (diff <= 10 || (sum > 0 && diff / sum <= 0.15)) status = 'CLOSE';
+        byTotal[sum] = {
+          description: desc + (totalTickets === 1 ? ' (1 boleto)' : ' (' + totalTickets + ' boletos)'),
+          totalPlayers: sum,
+          ticketCount: totalTickets,
+          diff: diff,
+          status: status
+        };
+      }
+    }
+
+    bloques.forEach(function (b1) {
+      registerCombo([b1.bets]);
+      bloques.forEach(function (b2) {
+        registerCombo([b1.bets, b2.bets]);
+        bloques.forEach(function (b3) {
+          if (b1.bets + b2.bets + b3.bets <= 300) {
+            registerCombo([b1.bets, b2.bets, b3.bets]);
+          }
+        });
+      });
+    });
+
+    const allList = Object.keys(byTotal).map(function (k) { return byTotal[k]; });
+    allList.sort(function (a, b) { return a.totalPlayers - b.totalPlayers; });
+    return allList;
+  }
+
+  function toggleCalcMostrarTodas() {
+    ESTADO_APP.calcShowAll = !ESTADO_APP.calcShowAll;
+    const btn = document.getElementById('btnToggleCalcAll');
+    if (btn) btn.innerText = ESTADO_APP.calcShowAll ? 'Ver sugeridas' : 'Ver todas';
+    renderizarCalculadoraCombinaciones(ESTADO_APP.ultimoConteoTitulares, ESTADO_APP.ultimoConteoSuplentes);
+  }
+
+  function renderizarCalculadoraCombinaciones(titulares, suplentes) {
+    const tbody = document.getElementById('adminCalcCombinationsBody');
+    const badge = document.getElementById('calcTotalInscritosBadge');
+    const totalInscritos = (parseInt(titulares, 10) || 0) + (parseInt(suplentes, 10) || 0);
+
+    if (badge) {
+      badge.innerText = totalInscritos + ' inscritos activos (' + titulares + ' Tit. + ' + suplentes + ' Sup.)';
+    }
+    if (!tbody) return;
+
+    const all = generarCombinacionesBloques(totalInscritos);
+    let rows = all;
+    if (!ESTADO_APP.calcShowAll) {
+      const ready = all.filter(function (c) { return c.status === 'READY'; }).slice(-3);
+      const upcoming = all.filter(function (c) { return c.status !== 'READY'; }).slice(0, 7);
+      rows = ready.concat(upcoming);
+      if (rows.length === 0) rows = all.slice(0, 10);
+    }
+
+    tbody.innerHTML = rows.map(function (item) {
+      let diffHtml = '';
+      if (item.diff === 0) {
+        diffHtml = '<span style="color: var(--success-fg); font-weight: 800;">Cupo exacto (0)</span>';
+      } else if (item.diff < 0) {
+        const sobran = Math.abs(item.diff);
+        diffHtml = '<span style="color: var(--success-fg); font-weight: 700;">Sobran ' + sobran + (sobran === 1 ? ' jugador' : ' jugadores') + '</span>';
+      } else {
+        diffHtml = '<span style="color: var(--orange-hover); font-weight: 700;">Faltan ' + item.diff + (item.diff === 1 ? ' jugador' : ' jugadores') + '</span>';
+      }
+
+      let badgeHtml = '<span class="calc-status-badge waiting">⚪ En espera</span>';
+      if (item.status === 'READY') {
+        badgeHtml = '<span class="calc-status-badge ready">🟢 Listo para jugar</span>';
+      } else if (item.status === 'CLOSE') {
+        badgeHtml = '<span class="calc-status-badge close">🟡 Muy cerca</span>';
+      }
+
+      return (
+        '<tr>' +
+          '<td style="font-weight: 700; color: var(--navy-deep);">' + escapeHtml(item.description) + '</td>' +
+          '<td class="tabular-nums" style="font-weight: 800;">' + item.totalPlayers + ' jugadores (' + item.totalPlayers + ' €)</td>' +
+          '<td class="tabular-nums">' + diffHtml + '</td>' +
+          '<td>' + badgeHtml + '</td>' +
+        '</tr>'
+      );
+    }).join('');
   }
 
   function cargarEscrutinioDelCiclo() {
@@ -829,6 +1049,34 @@
       } else {
         penaBalls.innerHTML = '<span style="font-size: 0.88rem; color: var(--text-muted);">No hay apuesta activa registrada en «Apuestas Activas» ni «Sorteos».</span>';
         if (penaExtra) penaExtra.innerText = 'Añade la combinación jugada en la pestaña "Apuestas Activas" o "Sorteos".';
+      }
+    }
+
+    const multiListEl = document.getElementById('scrutinyPenaMultiList');
+    if (multiListEl) {
+      if (Array.isArray(res.detalleBoletos) && res.detalleBoletos.length > 1) {
+        multiListEl.style.display = 'block';
+        multiListEl.innerHTML = res.detalleBoletos.map(function (b, idx) {
+          const hits = Array.isArray(b.aciertosNumeros) ? b.aciertosNumeros : [];
+          const numsHtml = (b.apuestaPena || []).map(function (n) {
+            const s = n < 10 ? '0' + n : String(n);
+            const esAcierto = hits.indexOf(n) !== -1;
+            return '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-size:0.78rem;font-weight:800;border:1px solid ' +
+              (esAcierto ? '#10B981;background:#065F46;color:#FFF;' : '#CBD5E1;background:#F1F5F9;color:#0A2540;') + '">' + s + '</span>';
+          }).join(' ');
+          return (
+            '<div style="padding:10px 12px;border:1px solid var(--border-hairline);border-radius:10px;background:#FFF;margin-bottom:8px;">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:0.8rem;font-weight:800;color:var(--navy-deep);">' +
+                '<span>Resguardo #' + (idx + 1) + ' (R: ' + (b.reintegroJugado !== null && b.reintegroJugado !== undefined ? b.reintegroJugado : '-') + ')</span>' +
+                '<span style="color:var(--orange-hover);">' + escapeHtml(b.textoAciertos || '') + '</span>' +
+              '</div>' +
+              '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + numsHtml + '</div>' +
+            '</div>'
+          );
+        }).join('');
+      } else {
+        multiListEl.style.display = 'none';
+        multiListEl.innerHTML = '';
       }
     }
 

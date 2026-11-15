@@ -44,7 +44,10 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
     typeof titularesCount === 'number' ? titularesCount : activePlayers.length;
   const displaySuplentesCount =
     typeof suplentesCount === 'number' ? suplentesCount : waitingList.length;
-  const canViewNominalLists = accessLevel === 'SUPLENTE' || accessLevel === 'TITULAR';
+  const totalEnrolledCount = displayTitularesCount + displaySuplentesCount;
+  const isInitialRecruitment = Boolean(settings.initialRecruitmentMode);
+  const canViewNominalLists =
+    !isInitialRecruitment && (accessLevel === 'SUPLENTE' || accessLevel === 'TITULAR');
 
   const hasExternalForm = Boolean(settings.googleFormUrl && settings.googleFormUrl.startsWith('http'));
   const shareUrl = getPublicRegistrationShareUrl();
@@ -68,7 +71,9 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
               </h1>
             </div>
             <p className="text-base text-slate-600 mt-1.5 leading-relaxed">
-              Listado público por orden de inscripción. Por privacidad, solo se muestra el nombre y la fecha exacta de alta.
+              {isInitialRecruitment
+                ? 'Fase de captación inicial abierta. El orden definitivo y la asignación de plazas se publicarán al cerrar el cupo.'
+                : 'Listado público por orden de inscripción. Por privacidad, solo se muestra el nombre y la fecha exacta de alta.'}
             </p>
           </div>
 
@@ -120,80 +125,132 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
         )}
       </div>
 
-      {/* Contadores Globales de Participación (visibles también para visitantes) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 tabular-nums">
-        <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#0A2540] text-white flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5 text-[#FF6B00]" />
+      {/* Contadores Globales de Participación */}
+      {isInitialRecruitment ? (
+        <div className="rounded-3xl bg-white border-2 border-[#0A2540]/15 p-6 sm:p-8 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-[#0A2540] text-white flex items-center justify-center shrink-0">
+                <Users className="w-7 h-7 text-[#FF6B00]" />
+              </div>
+              <div>
+                <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF6B00] block">
+                  Modo Captación Inicial Activo (Art. 3.2)
+                </span>
+                <span className="text-3xl sm:text-4xl font-black text-[#0A2540] tabular-nums">
+                  {totalEnrolledCount} {totalEnrolledCount === 1 ? 'inscrito' : 'inscritos'}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
-                Socios Titulares Activos
-              </span>
-              <span className="text-2xl font-black text-[#0A2540]">
-                {displayTitularesCount} {displayTitularesCount === 1 ? 'jugador' : 'jugadores'}
-              </span>
-            </div>
-          </div>
-        </div>
 
-        <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-orange-50 text-[#FF6B00] border border-orange-200 flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
-                Aspirantes en Lista de Espera
-              </span>
-              <span className="text-2xl font-black text-[#0A2540]">
-                {displaySuplentesCount} {displaySuplentesCount === 1 ? 'suplente' : 'suplentes'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {!canViewNominalLists ? (
-        <div className="rounded-3xl bg-white border-2 border-slate-200 p-7 sm:p-10 text-center shadow-xs space-y-5">
-          <div className="w-16 h-16 rounded-2xl bg-[#0A2540] text-white mx-auto flex items-center justify-center shadow-md">
-            <Lock className="w-8 h-8 text-[#FF6B00]" />
-          </div>
-          <div className="space-y-2 max-w-xl mx-auto">
-            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider text-[#FF6B00]">
-              Privacidad de los Participantes
+            <span className="inline-flex items-center gap-2 self-start sm:self-center px-3.5 py-2 rounded-xl bg-orange-50 border border-orange-200 text-xs sm:text-sm font-extrabold text-[#0A2540]">
+              <Clock className="w-4 h-4 text-[#FF6B00] shrink-0" />
+              Listado y orden en evaluación
             </span>
-            <h2 className="text-xl sm:text-2xl font-black font-serif text-[#0A2540]">
-              Listas reservadas a usuarios registrados
-            </h2>
-            <p className="text-base text-slate-600 leading-relaxed">
-              Actualmente participan <strong>{displayTitularesCount} titulares</strong> y hay{' '}
-              <strong>{displaySuplentesCount} personas en lista de espera</strong>. Por privacidad de nuestros vecinos y socios, los nombres y el orden exacto solo pueden verse tras apuntarse o iniciar sesión.
-            </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onOpenRegistration}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-extrabold text-base shadow-sm transition cursor-pointer"
-            >
-              <UserPlus className="w-5 h-5" />
-              <span>Apuntarme en Lista de Espera</span>
-            </button>
-            {onOpenLogin && (
+
+          <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 sm:p-5 text-base text-slate-700 leading-relaxed">
+            Actualmente hay <strong>{totalEnrolledCount} {totalEnrolledCount === 1 ? 'persona inscrita' : 'personas inscritas'}</strong> en la peña. La asignación definitiva de plazas y la combinación óptima de boletos múltiples a jugar se publicarán cuando se cierre el plazo inicial de captación.
+          </div>
+
+          {accessLevel === 'VISITOR' && (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
               <button
                 type="button"
-                onClick={onOpenLogin}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white font-bold text-base shadow-sm transition cursor-pointer"
+                onClick={onOpenRegistration}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-extrabold text-base shadow-sm transition cursor-pointer"
               >
-                <KeyRound className="w-5 h-5 text-[#FF6B00]" />
-                <span>Ya estoy apuntado (DNI o Teléfono)</span>
+                <UserPlus className="w-5 h-5" />
+                <span>Inscribirme ahora</span>
               </button>
-            )}
-          </div>
+              {onOpenLogin && (
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white font-bold text-base shadow-sm transition cursor-pointer"
+                >
+                  <KeyRound className="w-5 h-5 text-[#FF6B00]" />
+                  <span>Ya estoy apuntado (DNI o Teléfono)</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 tabular-nums">
+            <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[#0A2540] text-white flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5 text-[#FF6B00]" />
+                </div>
+                <div>
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
+                    Socios Titulares Activos
+                  </span>
+                  <span className="text-2xl font-black text-[#0A2540]">
+                    {displayTitularesCount} {displayTitularesCount === 1 ? 'jugador' : 'jugadores'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-orange-50 text-[#FF6B00] border border-orange-200 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 block">
+                    Aspirantes en Lista de Espera
+                  </span>
+                  <span className="text-2xl font-black text-[#0A2540]">
+                    {displaySuplentesCount} {displaySuplentesCount === 1 ? 'suplente' : 'suplentes'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {!canViewNominalLists ? (
+            <div className="rounded-3xl bg-white border-2 border-slate-200 p-7 sm:p-10 text-center shadow-xs space-y-5">
+              <div className="w-16 h-16 rounded-2xl bg-[#0A2540] text-white mx-auto flex items-center justify-center shadow-md">
+                <Lock className="w-8 h-8 text-[#FF6B00]" />
+              </div>
+              <div className="space-y-2 max-w-xl mx-auto">
+                <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider text-[#FF6B00]">
+                  Privacidad de los Participantes
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black font-serif text-[#0A2540]">
+                  Listas reservadas a usuarios registrados
+                </h2>
+                <p className="text-base text-slate-600 leading-relaxed">
+                  Actualmente participan <strong>{displayTitularesCount} titulares</strong> y hay{' '}
+                  <strong>{displaySuplentesCount} personas en lista de espera</strong>. Por privacidad de nuestros vecinos y socios, los nombres y el orden exacto solo pueden verse tras apuntarse o iniciar sesión.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={onOpenRegistration}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-extrabold text-base shadow-sm transition cursor-pointer"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  <span>Apuntarme en Lista de Espera</span>
+                </button>
+                {onOpenLogin && (
+                  <button
+                    type="button"
+                    onClick={onOpenLogin}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white font-bold text-base shadow-sm transition cursor-pointer"
+                  >
+                    <KeyRound className="w-5 h-5 text-[#FF6B00]" />
+                    <span>Ya estoy apuntado (DNI o Teléfono)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
         <>
           {/* Tabs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -337,6 +394,8 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
           )}
         </div>
       )}
+          </>
+          )}
         </>
       )}
     </div>

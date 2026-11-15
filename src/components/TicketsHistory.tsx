@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TicketDraw, PrizeHistoryEntry } from '../types/lottery';
 import { TicketCard } from './TicketCard';
 import { Receipt, Trophy, ArrowUpDown, Calendar, Lock, UserPlus, KeyRound } from 'lucide-react';
-import { MAX_STORED_TICKETS, sortTicketsNewestFirst } from '../services/storage';
+import { MAX_STORED_TICKETS, getTicketJornadaKey, sortTicketsNewestFirst } from '../services/storage';
 
 interface TicketsHistoryProps {
   tickets: TicketDraw[];
@@ -30,18 +30,58 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
 
   const isTitular = accessLevel === 'TITULAR';
 
-  // Solo los últimos 4 boletos ya jugados/pasados (solo datos numéricos, del más reciente al más antiguo)
-  const playedTickets = isTitular
-    ? sortTicketsNewestFirst(tickets.filter(t => t.isScrutinized))
-        .slice(0, MAX_STORED_TICKETS)
-        .map(t => ({ ...t, receiptImageUrl: '' }))
-    : [];
+  // Conservar todas las combinaciones de las últimas 4 jornadas ya jugadas/pasadas (sin imágenes)
+  const playedTickets = (() => {
+    if (!isTitular) return [];
+    const sorted = sortTicketsNewestFirst(tickets.filter(t => t.isScrutinized));
+    const keptKeys = new Set<string>();
+    const result: TicketDraw[] = [];
+    for (const t of sorted) {
+      const k = getTicketJornadaKey(t);
+      if (!keptKeys.has(k)) {
+        if (keptKeys.size >= MAX_STORED_TICKETS) continue;
+        keptKeys.add(k);
+      }
+      result.push({ ...t, receiptImageUrl: '' });
+    }
+    return result;
+  })();
 
   const filteredTickets = playedTickets.filter(t => {
     if (filter === 'CURRENT_CYCLE') return t.cycleNumber === currentCycle;
     if (filter === 'PRIZES_ONLY') return t.totalPrize > 0;
     return true;
   });
+
+  // Agrupar boletos por jornada para mostrar combinados con claridad
+  const jornadaGroups = (() => {
+    const map = new Map<
+      string,
+      {
+        key: string;
+        cycleNumber: number;
+        jornadaNumber: number;
+        drawDate: string;
+        tickets: TicketDraw[];
+      }
+    >();
+    for (const t of filteredTickets) {
+      const key = getTicketJornadaKey(t);
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          cycleNumber: t.cycleNumber,
+          jornadaNumber: t.jornadaNumber,
+          drawDate: t.drawDate,
+          tickets: [],
+        });
+      }
+      map.get(key)!.tickets.push(t);
+    }
+    return Array.from(map.values());
+  })();
+
+  const uniqueJornadasCount = new Set(playedTickets.map(t => getTicketJornadaKey(t))).size;
 
   // Histórico completo de premios obtenidos ordenado por fecha del sorteo
   const sortedPrizes = isTitular
@@ -69,7 +109,7 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
             </h1>
           </div>
           <p className="text-base text-slate-600 mt-1.5 leading-relaxed">
-            Se conservan los últimos {MAX_STORED_TICKETS} boletos ya jugados y escrutados. El boleto pendiente del próximo sorteo se muestra en «Mi Jugada».
+            Se conservan las combinaciones numéricas de las últimas {MAX_STORED_TICKETS} jornadas ya jugadas y escrutadas. Los resguardos pendientes del próximo sorteo se muestran en «Mi Jugada».
           </p>
         </div>
 
@@ -134,70 +174,114 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
         <>
           {/* Filter Tabs */}
           <div className="flex flex-wrap items-center gap-2.5">
-        <button
-          type="button"
-          onClick={() => setFilter('ALL')}
-          className={`px-4 min-h-[48px] rounded-xl text-base font-bold transition flex items-center gap-2 cursor-pointer ${
-            filter === 'ALL'
-              ? 'bg-[#0A2540] text-white shadow-xs'
-              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span>Últimos Jugados ({playedTickets.length}/{MAX_STORED_TICKETS})</span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setFilter('ALL')}
+              className={`px-4 min-h-[48px] rounded-xl text-base font-bold transition flex items-center gap-2 cursor-pointer ${
+                filter === 'ALL'
+                  ? 'bg-[#0A2540] text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <span>Últimos Jugados ({uniqueJornadasCount}/{MAX_STORED_TICKETS} jornadas)</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setFilter('CURRENT_CYCLE')}
-          className={`px-4 min-h-[48px] rounded-xl text-base font-bold transition flex items-center gap-2 cursor-pointer ${
-            filter === 'CURRENT_CYCLE'
-              ? 'bg-[#0A2540] text-white shadow-xs'
-              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span>
-            Ciclo {currentCycle} ({playedTickets.filter(t => t.cycleNumber === currentCycle).length})
-          </span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setFilter('CURRENT_CYCLE')}
+              className={`px-4 min-h-[48px] rounded-xl text-base font-bold transition flex items-center gap-2 cursor-pointer ${
+                filter === 'CURRENT_CYCLE'
+                  ? 'bg-[#0A2540] text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <span>
+                Ciclo {currentCycle} ({playedTickets.filter(t => t.cycleNumber === currentCycle).length})
+              </span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setFilter('PRIZES_ONLY')}
-          className={`px-4 min-h-[48px] rounded-xl text-base font-bold transition flex items-center gap-2 cursor-pointer ${
-            filter === 'PRIZES_ONLY'
-              ? 'bg-[#0A2540] text-white shadow-xs'
-              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <Trophy className="w-5 h-5 text-[#FF6B00]" />
-          <span>Con Premio ({playedTickets.filter(t => t.totalPrize > 0).length})</span>
-        </button>
-      </div>
+            <button
+              type="button"
+              onClick={() => setFilter('PRIZES_ONLY')}
+              className={`px-4 min-h-[48px] rounded-xl text-base font-bold transition flex items-center gap-2 cursor-pointer ${
+                filter === 'PRIZES_ONLY'
+                  ? 'bg-[#0A2540] text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Trophy className="w-5 h-5 text-[#FF6B00]" />
+              <span>Con Premio ({playedTickets.filter(t => t.totalPrize > 0).length})</span>
+            </button>
+          </div>
 
-      {/* Grid of Last 4 Played Tickets */}
-      {filteredTickets.length === 0 ? (
-        <div className="rounded-3xl bg-white border border-slate-200 p-8 sm:p-10 text-center space-y-2.5 shadow-xs">
-          <Receipt className="w-10 h-10 text-slate-400 mx-auto" />
-          <h2 className="text-lg font-extrabold text-[#0A2540]">
-            No hay boletos jugados todavía
-          </h2>
-          <p className="text-base text-slate-600 max-w-lg mx-auto">
-            {playedTickets.length === 0
-              ? `Cuando finalice un sorteo y se realice el escrutinio oficial, el boleto pasará aquí automáticamente (máximo los últimos ${MAX_STORED_TICKETS} jugados). El boleto pendiente de sortearse se consulta en «Mi Jugada».`
-              : 'No hay boletos jugados que coincidan con este filtro.'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredTickets.map(ticket => (
-            <TicketCard
-              key={ticket.id}
-              ticket={ticket}
-              googleAppsScriptUrl={googleAppsScriptUrl}
-            />
-          ))}
-        </div>
-      )}
+          {/* Grouped Grid of Last 4 Played Jornadas */}
+          {jornadaGroups.length === 0 ? (
+            <div className="rounded-3xl bg-white border border-slate-200 p-8 sm:p-10 text-center space-y-2.5 shadow-xs">
+              <Receipt className="w-10 h-10 text-slate-400 mx-auto" />
+              <h2 className="text-lg font-extrabold text-[#0A2540]">
+                No hay boletos jugados todavía
+              </h2>
+              <p className="text-base text-slate-600 max-w-lg mx-auto">
+                {playedTickets.length === 0
+                  ? `Cuando finalice un sorteo y se realice el escrutinio oficial, las combinaciones pasarán aquí automáticamente (máximo las últimas ${MAX_STORED_TICKETS} jornadas). El boleto pendiente de sortearse se consulta en «Mi Jugada».`
+                  : 'No hay boletos jugados que coincidan con este filtro.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {jornadaGroups.map(group => {
+                if (group.tickets.length === 1) {
+                  return (
+                    <div key={group.key} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <TicketCard
+                        ticket={group.tickets[0]}
+                        googleAppsScriptUrl={googleAppsScriptUrl}
+                      />
+                    </div>
+                  );
+                }
+
+                const totalGroupCost = group.tickets.reduce((s, t) => s + (t.cost || 0), 0);
+                const totalGroupPrize = group.tickets.reduce((s, t) => s + (t.totalPrize || 0), 0);
+
+                return (
+                  <div
+                    key={group.key}
+                    className="rounded-3xl bg-[#F4F6F9] border border-slate-200 p-4 sm:p-5 space-y-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                      <div>
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF6B00] block">
+                          Jornada con {group.tickets.length} boletos múltiples combinados
+                        </span>
+                        <h3 className="text-lg font-black font-serif text-[#0A2540]">
+                          Ciclo {group.cycleNumber} · Jornada {group.jornadaNumber}/10 · {group.drawDate}
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm font-extrabold tabular-nums">
+                        <span className="px-3 py-1 rounded-xl bg-white border border-slate-200 text-[#0A2540]">
+                          Jugado: {totalGroupCost.toFixed(2)} €
+                        </span>
+                        <span className="px-3 py-1 rounded-xl bg-emerald-100 text-emerald-900">
+                          Premio: +{totalGroupPrize.toFixed(2)} €
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {group.tickets.map(ticket => (
+                        <TicketCard
+                          key={ticket.id}
+                          ticket={ticket}
+                          googleAppsScriptUrl={googleAppsScriptUrl}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
       {/* Histórico de Premios Obtenidos ordenado por fecha del sorteo */}
       <section className="rounded-3xl bg-white border border-slate-200 shadow-xs overflow-hidden">
