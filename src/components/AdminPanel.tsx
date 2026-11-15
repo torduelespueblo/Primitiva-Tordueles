@@ -721,6 +721,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
 
     if (settings.sendScrutinyAlert) {
+      const matchedNums = targetTicket.playedNumbers
+        .filter(n => winNums.includes(n))
+        .sort((a, b) => a - b);
+
       whatsappService.sendScrutinyResult(
         {
           jornada: targetTicket.jornadaNumber,
@@ -733,6 +737,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           category: result.category,
           isMayor: result.isMayor,
           activePlayersCount: targetTicket.activePlayersCount,
+          playedNumbers: targetTicket.playedNumbers,
+          playedReintegro: targetTicket.playedReintegro,
+          matchedNumbers: matchedNums,
+          reintegroMatched: result.reintegroHit,
+          complementarioMatched: targetTicket.playedNumbers.includes(scrutinyComp),
+          prizeFundBalance: settings.prizeFundBalance + result.prizeAmount,
+          drawDate: targetTicket.drawDate,
         },
         {
           instanceId: settings.greenApiInstanceId,

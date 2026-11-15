@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { TicketDraw, PrizeHistoryEntry } from '../types/lottery';
 import { TicketCard } from './TicketCard';
-import { Receipt, Trophy, Layers, ArrowUpDown, Calendar, Lock, UserPlus, KeyRound } from 'lucide-react';
-import { MultipleBetsGuide } from './MultipleBetsGuide';
+import { Receipt, Trophy, ArrowUpDown, Calendar, Lock, UserPlus, KeyRound } from 'lucide-react';
 import { MAX_STORED_TICKETS } from '../services/storage';
 
 interface TicketsHistoryProps {
@@ -27,7 +26,6 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
   onOpenLogin,
 }) => {
   const [filter, setFilter] = useState<'ALL' | 'CURRENT_CYCLE' | 'PRIZES_ONLY'>('ALL');
-  const [showMultiplesGuide, setShowMultiplesGuide] = useState(false);
   const [prizeSortOrder, setPrizeSortOrder] = useState<'DESC' | 'ASC'>('DESC');
 
   const isTitular = accessLevel === 'TITULAR';
@@ -77,14 +75,6 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setShowMultiplesGuide(!showMultiplesGuide)}
-            className="inline-flex items-center gap-2 px-4 min-h-[48px] rounded-xl bg-slate-100 hover:bg-slate-200 text-[#0A2540] text-base font-bold transition cursor-pointer"
-          >
-            <Layers className="w-5 h-5 text-[#FF6B00]" />
-            <span>{showMultiplesGuide ? 'Ocultar Múltiples' : 'Opciones Múltiples'}</span>
-          </button>
           <div className="rounded-2xl bg-[#0A2540] text-white px-5 py-2.5 text-left sm:text-right">
             <span className="text-xs sm:text-sm text-slate-300 uppercase font-bold block">
               Total Premios
@@ -95,8 +85,6 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
           </div>
         </div>
       </div>
-
-      {showMultiplesGuide && <MultipleBetsGuide />}
 
       {!isTitular ? (
         <div className="rounded-3xl bg-white border-2 border-slate-200 p-7 sm:p-10 text-center shadow-xs space-y-5">

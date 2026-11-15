@@ -6,11 +6,9 @@ import {
   formatScheduledDateTimeLabel
 } from '../services/ticketPublishService';
 import {
-  Wallet,
   Clock,
   Trophy,
   ArrowRight,
-  Info,
   MessageCircle,
   CheckCircle2,
   Receipt,
@@ -24,6 +22,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { solicitarPermisoYRegistrarToken } from '../services/pushNotifications';
+import { storageService } from '../services/storage';
 
 interface UserDashboardProps {
   settings: SyndicateSettings;
@@ -65,8 +64,33 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenLogin,
   onLogoutMember,
 }) => {
+  const isPushGrantedOrStored = () => {
+    const hasPerm =
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'granted';
+    const hasToken = Boolean(storageService.getPushToken());
+    return hasPerm || hasToken;
+  };
+
   const [pushActivating, setPushActivating] = React.useState(false);
   const [pushStatusMsg, setPushStatusMsg] = React.useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = React.useState<boolean>(() => isPushGrantedOrStored());
+
+  React.useEffect(() => {
+    const syncPushState = () => {
+      if (isPushGrantedOrStored()) {
+        setPushEnabled(true);
+      }
+    };
+    syncPushState();
+    window.addEventListener('focus', syncPushState);
+    document.addEventListener('visibilitychange', syncPushState);
+    return () => {
+      window.removeEventListener('focus', syncPushState);
+      document.removeEventListener('visibilitychange', syncPushState);
+    };
+  }, []);
 
   const isTitular = accessLevel === 'TITULAR';
   const displayTitulares =
@@ -81,7 +105,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     setPushStatusMsg(null);
     const res = await solicitarPermisoYRegistrarToken(playerDni, googleAppsScriptUrl);
     setPushActivating(false);
-    setPushStatusMsg(res.message);
+    if (res.permission === 'granted' || Boolean(res.token) || isPushGrantedOrStored()) {
+      setPushEnabled(true);
+      setPushStatusMsg(null);
+    } else {
+      setPushStatusMsg(res.message);
+    }
   };
   const pendingTicket = tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t));
   const scheduledTicket = tickets.find(t => !t.isScrutinized && !isTicketPublishedNow(t));
@@ -531,29 +560,35 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </div>
       </section>
 
-      {/* Nota de Transparencia de la Peña + Activación Discreta de Avisos Push */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-5 text-base text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3.5">
-          <Info className="w-6 h-6 text-[#0A2540] shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="leading-relaxed">
-              <strong className="text-[#0A2540]">Transparencia Primitiva Tordueles:</strong> Todos los resguardos se sellan por terminal aleatorio y se publican automáticamente antes de cada sorteo.
-            </p>
-            {pushStatusMsg && (
-              <p className="text-sm font-semibold text-[#0A2540]">{pushStatusMsg}</p>
-            )}
-          </div>
-        </div>
-
+      {/* Botón de Activación de Avisos Push en este Móvil */}
+      <div className="flex flex-col items-center sm:items-start gap-2.5">
         <button
           type="button"
           onClick={handleActivateMobilePush}
           disabled={pushActivating}
-          className="inline-flex items-center justify-center gap-2 px-4 min-h-[42px] rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-[#0A2540] text-sm font-bold transition cursor-pointer shrink-0 disabled:opacity-60"
+          className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[46px] rounded-xl border text-sm font-bold transition cursor-pointer shrink-0 disabled:opacity-60 ${
+            pushEnabled
+              ? 'bg-[#D4EDDA] text-[#155724] border-[#C3E6CB] hover:bg-[#C3E6CB]/70'
+              : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700 hover:text-[#0A2540]'
+          }`}
         >
-          <BellRing className="w-4 h-4 text-[#FF6B00]" />
-          <span>{pushActivating ? 'Activando...' : 'Activar Avisos en este Móvil'}</span>
+          {pushEnabled ? (
+            <CheckCircle2 className="w-4 h-4 text-[#155724] shrink-0" />
+          ) : (
+            <BellRing className="w-4 h-4 text-[#FF6B00] shrink-0" />
+          )}
+          <span>
+            {pushActivating
+              ? 'Activando...'
+              : pushEnabled
+              ? 'Ya están activadas'
+              : 'Activar Avisos en este Móvil'}
+          </span>
         </button>
+
+        {pushStatusMsg && (
+          <p className="text-sm font-semibold text-[#0A2540]">{pushStatusMsg}</p>
+        )}
       </div>
     </div>
   );

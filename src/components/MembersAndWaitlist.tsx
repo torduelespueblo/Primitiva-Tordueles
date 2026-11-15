@@ -72,48 +72,52 @@ export const MembersAndWaitlist: React.FC<MembersAndWaitlistProps> = ({
             </p>
           </div>
 
-          {hasExternalForm ? (
-            <a
-              href={settings.googleFormUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2.5 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white shadow-xs transition shrink-0"
-            >
-              <span>Inscribirse en Lista de Espera</span>
-              <ExternalLink className="w-5 h-5" />
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenRegistration}
-              className="inline-flex items-center justify-center gap-2.5 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white shadow-xs transition shrink-0 cursor-pointer"
-            >
-              <UserPlus className="w-5 h-5" />
-              <span>Inscribirse en Lista de Espera</span>
-            </button>
+          {accessLevel === 'VISITOR' && (
+            hasExternalForm ? (
+              <a
+                href={settings.googleFormUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2.5 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white shadow-xs transition shrink-0"
+              >
+                <span>Inscribirse en Lista de Espera</span>
+                <ExternalLink className="w-5 h-5" />
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenRegistration}
+                className="inline-flex items-center justify-center gap-2.5 px-5 min-h-[48px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-base font-bold text-white shadow-xs transition shrink-0 cursor-pointer"
+              >
+                <UserPlus className="w-5 h-5" />
+                <span>Inscribirse en Lista de Espera</span>
+              </button>
+            )
           )}
         </div>
 
-        {/* Enlace directo para compartir con jugadores que no quieran instalar la app */}
-        <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="min-w-0">
-            <span className="text-sm font-extrabold text-[#0A2540] flex items-center gap-1.5">
-              <Link2 className="w-4 h-4 text-[#FF6B00] shrink-0" />
-              Enlace directo de inscripción (sin instalar la App):
-            </span>
-            <p className="text-sm font-mono text-slate-600 truncate mt-0.5">
-              {shareUrl}
-            </p>
+        {/* Enlace directo para compartir con jugadores que no quieran instalar la app (solo visitantes no registrados) */}
+        {accessLevel === 'VISITOR' && (
+          <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="min-w-0">
+              <span className="text-sm font-extrabold text-[#0A2540] flex items-center gap-1.5">
+                <Link2 className="w-4 h-4 text-[#FF6B00] shrink-0" />
+                Enlace directo de inscripción (sin instalar la App):
+              </span>
+              <p className="text-sm font-mono text-slate-600 truncate mt-0.5">
+                {shareUrl}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyShareLink}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white text-sm font-bold transition shrink-0 cursor-pointer"
+            >
+              {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[#FF6B00]" />}
+              <span>{copiedLink ? '¡Enlace copiado!' : 'Copiar enlace'}</span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={handleCopyShareLink}
-            className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] text-white text-sm font-bold transition shrink-0 cursor-pointer"
-          >
-            {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[#FF6B00]" />}
-            <span>{copiedLink ? '¡Enlace copiado!' : 'Copiar enlace'}</span>
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Contadores Globales de Participación (visibles también para visitantes) */}

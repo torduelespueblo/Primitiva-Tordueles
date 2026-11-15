@@ -167,39 +167,101 @@ export const whatsappService = {
       category: string;
       isMayor: boolean;
       activePlayersCount: number;
+      playedNumbers?: number[];
+      playedReintegro?: number;
+      matchedNumbers?: number[];
+      reintegroMatched?: boolean;
+      complementarioMatched?: boolean;
+      prizeFundBalance?: number;
+      drawDate?: string;
     },
     customConfig?: Partial<WhatsAppServiceConfig>
   ): Promise<SendResult> {
-    let msg =
-      `🌲 *ESCRUTINIO OFICIAL PRIMITIVA - PEÑA TORDUELES* 🌲\n` +
-      `📊 *Resultado Oficial Jornada ${params.jornada}/10 (Ciclo ${params.cycle})*\n\n` +
-      `🎱 *Combinación Ganadora SELAE:*\n` +
-      `   ${params.winningNumbers.map(n => (n < 10 ? `0${n}` : n)).join(' · ')}\n` +
-      `   (Complementario: ${params.complementario} | Reintegro: ${params.reintegro})\n\n` +
-      `🎯 *Aciertos de la Peña:* ${params.hits}\n` +
-      `🏆 *Categoría:* ${params.category}\n` +
-      `💰 *Premio Total Obtenido:* ${params.prize.toFixed(2)} €\n\n`;
+    const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+    const formatEur = (v: number) => `${v.toFixed(2).replace('.', ',')} €`;
+
+    const played = params.playedNumbers || [];
+    const matched =
+      params.matchedNumbers ||
+      played
+        .filter(n => params.winningNumbers.includes(n))
+        .sort((a, b) => a - b);
+
+    const compMatched =
+      params.complementarioMatched ??
+      (played.length > 0 && played.includes(params.complementario));
+
+    const reintMatched =
+      params.reintegroMatched ??
+      (params.playedReintegro !== undefined && params.playedReintegro === params.reintegro);
+
+    const header =
+      params.prize > 0
+        ? `🎉 *¡PREMIO EN LA PEÑA! · PEÑA TORDUELES (Ciclo ${params.cycle} · J${params.jornada}/10)* 🎉`
+        : `🍀 *ESCRUTINIO PEÑA TORDUELES · Ciclo ${params.cycle} · J${params.jornada}/10*`;
+
+    const lines: string[] = [header];
+    if (params.drawDate) {
+      lines.push(`📅 *Sorteo:* ${params.drawDate}`);
+    }
+    lines.push(`━━━━━━━━━━━━━━━━━━`);
+    lines.push(
+      `🔴 *Primitiva:* ${params.winningNumbers.map(pad2).join(' · ')}  (C: ${pad2(params.complementario)} | R: ${params.reintegro})`
+    );
+    if (played.length > 0) {
+      lines.push(
+        `🎟️ *Peña:* ${played.map(pad2).join(' · ')}${params.playedReintegro !== undefined ? `  (R: ${params.playedReintegro})` : ''}`
+      );
+    }
+
+    lines.push('');
+
+    if (matched.length > 0) {
+      lines.push(
+        `✅ *Acertados (${matched.length}):* ${matched.map(pad2).join(' · ')}${compMatched ? ` + *Comp. (${pad2(params.complementario)})*` : ''}`
+      );
+    } else {
+      lines.push(
+        `❌ *Acertados (0):* Ninguno en esta jornada${compMatched ? ` (➕ *Comp.:* ${pad2(params.complementario)})` : ''}`
+      );
+    }
+
+    if (params.playedReintegro !== undefined) {
+      lines.push(
+        reintMatched
+          ? `♻️ *Reintegro:* *¡Acertado!* (salió el ${params.reintegro})`
+          : `♻️ *Reintegro:* No acertado (jugamos ${params.playedReintegro}, salió ${params.reintegro})`
+      );
+    } else {
+      lines.push(`♻️ *Reintegro sorteo:* ${params.reintegro}`);
+    }
+
+    lines.push(
+      `💰 *Premio:* ${formatEur(params.prize)}` +
+        (params.prizeFundBalance !== undefined
+          ? `  |  🏦 *Bolsa Común:* ${formatEur(params.prizeFundBalance)}`
+          : '')
+    );
 
     if (params.isMayor) {
       const netEstimate = params.prize > 40000 ? params.prize - (params.prize - 40000) * 0.2 : params.prize;
       const perPlayer = params.activePlayersCount > 0 ? netEstimate / params.activePlayersCount : 0;
-      msg +=
-        `🚨 *¡PREMIO MAYOR SUPERIOR A 2.000 €!* 🚨\n` +
-        `Según el Art. 5.2 del Reglamento Oficial:\n` +
-        `• El cobro debe tramitarse obligatoriamente en entidad bancaria con los DNI de los socios activos.\n` +
-        (params.prize > 40000 ? `• Retención fiscal legal del 20% sobre el exceso de 40.000 €.\n` : '') +
-        `• Parte neta estimada por socio: ~${perPlayer.toFixed(2)} € ingresados en IBAN individual.\n` +
-        `¡Enhorabuena a todo el pueblo de Tordueles! 🎉`;
+      lines.push('');
+      lines.push(`🚨 *¡PREMIO MAYOR SUPERIOR A 2.000 €!* 🚨`);
+      lines.push(`Según el Art. 5.2 del Reglamento Oficial:`);
+      lines.push(`• Cobro obligatorio en entidad bancaria con los DNI de los socios activos.`);
+      if (params.prize > 40000) {
+        lines.push(`• Retención fiscal legal del 20% sobre el exceso de 40.000 €.`);
+      }
+      lines.push(`• Parte neta estimada por socio: ~${formatEur(perPlayer)} en IBAN individual.`);
+      lines.push(`¡Enhorabuena a todo el pueblo de Tordueles! 🎉`);
     } else if (params.prize > 0) {
-      msg +=
-        `📥 *Destino del Premio (Art. 5.1):*\n` +
-        `Ingresado íntegramente en el *Fondo Común (Bolsa de Premios Menores)*.\n` +
-        `No es reembolsable individualmente en caso de baja.`;
-    } else {
-      msg += `🍀 Esta jornada no ha habido premio oficial. ¡A por la siguiente jornada del ciclo!`;
+      lines.push(
+        `📥 *Destino (Art. 5.1):* Sumado íntegramente al *Fondo Común (Bolsa de Premios Menores)*.`
+      );
     }
 
-    return this.sendTextMessage(msg, customConfig);
+    return this.sendTextMessage(lines.join('\n'), customConfig);
   },
 
   /**
