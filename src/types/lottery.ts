@@ -101,7 +101,8 @@ export interface SyndicateSettings {
   cycleLength: number; // 10 jornadas
   currentCycle: number;
   currentJornada: number;
-  prizeFundBalance: number; // Bolsa acumulada de premios menores
+  prizeFundBalance: number; // Bolsa acumulada de premios menores (Bote General)
+  weeklyPrizeGain?: number; // Última ganancia semanal editable que se suma al bote general
   googleFormUrl: string; // Enlace al formulario de Google para lista de espera
   googleAppsScriptUrl: string; // Endpoint WebApp de Google Apps Script
   googleSheetUrl: string;

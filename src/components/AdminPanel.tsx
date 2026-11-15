@@ -16,7 +16,10 @@ import { pushNotificationService } from '../services/pushNotifications';
 import { processTicketWithAI, optimizeTicketImageToDataUrl } from '../services/aiService';
 import { fetchLiveDailyBulletinFromAppsScript } from '../services/lotteryDailyService';
 import { getPublicRegistrationShareUrl } from '../services/registrationService';
-import { capTicketsKeepingPlayed } from '../services/storage';
+import {
+  archivePreviousPendingTicketsForNewSchedule,
+  capTicketsKeepingPlayed
+} from '../services/storage';
 import {
   getNextPrimitivaDrawDate,
   isTicketPublishedNow,
@@ -129,6 +132,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [manualPrizeInput, setManualPrizeInput] = useState<string>('');
   const [isSavingManualPrize, setIsSavingManualPrize] = useState(false);
   const [manualPrizeFeedback, setManualPrizeFeedback] = useState<string | null>(null);
+
+  // Estados de "Gestión del Bote de Premios" (Ganancia Semanal + Bote General)
+  const [weeklyPrizeInput, setWeeklyPrizeInput] = useState<string>(() =>
+    (settings.weeklyPrizeGain || 0).toFixed(2)
+  );
+  const [prizeFundInput, setPrizeFundInput] = useState<string>(() =>
+    settings.prizeFundBalance.toFixed(2)
+  );
+  const [isSavingPrizeFund, setIsSavingPrizeFund] = useState(false);
+  const [prizeFundFeedback, setPrizeFundFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPrizeFundInput(settings.prizeFundBalance.toFixed(2));
+  }, [settings.prizeFundBalance]);
+
+  useEffect(() => {
+    setWeeklyPrizeInput((settings.weeklyPrizeGain || 0).toFixed(2));
+  }, [settings.weeklyPrizeGain]);
 
   const getCleanGasUrl = useCallback(() => {
     const raw = (settings.googleAppsScriptUrl || '').trim();
@@ -543,7 +564,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       receiptImageUrl: normalizeReceiptImageUrl(syncRes.driveImageUrl || newTicket.receiptImageUrl),
     };
 
-    onUpdateTickets(capTicketsKeepingPlayed([ticketToStore, ...tickets]));
+    onUpdateTickets(archivePreviousPendingTicketsForNewSchedule(tickets, ticketToStore));
     setIsSavingTicket(false);
     setTicketSaveSuccess(true);
 
@@ -626,13 +647,184 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTicketSyncFeedback('Boleto programado eliminado antes de su publicación.');
   };
 
-  const handleResetPrizeFund = () => {
+  const syncPrizeFundToBackend = async (
+    cantidad: number,
+    gananciaSemanal?: number
+  ): Promise<{ synced: boolean; bolsaPremios?: number; gananciaSemanal?: number }> => {
+    const endpoint = getCleanGasUrl();
+    if (!endpoint || !adminPassword) {
+      return { synced: false };
+    }
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'actualizarBotePremios',
+          password: adminPassword,
+          cantidad,
+          gananciaSemanal,
+        }),
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        return {
+          synced: true,
+          bolsaPremios:
+            typeof data.bolsaPremios === 'number' && !isNaN(data.bolsaPremios)
+              ? data.bolsaPremios
+              : cantidad,
+          gananciaSemanal:
+            typeof data.gananciaSemanal === 'number' && !isNaN(data.gananciaSemanal)
+              ? data.gananciaSemanal
+              : gananciaSemanal,
+        };
+      }
+    } catch {
+      // Fallback al estado local si no hay conexión
+    }
+    return { synced: false };
+  };
+
+  const syncWeeklyGainToBackend = async (
+    cantidad: number,
+    modo: 'sumar' | 'solo_semanal'
+  ): Promise<{ synced: boolean; bolsaPremios?: number; gananciaSemanal?: number }> => {
+    const endpoint = getCleanGasUrl();
+    if (!endpoint || !adminPassword) {
+      return { synced: false };
+    }
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'sumarGananciaSemanal',
+          password: adminPassword,
+          cantidad,
+          modo,
+        }),
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        return {
+          synced: true,
+          bolsaPremios:
+            typeof data.bolsaPremios === 'number' && !isNaN(data.bolsaPremios)
+              ? data.bolsaPremios
+              : undefined,
+          gananciaSemanal:
+            typeof data.gananciaSemanal === 'number' && !isNaN(data.gananciaSemanal)
+              ? data.gananciaSemanal
+              : cantidad,
+        };
+      }
+    } catch {
+      // Fallback al estado local
+    }
+    return { synced: false };
+  };
+
+  const handleWeeklyGainAction = async (modo: 'sumar' | 'solo_semanal') => {
+    const raw = weeklyPrizeInput.trim();
+    if (!raw) {
+      setPrizeFundFeedback('Introduce el importe de la ganancia semanal en euros.');
+      return;
+    }
+    const cantidad = Math.round(parseFloat(raw.replace(',', '.')) * 100) / 100;
+    if (isNaN(cantidad) || cantidad < 0) {
+      setPrizeFundFeedback('Introduce una ganancia semanal numérica válida (>= 0).');
+      return;
+    }
+
+    setIsSavingPrizeFund(true);
+    setPrizeFundFeedback(null);
+    const { synced, bolsaPremios, gananciaSemanal } = await syncWeeklyGainToBackend(cantidad, modo);
+
+    const nextWeekly = typeof gananciaSemanal === 'number' ? gananciaSemanal : cantidad;
+    const nextGeneral =
+      typeof bolsaPremios === 'number'
+        ? bolsaPremios
+        : modo === 'sumar'
+        ? Math.round((settings.prizeFundBalance + cantidad) * 100) / 100
+        : settings.prizeFundBalance;
+
+    onUpdateSettings({
+      ...settings,
+      prizeFundBalance: nextGeneral,
+      weeklyPrizeGain: nextWeekly,
+    });
+    setWeeklyPrizeInput(nextWeekly.toFixed(2));
+    setPrizeFundInput(nextGeneral.toFixed(2));
+    setIsSavingPrizeFund(false);
+    setPrizeFundFeedback(
+      modo === 'sumar'
+        ? synced
+          ? `¡Ganancia semanal de +${nextWeekly.toFixed(2)} € sumada al Bote General (${nextGeneral.toFixed(2)} €) en Tesorería!`
+          : `Ganancia semanal de +${nextWeekly.toFixed(2)} € sumada localmente al Bote General (${nextGeneral.toFixed(2)} €).`
+        : synced
+        ? `¡Ganancia semanal actualizada a ${nextWeekly.toFixed(2)} € en Tesorería!`
+        : `Ganancia semanal actualizada localmente a ${nextWeekly.toFixed(2)} €.`
+    );
+    setTimeout(() => setPrizeFundFeedback(null), 6000);
+  };
+
+  const handleSavePrizeFund = async () => {
+    const raw = prizeFundInput.trim();
+    if (!raw) {
+      setPrizeFundFeedback('Introduce el importe acumulado del bote general en euros.');
+      return;
+    }
+    const cantidad = Math.round(parseFloat(raw.replace(',', '.')) * 100) / 100;
+    if (isNaN(cantidad) || cantidad < 0) {
+      setPrizeFundFeedback('Introduce un importe numérico válido (>= 0).');
+      return;
+    }
+
+    const parsedWeekly = Math.round(parseFloat(weeklyPrizeInput.trim().replace(',', '.')) * 100) / 100;
+    const weeklyToSync =
+      !isNaN(parsedWeekly) && parsedWeekly >= 0 ? parsedWeekly : settings.weeklyPrizeGain || 0;
+
+    setIsSavingPrizeFund(true);
+    setPrizeFundFeedback(null);
+    const { synced, bolsaPremios, gananciaSemanal } = await syncPrizeFundToBackend(cantidad, weeklyToSync);
+    const finalAmount = typeof bolsaPremios === 'number' ? bolsaPremios : cantidad;
+    const finalWeekly =
+      typeof gananciaSemanal === 'number' ? gananciaSemanal : weeklyToSync;
+
+    onUpdateSettings({
+      ...settings,
+      prizeFundBalance: finalAmount,
+      weeklyPrizeGain: finalWeekly,
+    });
+    setPrizeFundInput(finalAmount.toFixed(2));
+    setWeeklyPrizeInput(finalWeekly.toFixed(2));
+    setIsSavingPrizeFund(false);
+    setPrizeFundFeedback(
+      synced
+        ? `¡Bote General actualizado a ${finalAmount.toFixed(2)} € en Tesorería y visible para todos los socios!`
+        : `Bote General actualizado localmente a ${finalAmount.toFixed(2)} € (despliega la última versión de Apps Script para guardarlo en Tesorería).`
+    );
+    setTimeout(() => setPrizeFundFeedback(null), 6000);
+  };
+
+  const handleResetPrizeFund = async () => {
+    setIsSavingPrizeFund(true);
+    const { synced } = await syncPrizeFundToBackend(0, 0);
     onUpdateSettings({
       ...settings,
       prizeFundBalance: 0,
+      weeklyPrizeGain: 0,
     });
+    setPrizeFundInput('0.00');
+    setWeeklyPrizeInput('0.00');
+    setIsSavingPrizeFund(false);
     setConfirmResetFund(false);
-    setResetFundFeedback('Bolsa de premios reseteada a 0,00 €.');
+    setResetFundFeedback(
+      synced
+        ? 'Bote General y ganancia semanal reseteados a 0,00 € en Tesorería.'
+        : 'Bote General y ganancia semanal reseteados localmente a 0,00 €.'
+    );
     setTimeout(() => setResetFundFeedback(null), 5000);
   };
 
@@ -647,7 +839,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       return;
     }
 
-    const targetTicket = tickets.find(t => !t.isScrutinized) || tickets[0];
+    const targetTicket =
+      tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t)) ||
+      tickets.find(t => t.isScrutinized && (!t.winningNumbers || t.winningNumbers.length === 0)) ||
+      tickets.find(t => !t.isScrutinized) ||
+      tickets[0];
     if (!targetTicket) {
       setScrutinyResult('No hay ningún boleto publicado para escrutar.');
       return;
@@ -668,6 +864,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         return {
           ...t,
           isScrutinized: true,
+          receiptImageUrl: '',
           winningNumbers: winNums,
           complementario: scrutinyComp,
           reintegro: scrutinyReintegro,
@@ -681,7 +878,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       return t;
     });
 
-    onUpdateTickets(updated);
+    onUpdateTickets(capTicketsKeepingPlayed(updated));
 
     // Registrar en el histórico permanente de premios obtenidos si hay premio > 0
     if (result.prizeAmount > 0) {
@@ -987,32 +1184,146 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
-          {/* Gestión y Reset del Bote Total de Premios */}
-          <div className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Gestión del Bote de Premios */}
+          <div className="rounded-3xl bg-white border-2 border-[#0A2540]/15 p-5 sm:p-7 shadow-xs space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
                   <Wallet className="w-6 h-6 text-[#FF6B00]" />
-                  Bote Total de Premios Obtenidos
+                  Gestión del Bote de Premios
                 </h2>
                 <p className="text-base text-slate-600 mt-1">
-                  Importe actual del bote mostrado en «Jugada». Puedes resetearlo a 0,00 € tras repartirlo o cerrar un ciclo (el histórico de boletos se conserva).
+                  Introduce la <strong>Ganancia Semanal</strong> para sumarla al <strong>Bote General</strong>, o edita libremente ambas cantidades en cualquier momento. Se guardan en la pestaña <span className="font-mono text-sm">Tesorería</span> de Google Sheets.
                 </p>
               </div>
-              <div className="rounded-2xl bg-[#0A2540] text-white px-5 py-3 text-left sm:text-right shrink-0">
-                <span className="text-xs uppercase font-bold text-slate-300 block">Bote Actual</span>
-                <span className="text-2xl font-black text-emerald-400 tabular-nums">
-                  {settings.prizeFundBalance.toFixed(2)} €
-                </span>
+              <div className="flex flex-wrap items-stretch gap-3 shrink-0">
+                <div className="rounded-2xl bg-orange-50 border border-orange-200 px-4 py-2.5 text-left sm:text-right">
+                  <span className="text-xs uppercase font-bold text-[#FF6B00] block">
+                    Ganancia Semanal
+                  </span>
+                  <span className="text-xl font-black text-[#0A2540] tabular-nums">
+                    {(settings.weeklyPrizeGain || 0).toFixed(2)} €
+                  </span>
+                </div>
+                <div className="rounded-2xl bg-[#0A2540] text-white px-5 py-2.5 text-left sm:text-right">
+                  <span className="text-xs uppercase font-bold text-slate-300 block">
+                    Bote General Acumulado
+                  </span>
+                  <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                    {settings.prizeFundBalance.toFixed(2)} €
+                  </span>
+                </div>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Bloque 1: Ganancia Semanal (suma al bote general) */}
+              <div className="rounded-2xl bg-orange-50/60 border border-orange-200 p-4 sm:p-5 space-y-3">
+                <div>
+                  <label
+                    htmlFor="admin-weekly-gain-input"
+                    className="font-extrabold text-[#0A2540] block text-base"
+                  >
+                    1. Ganancia Semanal (€)
+                  </label>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                    Pulsa <strong>Sumar al Bote General</strong> para acumular este premio semanal, o edita la cifra semanal directamente.
+                  </p>
+                </div>
+
+                <input
+                  id="admin-weekly-gain-input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={weeklyPrizeInput}
+                  onChange={e => {
+                    setWeeklyPrizeInput(e.target.value);
+                    setPrizeFundFeedback(null);
+                  }}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 min-h-[48px] font-mono text-lg font-bold text-[#0A2540] tabular-nums focus:ring-2 focus:ring-[#FF6B00] outline-hidden"
+                />
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    disabled={isSavingPrizeFund}
+                    onClick={() => handleWeeklyGainAction('sumar')}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 min-h-[46px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] disabled:opacity-60 text-white font-bold text-sm sm:text-base shadow-xs transition cursor-pointer"
+                  >
+                    {isSavingPrizeFund && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>Sumar al Bote General</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingPrizeFund}
+                    onClick={() => handleWeeklyGainAction('solo_semanal')}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 min-h-[46px] rounded-xl bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-60 text-[#0A2540] font-bold text-sm transition cursor-pointer"
+                    title="Edita el importe guardado de la ganancia semanal sin volver a sumarlo al bote"
+                  >
+                    <span>Guardar Semanal</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Bloque 2: Bote General Total (editable en cualquier momento) */}
+              <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 sm:p-5 space-y-3">
+                <div>
+                  <label
+                    htmlFor="admin-prize-fund-input"
+                    className="font-extrabold text-[#0A2540] block text-base"
+                  >
+                    2. Bote General de Premios (€)
+                  </label>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                    Total mostrado en la pantalla principal de los socios. Editable en cualquier momento.
+                  </p>
+                </div>
+
+                <input
+                  id="admin-prize-fund-input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={prizeFundInput}
+                  onChange={e => {
+                    setPrizeFundInput(e.target.value);
+                    setPrizeFundFeedback(null);
+                  }}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 min-h-[48px] font-mono text-lg font-bold text-[#0A2540] tabular-nums focus:ring-2 focus:ring-[#0A2540] outline-hidden"
+                />
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    disabled={isSavingPrizeFund}
+                    onClick={handleSavePrizeFund}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-5 min-h-[46px] rounded-xl bg-[#0A2540] hover:bg-[#13375B] disabled:opacity-60 text-white font-bold text-sm sm:text-base shadow-xs transition cursor-pointer"
+                  >
+                    {isSavingPrizeFund && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>Guardar Bote</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {prizeFundFeedback && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm sm:text-base font-bold text-emerald-950">
+                {prizeFundFeedback}
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-3 pt-1">
               {!confirmResetFund ? (
                 <button
                   type="button"
                   onClick={() => setConfirmResetFund(true)}
-                  disabled={settings.prizeFundBalance === 0}
+                  disabled={
+                    (settings.prizeFundBalance === 0 && (settings.weeklyPrizeGain || 0) === 0) ||
+                    isSavingPrizeFund
+                  }
                   className="inline-flex items-center gap-2 px-5 min-h-[48px] rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-45 text-white font-bold text-base transition cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
@@ -1033,6 +1344,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </button>
                     <button
                       type="button"
+                      disabled={isSavingPrizeFund}
                       onClick={handleResetPrizeFund}
                       className="px-4 min-h-[42px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm cursor-pointer"
                     >
@@ -2303,6 +2615,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     onUpdatePrizeHistory([entry, ...prizeHistory.filter(p => p.id !== entryId)]);
                   }
 
+                  if (cycleScrutiny) {
+                    const updatedTickets = tickets.map(t => {
+                      const matchesDraw =
+                        (cycleScrutiny.fechaSorteo && t.drawDate === cycleScrutiny.fechaSorteo) ||
+                        (cycleScrutiny.jornada && t.jornadaNumber === cycleScrutiny.jornada);
+                      if (!matchesDraw) return t;
+                      return {
+                        ...t,
+                        winningNumbers:
+                          cycleScrutiny.combinacionGanadora && cycleScrutiny.combinacionGanadora.length === 6
+                            ? cycleScrutiny.combinacionGanadora
+                            : t.winningNumbers,
+                        complementario: cycleScrutiny.complementario ?? t.complementario,
+                        reintegro: cycleScrutiny.reintegroGanador ?? t.reintegro,
+                        hitsCount:
+                          typeof cycleScrutiny.cantidadAciertos === 'number'
+                            ? cycleScrutiny.cantidadAciertos
+                            : t.hitsCount,
+                        hasReintegro:
+                          typeof cycleScrutiny.reintegroAcertado === 'boolean'
+                            ? cycleScrutiny.reintegroAcertado
+                            : t.hasReintegro,
+                        prizeCategory: cycleScrutiny.textoAciertos || t.prizeCategory,
+                        totalPrize: cantidad,
+                        prizeType:
+                          cantidad > 2000
+                            ? ('MAYOR_BANCO' as const)
+                            : cantidad > 0
+                            ? ('MENOR_BOLSA' as const)
+                            : ('NINGUNO' as const),
+                      };
+                    });
+                    onUpdateTickets(capTicketsKeepingPlayed(updatedTickets));
+                  }
+
                   setIsSavingManualPrize(false);
                   setManualPrizeInput('');
                   setManualPrizeFeedback(
@@ -2369,7 +2716,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
 
           {(() => {
-            const targetScrutinyTicket = tickets.find(t => !t.isScrutinized) || tickets[0];
+            const targetScrutinyTicket =
+              tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t)) ||
+              tickets.find(t => t.isScrutinized && (!t.winningNumbers || t.winningNumbers.length === 0)) ||
+              tickets.find(t => !t.isScrutinized) ||
+              tickets[0];
             if (!targetScrutinyTicket) return null;
             return (
               <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 space-y-2.5 text-base">

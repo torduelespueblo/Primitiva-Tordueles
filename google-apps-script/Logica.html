@@ -470,6 +470,18 @@
     const jInfo = data.jornadaInfo || {};
 
     document.getElementById('dashBolsaPremios').innerText = formatearMoneda(tes.bolsaPremios);
+    const adminBoteLbl = document.getElementById('adminBoteActualLabel');
+    if (adminBoteLbl) adminBoteLbl.innerText = formatearMoneda(tes.bolsaPremios);
+    const adminSemanalLbl = document.getElementById('adminSemanalActualLabel');
+    if (adminSemanalLbl) adminSemanalLbl.innerText = formatearMoneda(tes.gananciaSemanal || 0);
+    const inputBote = document.getElementById('inputBotePremios');
+    if (inputBote && !inputBote.value) {
+      inputBote.value = (parseFloat(tes.bolsaPremios) || 0).toFixed(2);
+    }
+    const inputSemanal = document.getElementById('inputGananciaSemanal');
+    if (inputSemanal && !inputSemanal.value) {
+      inputSemanal.value = (parseFloat(tes.gananciaSemanal) || 0).toFixed(2);
+    }
     document.getElementById('dashNombreUsuario').innerText = user.nombreCompleto || 'Socio en Alta';
     document.getElementById('dashDniUsuario').innerText = user.dni ? ('DNI: ' + user.dni) : 'Pendiente de asignación de DNI';
     document.getElementById('dashCondicion').innerText = user.estado || 'Suplente';
@@ -866,6 +878,95 @@
         mostrarToast('Error al guardar el premio: ' + (err.message || err), 'error');
       })
       .guardarPremioManual(cantidad);
+  }
+
+  function guardarBoteManual() {
+    if (!tieneAppsScript()) return;
+    const input = document.getElementById('inputBotePremios');
+    const raw = input ? String(input.value || '').trim() : '';
+    if (!raw) {
+      mostrarToast('Introduce el importe acumulado del bote en euros antes de guardar.', 'error');
+      if (input) input.focus();
+      return;
+    }
+
+    const cantidad = parseFloat(raw.replace(',', '.'));
+    if (isNaN(cantidad) || cantidad < 0) {
+      mostrarToast('El importe del bote debe ser numérico (>= 0).', 'error');
+      return;
+    }
+
+    mostrarCargando(true, 'Actualizando Bote de Premios en Tesorería...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          mostrarToast(res.message || 'Bote actualizado correctamente.', 'success');
+          const nuevaBolsa = parseFloat(res.bolsaPremios);
+          if (!isNaN(nuevaBolsa)) {
+            const dashLbl = document.getElementById('dashBolsaPremios');
+            if (dashLbl) dashLbl.innerText = formatearMoneda(nuevaBolsa);
+            const adminLbl = document.getElementById('adminBoteActualLabel');
+            if (adminLbl) adminLbl.innerText = formatearMoneda(nuevaBolsa);
+            if (input) input.value = nuevaBolsa.toFixed(2);
+          }
+        } else {
+          mostrarToast((res && res.message) || 'No se pudo actualizar el bote.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error al actualizar el bote: ' + (err.message || err), 'error');
+      })
+      .actualizarBotePremios(cantidad, ESTADO_APP.adminPassword);
+  }
+
+  function guardarGananciaSemanalManual(modo) {
+    if (!tieneAppsScript()) return;
+    const input = document.getElementById('inputGananciaSemanal');
+    const raw = input ? String(input.value || '').trim() : '';
+    if (!raw) {
+      mostrarToast('Introduce el importe de la ganancia semanal en euros.', 'error');
+      if (input) input.focus();
+      return;
+    }
+
+    const cantidad = parseFloat(raw.replace(',', '.'));
+    if (isNaN(cantidad) || cantidad < 0) {
+      mostrarToast('La ganancia semanal debe ser numérica (>= 0).', 'error');
+      return;
+    }
+
+    mostrarCargando(true, modo === 'solo_semanal' ? 'Guardando ganancia semanal...' : 'Sumando ganancia semanal al Bote General...');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mostrarCargando(false);
+        if (res && res.success) {
+          mostrarToast(res.message || 'Ganancia semanal actualizada.', 'success');
+          const nuevaBolsa = parseFloat(res.bolsaPremios);
+          const nuevoSemanal = parseFloat(res.gananciaSemanal);
+          if (!isNaN(nuevaBolsa)) {
+            const dashLbl = document.getElementById('dashBolsaPremios');
+            if (dashLbl) dashLbl.innerText = formatearMoneda(nuevaBolsa);
+            const adminLbl = document.getElementById('adminBoteActualLabel');
+            if (adminLbl) adminLbl.innerText = formatearMoneda(nuevaBolsa);
+            const inputBote = document.getElementById('inputBotePremios');
+            if (inputBote) inputBote.value = nuevaBolsa.toFixed(2);
+          }
+          if (!isNaN(nuevoSemanal)) {
+            const adminSemLbl = document.getElementById('adminSemanalActualLabel');
+            if (adminSemLbl) adminSemLbl.innerText = formatearMoneda(nuevoSemanal);
+            if (input) input.value = nuevoSemanal.toFixed(2);
+          }
+        } else {
+          mostrarToast((res && res.message) || 'No se pudo guardar la ganancia semanal.', 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        mostrarCargando(false);
+        mostrarToast('Error al guardar la ganancia semanal: ' + (err.message || err), 'error');
+      })
+      .sumarGananciaSemanal(cantidad, modo || 'sumar', ESTADO_APP.adminPassword);
   }
 
   function cambiarEstadoPagoAdmin(fila, nuevoEstado) {

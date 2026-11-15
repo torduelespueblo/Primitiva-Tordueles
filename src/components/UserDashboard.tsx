@@ -39,6 +39,7 @@ interface UserDashboardProps {
     programado: boolean;
     jornada?: number;
     fecha?: string;
+    fechaHoraPublicacion?: string;
   };
   googleAppsScriptUrl?: string;
   onNavigateTab: (tab: string) => void;
@@ -114,7 +115,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   };
   const pendingTicket = tickets.find(t => !t.isScrutinized && isTicketPublishedNow(t));
   const scheduledTicket = tickets.find(t => !t.isScrutinized && !isTicketPublishedNow(t));
-  const lastScrutinized = tickets.find(t => t.isScrutinized);
+  const hasPlayedHistory = tickets.some(t => t.isScrutinized);
+  const lastScrutinized = tickets.find(
+    t =>
+      t.isScrutinized &&
+      ((Array.isArray(t.winningNumbers) && t.winningNumbers.length > 0) ||
+        t.totalPrize > 0 ||
+        typeof t.hitsCount === 'number')
+  );
 
   const isRenewalWindow = settings.currentJornada >= 7 && settings.currentJornada <= 9;
   const isFinalDeadline = settings.currentJornada === 9;
@@ -291,7 +299,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <div className="max-w-2xl">
             <TicketCard ticket={pendingTicket} googleAppsScriptUrl={googleAppsScriptUrl} />
           </div>
-        ) : scheduledTicket ? (
+        ) : scheduledTicket || (ticketSummary?.hayBoleto && ticketSummary?.programado) ? (
           <div className="p-7 sm:p-8 text-center bg-white rounded-3xl border border-amber-200 text-slate-700 space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-amber-50 text-[#FF6B00] mx-auto flex items-center justify-center">
               <CalendarClock className="w-8 h-8" />
@@ -302,10 +310,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <p className="text-base text-slate-600 max-w-xl mx-auto leading-relaxed">
               El resguardo oficial ya ha sido validado y programado por administración. Se publicará automáticamente en la App y en el grupo de WhatsApp el{' '}
               <strong className="text-[#0A2540]">
-                {formatScheduledDateTimeLabel(scheduledTicket.publishAt, scheduledTicket.drawDate)}
+                {scheduledTicket
+                  ? formatScheduledDateTimeLabel(scheduledTicket.publishAt, scheduledTicket.drawDate)
+                  : formatScheduledDateTimeLabel(
+                      ticketSummary?.fechaHoraPublicacion?.replace(' ', 'T'),
+                      ticketSummary?.fecha
+                    )}
               </strong>.
             </p>
-            {lastScrutinized && (
+            {hasPlayedHistory && (
               <div className="pt-2">
                 <button
                   type="button"
@@ -327,7 +340,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <p className="text-base text-slate-600 max-w-xl mx-auto">
               Cuando el administrador suba el resguardo oficial sellado en el terminal de SELAE para la próxima jornada, aparecerá aquí. Los boletos ya jugados están en «Boletos».
             </p>
-            {lastScrutinized && (
+            {hasPlayedHistory && (
               <div className="pt-2">
                 <button
                   type="button"
@@ -536,6 +549,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <p className="mt-2.5 text-base text-slate-200 max-w-2xl leading-relaxed">
               Importe total acumulado de los premios obtenidos por la peña ({prizeHistory.length}{' '}
               {prizeHistory.length === 1 ? 'premio registrado' : 'premios registrados'}). Separado estrictamente de las cuotas semanales.
+              {(settings.weeklyPrizeGain || 0) > 0 && (
+                <span className="block mt-1 text-emerald-300 font-bold tabular-nums">
+                  Última ganancia semanal sumada al bote: +{(settings.weeklyPrizeGain || 0).toFixed(2)} €
+                </span>
+              )}
             </p>
           </div>
 

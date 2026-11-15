@@ -316,18 +316,26 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, googleAppsScript
                   Escrutinio Oficial SELAE
                 </span>
                 <span className="text-sm font-mono font-bold text-slate-700 tabular-nums">
-                  {ticket.winningNumbers?.join(' - ')} (C: {ticket.complementario} · R: {ticket.reintegro})
+                  {ticket.winningNumbers && ticket.winningNumbers.length > 0
+                    ? `${ticket.winningNumbers.join(' - ')} (C: ${ticket.complementario ?? '-'} · R: ${ticket.reintegro ?? '-'})`
+                    : 'Pendiente de resultados oficiales'}
                 </span>
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                 <div>
                   <span className="text-base text-slate-800 font-bold block">
-                    {ticket.prizeCategory || 'Resultado'}
+                    {ticket.prizeCategory || 'Jugada finalizada'}
                   </span>
                   <span className="text-sm text-slate-600 font-medium">
-                    Aciertos: <strong className="text-[#0A2540]">{ticket.hitsCount ?? 0}</strong>{' '}
-                    {ticket.hasReintegro ? '+ Reintegro' : ''}
+                    {typeof ticket.hitsCount === 'number' ? (
+                      <>
+                        Aciertos: <strong className="text-[#0A2540]">{ticket.hitsCount}</strong>{' '}
+                        {ticket.hasReintegro ? '+ Reintegro' : ''}
+                      </>
+                    ) : (
+                      'Registro numérico de la jugada'
+                    )}
                   </span>
                 </div>
                 <div className="text-right">
@@ -461,10 +469,14 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, googleAppsScript
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-[#F4F6F9] p-6 text-center space-y-2">
                   <ImageOff className="w-10 h-10 text-slate-400 mx-auto" />
                   <p className="text-base font-bold text-[#0A2540]">
-                    Sin imagen adjunta del boleto todavía
+                    {ticket.isScrutinized
+                      ? 'Historial numérico (sin imagen)'
+                      : 'Sin imagen adjunta del boleto todavía'}
                   </p>
                   <p className="text-sm text-slate-600">
-                    Cuando el administrador suba la fotografía o captura del resguardo oficial, aparecerá aquí íntegramente para todos los socios.
+                    {ticket.isScrutinized
+                      ? 'Al pasar a «Últimos Jugados», la fotografía del resguardo se retira automáticamente para conservar únicamente los datos numéricos de la jugada.'
+                      : 'Cuando el administrador suba la fotografía o captura del resguardo oficial, aparecerá aquí íntegramente para todos los socios.'}
                   </p>
                 </div>
               )}

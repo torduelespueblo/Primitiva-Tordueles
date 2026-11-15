@@ -69,10 +69,15 @@ function doGet(e) {
         var sheetConfig = ss.getSheetByName('Configuracion');
         var jornadaInfo = obtenerJornadaActual();
         var bolsa = 0;
+        var gananciaSemanal = 0;
 
         if (sheetTesoreria && sheetTesoreria.getLastRow() >= 2) {
           var rawBolsa = parseFloat(sheetTesoreria.getRange(2, 4).getValue());
           bolsa = isNaN(rawBolsa) ? 0 : rawBolsa;
+          if (sheetTesoreria.getLastColumn() >= 5) {
+            var rawSemanal = parseFloat(sheetTesoreria.getRange(2, 5).getValue());
+            gananciaSemanal = isNaN(rawSemanal) ? 0 : rawSemanal;
+          }
         }
 
         var conteo = obtenerConteoJugadoresPublico(ss);
@@ -81,6 +86,7 @@ function doGet(e) {
         var acceso = { autorizado: false, rol: 'VISITOR' };
         var listaPublica = [];
         var boletoActivo = null;
+        var ultimosJugados = [];
 
         if (identificador) {
           var validacion = validarAccesoSocioWeb(identificador);
@@ -92,6 +98,7 @@ function doGet(e) {
             };
             listaPublica = validacion.listaPublica || [];
             boletoActivo = validacion.rol === 'TITULAR' ? validacion.boletoActivo : null;
+            ultimosJugados = validacion.rol === 'TITULAR' ? (validacion.ultimosJugados || []) : [];
           }
         }
 
@@ -103,12 +110,14 @@ function doGet(e) {
           jornadaEnCiclo: jornadaInfo.jornadaEnCiclo,
           esPeriodoRenovacion: jornadaInfo.esPeriodoRenovacion,
           bolsaPremios: bolsa,
+          gananciaSemanal: gananciaSemanal,
           boletinDiarioActivo: sheetConfig ? (String(sheetConfig.getRange('A2').getValue()).trim().toUpperCase() === 'SÍ') : true,
           conteoTitulares: conteo.titulares,
           conteoSuplentes: conteo.suplentes,
           boletoResumen: boletoResumen,
           acceso: acceso,
           boletoActivo: boletoActivo,
+          ultimosJugados: ultimosJugados,
           listaPublica: listaPublica,
           timestamp: new Date().toISOString()
         };
@@ -195,6 +204,34 @@ function doPost(e) {
       }
       var resPremio = guardarPremioManual(contents.cantidad, contents.datos);
       return ContentService.createTextOutput(JSON.stringify(resPremio))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'actualizarBotePremios') {
+      if (!validarPasswordAdmin(contents.password)) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, message: 'Acceso no autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resBote = actualizarBotePremios(
+        contents.cantidad !== undefined ? contents.cantidad : contents.importe,
+        contents.password,
+        contents.gananciaSemanal
+      );
+      return ContentService.createTextOutput(JSON.stringify(resBote))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'sumarGananciaSemanal') {
+      if (!validarPasswordAdmin(contents.password)) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, message: 'Acceso no autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resSemanal = sumarGananciaSemanal(
+        contents.cantidad !== undefined ? contents.cantidad : contents.importe,
+        contents.modo,
+        contents.password
+      );
+      return ContentService.createTextOutput(JSON.stringify(resSemanal))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -567,9 +604,9 @@ function obtenerResumenBoletoSinCombinacion(ss) {
       var r = rows[i];
       var combJugada = String(r[5] || '').trim();
       var combGanadora = String(r[6] || '').trim();
-      if (!combJugada || combGanadora) continue;
-
       var estadoPub = String(r[10] || 'PUBLICADO').trim().toUpperCase();
+      if (!combJugada || combGanadora || estadoPub === 'HISTORIAL') continue;
+
       var fechaStr = r[1] instanceof Date
         ? Utilities.formatDate(r[1], zona, 'yyyy-MM-dd')
         : String(r[1] || '');
@@ -579,7 +616,8 @@ function obtenerResumenBoletoSinCombinacion(ss) {
         programado: estadoPub === 'PROGRAMADO',
         jornada: parseInt(r[0], 10) || 1,
         ciclo: parseInt(r[13], 10) || 1,
-        fecha: fechaStr
+        fecha: fechaStr,
+        fechaHoraPublicacion: String(r[11] || '').trim()
       };
     }
     return { hayBoleto: false, programado: false };
@@ -644,6 +682,7 @@ function validarAccesoSocioWeb(identificadorInput) {
         var conteo = obtenerConteoJugadoresPublico(ss);
         var listaPublica = obtenerListaJugadoresPublica();
         var boletoActivo = rol === 'TITULAR' ? obtenerBoletoActivoPublico(ss) : null;
+        var ultimosJugados = rol === 'TITULAR' ? obtenerUltimosBoletosJugadosPublico(ss) : [];
 
         return {
           success: true,
@@ -653,6 +692,7 @@ function validarAccesoSocioWeb(identificadorInput) {
           conteoSuplentes: conteo.suplentes,
           listaPublica: listaPublica,
           boletoActivo: boletoActivo,
+          ultimosJugados: ultimosJugados,
           user: {
             filaIndex: i + 2,
             dni: dniFila,
@@ -933,13 +973,16 @@ function obtenerDatosDashboard(dniInput) {
     var sheetTesoreria = ss.getSheetByName('Tesorería');
     var fondoApuestas = 0;
     var bolsaPremios = 0;
+    var gananciaSemanal = 0;
     var cicloTesoreria = 'Ciclo 1';
 
     if (sheetTesoreria && sheetTesoreria.getLastRow() >= 2) {
-      var filaT = sheetTesoreria.getRange(2, 1, 1, 4).getValues()[0];
+      var numColsT = Math.max(4, sheetTesoreria.getLastColumn());
+      var filaT = sheetTesoreria.getRange(2, 1, 1, Math.min(numColsT, 5)).getValues()[0];
       cicloTesoreria = (filaT[1] || 'Ciclo 1').toString();
       fondoApuestas = parseFloat(filaT[2]) || 0;
       bolsaPremios = parseFloat(filaT[3]) || 0;
+      gananciaSemanal = filaT.length >= 5 ? (parseFloat(filaT[4]) || 0) : 0;
     }
 
     var sheetSorteos = ss.getSheetByName('Sorteos');
@@ -984,7 +1027,8 @@ function obtenerDatosDashboard(dniInput) {
         tesoreria: {
           ciclo: cicloTesoreria,
           fondoApuestas: fondoApuestas,
-          bolsaPremios: bolsaPremios
+          bolsaPremios: bolsaPremios,
+          gananciaSemanal: gananciaSemanal
         },
         jornadaInfo: jornadaInfo,
         sorteos: listaSorteos,
@@ -1066,16 +1110,17 @@ function obtenerBoletoActivoPublico(ss) {
       var r = rows[i];
       var combJugada = String(r[5] || '').trim();
       var combGanadora = String(r[6] || '').trim();
-      if (!combJugada || combGanadora) continue;
-
       var estadoPub = String(r[10] || 'PUBLICADO').trim().toUpperCase();
+      if (!combJugada || combGanadora || estadoPub === 'HISTORIAL') continue;
+
       var fechaHoraPub = String(r[11] || '').trim();
 
       if (estadoPub === 'PROGRAMADO') {
-        if (!fechaHoraPub) continue;
+        if (!fechaHoraPub) return null;
         var dtPub = new Date(fechaHoraPub.replace(' ', 'T') + ':00');
         if (isNaN(dtPub.getTime()) || ahora.getTime() < dtPub.getTime()) {
-          continue; // Todavía no ha llegado el día/hora programados
+          // El boleto de la jornada más reciente aún está programado: no retroceder al boleto anterior
+          return null;
         }
       }
 
@@ -1101,7 +1146,91 @@ function obtenerBoletoActivoPublico(ss) {
 }
 
 /**
+ * Devuelve como máximo los últimos 4 boletos ya jugados/pasados (únicamente datos numéricos,
+ * sin imagen del boleto), ordenados del más reciente al más antiguo.
+ */
+function obtenerUltimosBoletosJugadosPublico(ss) {
+  try {
+    var sheetSorteos = ss.getSheetByName('Sorteos');
+    if (!sheetSorteos || sheetSorteos.getLastRow() < 2) return [];
+
+    var lastRow = sheetSorteos.getLastRow();
+    var numCols = Math.max(16, sheetSorteos.getLastColumn());
+    var rows = sheetSorteos.getRange(2, 1, lastRow - 1, numCols).getValues();
+    var zona = 'Europe/Madrid';
+
+    // Detectar qué fila corresponde al boleto activo/programado actual (para excluirla de "Últimos Jugados")
+    var indiceActivoActual = -1;
+    for (var k = rows.length - 1; k >= 0; k--) {
+      var rk = rows[k];
+      var combJk = String(rk[5] || '').trim();
+      var combGk = String(rk[6] || '').trim();
+      var estK = String(rk[10] || 'PUBLICADO').trim().toUpperCase();
+      if (combJk && !combGk && estK !== 'HISTORIAL') {
+        indiceActivoActual = k;
+        break;
+      }
+    }
+
+    var jugados = [];
+    for (var i = 0; i < rows.length; i++) {
+      if (i === indiceActivoActual) continue;
+      var r = rows[i];
+      var combJugada = String(r[5] || '').trim();
+      if (!combJugada) continue;
+
+      var fechaStr = r[1] instanceof Date
+        ? Utilities.formatDate(r[1], zona, 'yyyy-MM-dd')
+        : String(r[1] || '').trim();
+      var jornadaNum = parseInt(r[0], 10) || 1;
+      var cicloNum = parseInt(r[13], 10) || 1;
+      var combGanadora = String(r[6] || '').trim();
+      var aciertosVal = (r[7] !== '' && r[7] !== null && r[7] !== undefined && !isNaN(parseInt(r[7], 10)))
+        ? parseInt(r[7], 10)
+        : null;
+      var premioVal = parseFloat(r[8]) || 0;
+
+      jugados.push({
+        id: 'gas-hist-' + fechaStr + '-j' + jornadaNum + '-c' + cicloNum + '-r' + i,
+        jornada: jornadaNum,
+        ciclo: cicloNum,
+        fecha: fechaStr,
+        importeJugado: parseFloat(r[4]) || 0,
+        combinacionJugada: combJugada,
+        combinacionGanadora: combGanadora,
+        aciertos: aciertosVal,
+        cantidadPremiada: premioVal,
+        reintegro: (r[14] !== '' && r[14] !== undefined && r[14] !== null) ? parseInt(r[14], 10) : 0,
+        jugadoresActivos: parseInt(r[15], 10) || 0,
+        fotoResguardo: '',
+        _rowOrder: i
+      });
+    }
+
+    jugados.sort(function (a, b) {
+      var ta = a.fecha ? new Date(a.fecha).getTime() : 0;
+      var tb = b.fecha ? new Date(b.fecha).getTime() : 0;
+      if (isNaN(ta)) ta = 0;
+      if (isNaN(tb)) tb = 0;
+      if (tb !== ta) return tb - ta;
+      if (b.ciclo !== a.ciclo) return b.ciclo - a.ciclo;
+      if (b.jornada !== a.jornada) return b.jornada - a.jornada;
+      return b._rowOrder - a._rowOrder;
+    });
+
+    return jugados.slice(0, 4).map(function (item) {
+      delete item._rowOrder;
+      return item;
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
  * Guarda un resguardo programado o inmediato en la hoja 'Sorteos' y sube la imagen a Google Drive.
+ * Al programar o publicar una nueva jornada, retira automáticamente la imagen del boleto anterior
+ * y lo pasa al historial numérico ("Últimos Jugados").
  */
 function guardarOProgramarBoletoDesdeWeb(datos) {
   try {
@@ -1155,7 +1284,7 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
     var primeraFilaLibre = null;
 
     if (lastRowS >= 2) {
-      var existentes = sheetSorteos.getRange(2, 1, lastRowS - 1, 10).getValues();
+      var existentes = sheetSorteos.getRange(2, 1, lastRowS - 1, Math.max(11, sheetSorteos.getLastColumn())).getValues();
       for (var rIdx = 0; rIdx < existentes.length; rIdx++) {
         var jRaw = String(existentes[rIdx][0] || '').trim();
         var fRaw = existentes[rIdx][1];
@@ -1186,6 +1315,21 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
       if (primeraFilaLibre !== null) {
         nuevaFila = primeraFilaLibre;
       }
+
+      // Retirar imagen de cualquier boleto anterior activo/programado y pasarlo a HISTORIAL (solo datos numéricos)
+      for (var prevIdx = 0; prevIdx < existentes.length; prevIdx++) {
+        var filaPrev = prevIdx + 2;
+        if (filaPrev === nuevaFila) continue;
+        var combPrev = String(existentes[prevIdx][5] || '').trim();
+        if (!combPrev) continue;
+        var estadoPrev = String(existentes[prevIdx][10] || '').trim().toUpperCase();
+        if (estadoPrev !== 'HISTORIAL') {
+          sheetSorteos.getRange(filaPrev, 11).setValue('HISTORIAL');
+        }
+        if (String(existentes[prevIdx][3] || '').trim() !== '') {
+          sheetSorteos.getRange(filaPrev, 4).clearContent();
+        }
+      }
     }
 
     sheetSorteos.getRange(nuevaFila, 1).setValue(jornadaNum);
@@ -1213,11 +1357,14 @@ function guardarOProgramarBoletoDesdeWeb(datos) {
       enviarBoletoDeFilaPorWhatsApp(sheetSorteos, nuevaFila);
     }
 
+    var ultimosJugados = obtenerUltimosBoletosJugadosPublico(ss);
+
     return {
       success: true,
       estado: estadoPub,
       fechaHoraPublicacion: fechaHoraPub,
       driveImageUrl: driveImageUrl,
+      ultimosJugados: ultimosJugados,
       whatsappEnviadoAhora: enviandoWhatsAppAhora,
       message: publicarAhora
         ? 'Resguardo publicado y enviado a WhatsApp.'
@@ -1245,6 +1392,27 @@ function obtenerEscrutinioDelCiclo() {
  */
 function guardarPremioManual(cantidad, datosOpcionales) {
   return guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales);
+}
+
+/**
+ * Actualiza manualmente el Bote General de Premios (y opcionalmente la Ganancia Semanal) en la pestaña 'Tesorería'.
+ * Invocada desde el Panel Admin (REST o google.script.run).
+ */
+function actualizarBotePremios(nuevoImporte, password, nuevaGananciaSemanal) {
+  if (password !== undefined && !validarPasswordAdmin(password)) {
+    return { success: false, message: 'Acceso no autorizado.' };
+  }
+  return actualizarBotePremiosEnBaseDeDatos(nuevoImporte, nuevaGananciaSemanal);
+}
+
+/**
+ * Registra la Ganancia Semanal y la suma al Bote General (o edita solo la cifra semanal) en 'Tesorería'.
+ */
+function sumarGananciaSemanal(cantidadSemanal, modo, password) {
+  if (password !== undefined && !validarPasswordAdmin(password)) {
+    return { success: false, message: 'Acceso no autorizado.' };
+  }
+  return sumarGananciaSemanalEnBaseDeDatos(cantidadSemanal, modo);
 }
 
 /**

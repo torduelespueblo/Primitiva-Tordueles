@@ -46,6 +46,19 @@ export interface MemberAccessResponse {
     reintegro?: number;
     jugadoresActivos?: number;
   } | null;
+  ultimosJugados?: Array<{
+    id?: string;
+    jornada: number;
+    ciclo?: number;
+    fecha: string;
+    importeJugado?: number;
+    combinacionJugada?: string;
+    combinacionGanadora?: string;
+    aciertos?: number | null;
+    cantidadPremiada?: number;
+    reintegro?: number;
+    jugadoresActivos?: number;
+  }>;
   user?: {
     filaIndex?: number;
     dni: string;

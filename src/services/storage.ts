@@ -15,14 +15,87 @@ const STORAGE_KEYS = {
 
 export const MAX_STORED_TICKETS = 4;
 
-export function capTicketsKeepingPlayed(tickets: TicketDraw[]): TicketDraw[] {
-  const normalized = tickets.map(t => ({
+export function sortTicketsNewestFirst(tickets: TicketDraw[]): TicketDraw[] {
+  return [...tickets].sort((a, b) => {
+    const timeA = a.drawDate ? new Date(a.drawDate).getTime() : 0;
+    const timeB = b.drawDate ? new Date(b.drawDate).getTime() : 0;
+    const safeA = isNaN(timeA) ? 0 : timeA;
+    const safeB = isNaN(timeB) ? 0 : timeB;
+    if (safeB !== safeA) return safeB - safeA;
+    if ((b.cycleNumber || 0) !== (a.cycleNumber || 0)) {
+      return (b.cycleNumber || 0) - (a.cycleNumber || 0);
+    }
+    if ((b.jornadaNumber || 0) !== (a.jornadaNumber || 0)) {
+      return (b.jornadaNumber || 0) - (a.jornadaNumber || 0);
+    }
+    return String(b.id).localeCompare(String(a.id));
+  });
+}
+
+function toNumericOnlyPlayedTicket(t: TicketDraw): TicketDraw {
+  const hasScrutinyData =
+    (Array.isArray(t.winningNumbers) && t.winningNumbers.length > 0) ||
+    (t.totalPrize || 0) > 0 ||
+    typeof t.hitsCount === 'number';
+  return {
     ...t,
-    receiptImageUrl: normalizeReceiptImageUrl(t.receiptImageUrl),
-  }));
-  const pending = normalized.filter(t => !t.isScrutinized);
-  const played = normalized.filter(t => t.isScrutinized).slice(0, MAX_STORED_TICKETS);
-  return [...pending, ...played];
+    isScrutinized: true,
+    receiptImageUrl: '',
+    prizeCategory: t.prizeCategory || (hasScrutinyData ? 'Resultado' : 'Jugada finalizada'),
+  };
+}
+
+export function capTicketsKeepingPlayed(tickets: TicketDraw[]): TicketDraw[] {
+  const sorted = sortTicketsNewestFirst(tickets);
+  const rawPending = sorted.filter(t => !t.isScrutinized);
+  const rawPlayed = sorted.filter(t => t.isScrutinized);
+
+  // Solo se conserva 1 boleto en curso/programado (el más reciente); cualquier otro pendiente anterior pasa al historial numérico
+  const activePending: TicketDraw[] =
+    rawPending.length > 0
+      ? [
+          {
+            ...rawPending[0],
+            receiptImageUrl: normalizeReceiptImageUrl(rawPending[0].receiptImageUrl),
+          },
+        ]
+      : [];
+
+  const retiredPending = rawPending.slice(1).map(toNumericOnlyPlayedTicket);
+
+  const combinedPlayed = sortTicketsNewestFirst([
+    ...retiredPending,
+    ...rawPlayed.map(toNumericOnlyPlayedTicket),
+  ]);
+
+  // Deduplicar por ciclo+jornada+fecha conservando el registro con más información de escrutinio
+  const seenKeys = new Set<string>();
+  const dedupedPlayed: TicketDraw[] = [];
+  for (const t of combinedPlayed) {
+    const key = `${t.cycleNumber || 1}-${t.jornadaNumber || 1}-${t.drawDate || t.id}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    dedupedPlayed.push(t);
+    if (dedupedPlayed.length >= MAX_STORED_TICKETS) break;
+  }
+
+  return [...activePending, ...dedupedPlayed];
+}
+
+export function archivePreviousPendingTicketsForNewSchedule(
+  existingTickets: TicketDraw[],
+  incomingTicket: TicketDraw
+): TicketDraw[] {
+  const isSameTicketSlot = (t: TicketDraw) =>
+    t.cycleNumber === incomingTicket.cycleNumber &&
+    t.jornadaNumber === incomingTicket.jornadaNumber &&
+    t.drawDate === incomingTicket.drawDate;
+
+  const transitioned = existingTickets
+    .filter(t => !isSameTicketSlot(t) && t.id !== incomingTicket.id)
+    .map(t => (!t.isScrutinized ? toNumericOnlyPlayedTicket(t) : toNumericOnlyPlayedTicket(t)));
+
+  return capTicketsKeepingPlayed([incomingTicket, ...transitioned]);
 }
 
 const DELETED_MOCK_TICKET_IDS = new Set(['t-08', 't-07', 't-06', 't-05']);
@@ -34,6 +107,7 @@ const DEFAULT_SETTINGS: SyndicateSettings = {
   currentCycle: 1,
   currentJornada: 1,
   prizeFundBalance: 0,
+  weeklyPrizeGain: 0,
   googleFormUrl: '',
   googleAppsScriptUrl: 'https://script.google.com/macros/s/AKfycbxFolqBPLovSHOHM0ST-bBtyzlCzTG64ZmzNvNSaDgawIT6MP1RXwg9BhE2ZKJt_weJCw/exec',
   googleSheetUrl: 'https://docs.google.com/spreadsheets/d/18R_F67pOt4pYBD5VqzBln12H-VMxUx-qmoeCewwz8qw/edit',

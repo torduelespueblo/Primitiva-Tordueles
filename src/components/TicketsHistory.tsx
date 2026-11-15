@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TicketDraw, PrizeHistoryEntry } from '../types/lottery';
 import { TicketCard } from './TicketCard';
 import { Receipt, Trophy, ArrowUpDown, Calendar, Lock, UserPlus, KeyRound } from 'lucide-react';
-import { MAX_STORED_TICKETS } from '../services/storage';
+import { MAX_STORED_TICKETS, sortTicketsNewestFirst } from '../services/storage';
 
 interface TicketsHistoryProps {
   tickets: TicketDraw[];
@@ -30,12 +30,11 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
 
   const isTitular = accessLevel === 'TITULAR';
 
-  // Solo los últimos 4 boletos ya jugados/escrutados (excluye el boleto pendiente de «Mi Jugada»)
+  // Solo los últimos 4 boletos ya jugados/pasados (solo datos numéricos, del más reciente al más antiguo)
   const playedTickets = isTitular
-    ? tickets
-        .filter(t => t.isScrutinized)
-        .sort((a, b) => new Date(b.drawDate).getTime() - new Date(a.drawDate).getTime())
+    ? sortTicketsNewestFirst(tickets.filter(t => t.isScrutinized))
         .slice(0, MAX_STORED_TICKETS)
+        .map(t => ({ ...t, receiptImageUrl: '' }))
     : [];
 
   const filteredTickets = playedTickets.filter(t => {

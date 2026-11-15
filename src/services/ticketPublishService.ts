@@ -89,7 +89,25 @@ export interface ScheduleTicketAppsScriptPayload {
 export async function syncTicketWithAppsScript(
   googleAppsScriptUrl: string | undefined,
   payload: ScheduleTicketAppsScriptPayload
-): Promise<{ success: boolean; synced: boolean; driveImageUrl?: string; message?: string }> {
+): Promise<{
+  success: boolean;
+  synced: boolean;
+  driveImageUrl?: string;
+  ultimosJugados?: Array<{
+    id?: string;
+    jornada: number;
+    ciclo?: number;
+    fecha: string;
+    importeJugado?: number;
+    combinacionJugada?: string;
+    combinacionGanadora?: string;
+    aciertos?: number | null;
+    cantidadPremiada?: number;
+    reintegro?: number;
+    jugadoresActivos?: number;
+  }>;
+  message?: string;
+}> {
   const endpoint = (googleAppsScriptUrl || '').trim();
   if (!endpoint) {
     return {
@@ -128,6 +146,7 @@ export async function syncTicketWithAppsScript(
         success: Boolean(json.success),
         synced: Boolean(json.success),
         driveImageUrl: json.driveImageUrl,
+        ultimosJugados: Array.isArray(json.ultimosJugados) ? json.ultimosJugados : undefined,
         message: json.message,
       };
     } catch {

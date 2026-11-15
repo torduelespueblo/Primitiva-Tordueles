@@ -183,7 +183,7 @@ function configurarPestanaTesoreria(ss) {
   var sheet = ss.getSheetByName(PROYECTO_CONFIG.SHEET_TESORERIA) || ss.insertSheet(PROYECTO_CONFIG.SHEET_TESORERIA);
   sheet.clear();
 
-  var headers = ['ID', 'Ciclo', 'Fondo de Apuestas', 'Bolsa de Premios'];
+  var headers = ['ID', 'Ciclo', 'Fondo de Apuestas', 'Bolsa de Premios', 'Ganancia Semanal'];
   var headerRange = sheet.getRange(1, 1, 1, headers.length);
   headerRange.setValues([headers]);
   aplicarEstiloEncabezado(headerRange);
@@ -193,9 +193,10 @@ function configurarPestanaTesoreria(ss) {
   sheet.getRange('B2').setValue('Ciclo 1');
   sheet.getRange('C2').setFormula('=COUNTIF(Usuarios!K:K, "Titular")*10 - SUM(Sorteos!E:E)');
   sheet.getRange('D2').setFormula('=SUM(Sorteos!J:J)');
+  sheet.getRange('E2').setValue(0);
 
-  sheet.getRange('C2:D2').setNumberFormat('#,##0.00 €');
-  sheet.getRange('C2:D2').setFontWeight('bold');
+  sheet.getRange('C2:E2').setNumberFormat('#,##0.00 €');
+  sheet.getRange('C2:E2').setFontWeight('bold');
   sheet.autoResizeColumns(1, headers.length);
   return sheet;
 }
@@ -2341,6 +2342,10 @@ function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
       sheetSorteos.getRange(filaObjetivo, 8).setValue(aciertosGuardar);
     }
 
+    // Capturar premio menor previo en la fila por si Tesorería!D2 tiene un ajuste manual (sin fórmula)
+    var prevPremioMenor = parseFloat(sheetSorteos.getRange(filaObjetivo, 10).getValue());
+    if (isNaN(prevPremioMenor)) prevPremioMenor = 0;
+
     var premioMenor = importe <= 2000 ? importe : 0;
     sheetSorteos.getRange(filaObjetivo, 9).setValue(importe).setNumberFormat('#,##0.00 €');
     sheetSorteos.getRange(filaObjetivo, 10).setValue(premioMenor).setNumberFormat('#,##0.00 €');
@@ -2350,7 +2355,17 @@ function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
     var nuevaBolsa = 0;
     var sheetTesoreria = ss.getSheetByName(PROYECTO_CONFIG.SHEET_TESORERIA || 'Tesorería');
     if (sheetTesoreria && sheetTesoreria.getLastRow() >= 2) {
-      var valBolsa = parseFloat(sheetTesoreria.getRange(2, 4).getValue());
+      var celdaBolsa = sheetTesoreria.getRange(2, 4);
+      var formulaBolsa = String(celdaBolsa.getFormula() || '').trim();
+      if (!formulaBolsa) {
+        var bolsaActualManual = parseFloat(celdaBolsa.getValue());
+        if (isNaN(bolsaActualManual)) bolsaActualManual = 0;
+        var deltaMenor = Math.round((premioMenor - prevPremioMenor) * 100) / 100;
+        var bolsaAjustada = Math.max(0, Math.round((bolsaActualManual + deltaMenor) * 100) / 100);
+        celdaBolsa.setValue(bolsaAjustada).setNumberFormat('#,##0.00 €');
+        SpreadsheetApp.flush();
+      }
+      var valBolsa = parseFloat(celdaBolsa.getValue());
       nuevaBolsa = isNaN(valBolsa) ? 0 : valBolsa;
     }
 
@@ -2365,6 +2380,132 @@ function guardarPremioManualEnBaseDeDatos(cantidad, datosOpcionales) {
     return {
       success: false,
       message: 'Error al guardar premio manual: ' + err.message
+    };
+  }
+}
+
+/**
+ * Asegura que la pestaña 'Tesorería' tenga también la columna E ("Ganancia Semanal").
+ */
+function asegurarColumnaGananciaSemanalTesoreria(sheetTesoreria) {
+  var headerE = String(sheetTesoreria.getRange(1, 5).getValue() || '').trim();
+  if (!headerE) {
+    sheetTesoreria.getRange(1, 5).setValue('Ganancia Semanal').setFontWeight('bold');
+    var bg = sheetTesoreria.getRange(1, 4).getBackground();
+    var fg = sheetTesoreria.getRange(1, 4).getFontColor();
+    if (bg) sheetTesoreria.getRange(1, 5).setBackground(bg);
+    if (fg) sheetTesoreria.getRange(1, 5).setFontColor(fg);
+  }
+  if (sheetTesoreria.getLastRow() < 2) {
+    sheetTesoreria.getRange('A2').setValue(1);
+    sheetTesoreria.getRange('B2').setValue('Ciclo 1');
+  }
+}
+
+/**
+ * Actualiza manualmente el Bote General (celda D2) y opcionalmente la Ganancia Semanal (celda E2)
+ * en la pestaña 'Tesorería' para que se refleje inmediatamente en la pantalla principal de todos los socios.
+ */
+function actualizarBotePremiosEnBaseDeDatos(nuevoImporte, nuevaGananciaSemanal) {
+  try {
+    if (nuevoImporte === null || nuevoImporte === undefined || String(nuevoImporte).trim() === '') {
+      return { success: false, message: 'Introduce un importe numérico válido en euros.' };
+    }
+
+    var normalizado = String(nuevoImporte).trim().replace(',', '.');
+    var importe = parseFloat(normalizado);
+    if (isNaN(importe) || importe < 0) {
+      return { success: false, message: 'El importe del bote debe ser un número mayor o igual a 0.' };
+    }
+    importe = Math.round(importe * 100) / 100;
+
+    var ss = obtenerSpreadsheetConfigurado();
+    var sheetTesoreria = ss.getSheetByName(PROYECTO_CONFIG.SHEET_TESORERIA || 'Tesorería');
+    if (!sheetTesoreria) {
+      sheetTesoreria = configurarPestanaTesoreria(ss);
+    }
+    asegurarColumnaGananciaSemanalTesoreria(sheetTesoreria);
+
+    sheetTesoreria.getRange(2, 4).setValue(importe).setNumberFormat('#,##0.00 €').setFontWeight('bold');
+
+    var semanalFinal = parseFloat(sheetTesoreria.getRange(2, 5).getValue());
+    if (isNaN(semanalFinal)) semanalFinal = 0;
+
+    if (nuevaGananciaSemanal !== undefined && nuevaGananciaSemanal !== null && String(nuevaGananciaSemanal).trim() !== '') {
+      var parsedSemanal = parseFloat(String(nuevaGananciaSemanal).trim().replace(',', '.'));
+      if (!isNaN(parsedSemanal) && parsedSemanal >= 0) {
+        semanalFinal = Math.round(parsedSemanal * 100) / 100;
+        sheetTesoreria.getRange(2, 5).setValue(semanalFinal).setNumberFormat('#,##0.00 €').setFontWeight('bold');
+      }
+    }
+
+    SpreadsheetApp.flush();
+
+    return {
+      success: true,
+      bolsaPremios: importe,
+      gananciaSemanal: semanalFinal,
+      message: 'Bote General actualizado a ' + importe.toFixed(2) + ' € en Tesorería.'
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: 'Error al actualizar el bote de premios: ' + err.message
+    };
+  }
+}
+
+/**
+ * Registra o edita la Ganancia Semanal (celda E2) en la pestaña 'Tesorería'.
+ * - modo === 'sumar' (por defecto): suma la ganancia semanal al Bote General (D2) y guarda E2.
+ * - modo === 'solo_semanal': actualiza únicamente el importe de Ganancia Semanal (E2) sin sumar de nuevo al bote.
+ */
+function sumarGananciaSemanalEnBaseDeDatos(cantidadSemanal, modo) {
+  try {
+    if (cantidadSemanal === null || cantidadSemanal === undefined || String(cantidadSemanal).trim() === '') {
+      return { success: false, message: 'Introduce el importe de la ganancia semanal en euros.' };
+    }
+
+    var normalizado = String(cantidadSemanal).trim().replace(',', '.');
+    var semanal = parseFloat(normalizado);
+    if (isNaN(semanal) || semanal < 0) {
+      return { success: false, message: 'La ganancia semanal debe ser un número mayor o igual a 0.' };
+    }
+    semanal = Math.round(semanal * 100) / 100;
+
+    var ss = obtenerSpreadsheetConfigurado();
+    var sheetTesoreria = ss.getSheetByName(PROYECTO_CONFIG.SHEET_TESORERIA || 'Tesorería');
+    if (!sheetTesoreria) {
+      sheetTesoreria = configurarPestanaTesoreria(ss);
+    }
+    asegurarColumnaGananciaSemanalTesoreria(sheetTesoreria);
+
+    var bolsaActual = parseFloat(sheetTesoreria.getRange(2, 4).getValue());
+    if (isNaN(bolsaActual)) bolsaActual = 0;
+
+    var esSoloSemanal = String(modo || 'sumar').toLowerCase() === 'solo_semanal';
+    var nuevaBolsa = esSoloSemanal
+      ? Math.round(bolsaActual * 100) / 100
+      : Math.round((bolsaActual + semanal) * 100) / 100;
+
+    if (!esSoloSemanal) {
+      sheetTesoreria.getRange(2, 4).setValue(nuevaBolsa).setNumberFormat('#,##0.00 €').setFontWeight('bold');
+    }
+    sheetTesoreria.getRange(2, 5).setValue(semanal).setNumberFormat('#,##0.00 €').setFontWeight('bold');
+    SpreadsheetApp.flush();
+
+    return {
+      success: true,
+      bolsaPremios: nuevaBolsa,
+      gananciaSemanal: semanal,
+      message: esSoloSemanal
+        ? 'Ganancia semanal actualizada a ' + semanal.toFixed(2) + ' €.'
+        : 'Ganancia semanal de +' + semanal.toFixed(2) + ' € sumada al Bote General (' + nuevaBolsa.toFixed(2) + ' €).'
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: 'Error al guardar ganancia semanal: ' + err.message
     };
   }
 }
