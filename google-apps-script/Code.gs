@@ -971,64 +971,63 @@ function extraerCombinacionDeTexto(texto) {
  */
 function consultarJuegosONCEEnVivo(fechaReferencia) {
   var fecha = fechaReferencia || new Date();
-  var diaSemana = fecha.getDay(); // 0 Dom, 1..4 Diario, 5 Viernes Cuponazo, 6 Sáb Sueldazo
+  var diaSemana = fecha.getDay(); // 0 Dom, 1..4 Diario, 5 Viernes Cuponazo, 6 Sáb
   var fechaLargaRegex = construirRegexFechaLarga(fecha);
   var fechaDDMMRegex = construirRegexFechaDDMMYYYY(fecha);
-  var resultado = { cupon: null, eurojackpot: null, superOnce: null };
+  var resultado = { cupon: null, eurojackpot: null };
 
-  // 1. Cupón (Diario L-J, Cuponazo V, Sueldazo S-D)
-  var tituloCupon = diaSemana === 5
-    ? 'CUPONAZO ONCE'
-    : (diaSemana === 0 || diaSemana === 6 ? 'SUELDAZO FIN DE SEMANA ONCE' : 'CUPÓN DIARIO ONCE');
-  var urlCupon = diaSemana === 5
-    ? 'https://www.juegosonce.es/resultados-cuponazo'
-    : (diaSemana === 0 || diaSemana === 6
-      ? 'https://www.juegosonce.es/resultados-sueldazo-fin-de-semana'
-      : 'https://www.juegosonce.es/resultados-cupon-diario');
+  // Solo Cupón Diario (Lunes a Jueves: 1..4) y Cuponazo (Viernes: 5)
+  if (diaSemana >= 1 && diaSemana <= 5) {
+    var esViernes = (diaSemana === 5);
+    var tituloCupon = esViernes ? 'CUPONAZO ONCE' : 'CUPÓN DIARIO ONCE';
+    var urlCupon = esViernes
+      ? 'https://www.juegosonce.es/resultados-cuponazo'
+      : 'https://www.juegosonce.es/resultados-cupon-diario';
 
-  try {
-    var resCupon = obtenerTextoUrlSeguro(urlCupon);
-    if (resCupon.code === 200 && resCupon.body) {
-      var textoCupon = limpiarHtmlATexto(resCupon.body);
-      var reCuponOnce = new RegExp(
-        'celebrado\\s+el\\s+[^,]+,\\s*' + fechaLargaRegex +
-        '[\\s\\S]{0,260}?N[úu]mero[:\\s]+(\\d{5}),?\\s*serie[:\\s]+(\\d{1,3})',
-        'i'
-      );
-      var mNum = textoCupon.match(reCuponOnce);
-      if (mNum) {
-        resultado.cupon = {
-          titulo: tituloCupon,
-          numero: mNum[1],
-          serie: mNum[2].length < 3 ? ('000' + mNum[2]).slice(-3) : mNum[2]
-        };
-      }
-    }
-  } catch (eC) {}
-
-  // Respaldo Cupón ONCE desde El País (/sorteos/once/)
-  if (!resultado.cupon) {
     try {
-      var resOnceEp = obtenerTextoUrlSeguro('https://servicios.elpais.com/sorteos/once/');
-      if (resOnceEp.code === 200 && resOnceEp.body) {
-        var txtEp = limpiarHtmlATexto(resOnceEp.body);
-        var reEpOnce = new RegExp(
-          '(Cup[óo]n\\s+Diario|El\\s+Cuponazo|Sueldazo\\s+Fin\\s+de\\s+semana)\\s+[^\\d]{0,20}' + fechaDDMMRegex +
-          '\\s+N[úu]mero\\s+([\\d\\s]{5,12})\\s+Serie\\s+(\\d{1,3})',
+      var resCupon = obtenerTextoUrlSeguro(urlCupon);
+      if (resCupon.code === 200 && resCupon.body) {
+        var textoCupon = limpiarHtmlATexto(resCupon.body);
+        var reCuponOnce = new RegExp(
+          'celebrado\\s+el\\s+[^,]+,\\s*' + fechaLargaRegex +
+          '[\\s\\S]{0,260}?N[úu]mero[:\\s]+(\\d{5}),?\\s*serie[:\\s]+(\\d{1,3})',
           'i'
         );
-        var mEp = txtEp.match(reEpOnce);
-        if (mEp) {
-          var numLimpio = mEp[2].replace(/\s+/g, '');
-          var serLimpia = mEp[3].trim();
+        var mNum = textoCupon.match(reCuponOnce);
+        if (mNum) {
           resultado.cupon = {
             titulo: tituloCupon,
-            numero: numLimpio,
-            serie: serLimpia.length < 3 ? ('000' + serLimpia).slice(-3) : serLimpia
+            numero: mNum[1],
+            serie: mNum[2].length < 3 ? ('000' + mNum[2]).slice(-3) : mNum[2]
           };
         }
       }
-    } catch (eEp) {}
+    } catch (eC) {}
+
+    // Respaldo Cupón ONCE desde El País (/sorteos/once/)
+    if (!resultado.cupon) {
+      try {
+        var resOnceEp = obtenerTextoUrlSeguro('https://servicios.elpais.com/sorteos/once/');
+        if (resOnceEp.code === 200 && resOnceEp.body) {
+          var txtEp = limpiarHtmlATexto(resOnceEp.body);
+          var reEpOnce = new RegExp(
+            '(Cup[óo]n\\s+Diario|El\\s+Cuponazo)\\s+[^\\d]{0,20}' + fechaDDMMRegex +
+            '\\s+N[úu]mero\\s+([\\d\\s]{5,12})\\s+Serie\\s+(\\d{1,3})',
+            'i'
+          );
+          var mEp = txtEp.match(reEpOnce);
+          if (mEp) {
+            var numLimpio = mEp[2].replace(/\s+/g, '');
+            var serLimpia = mEp[3].trim();
+            resultado.cupon = {
+              titulo: tituloCupon,
+              numero: numLimpio,
+              serie: serLimpia.length < 3 ? ('000' + serLimpia).slice(-3) : serLimpia
+            };
+          }
+        }
+      } catch (eEp) {}
+    }
   }
 
   // 2. Eurojackpot (Martes 2 y Viernes 5)
@@ -1722,14 +1721,6 @@ function obtenerBoletinDiarioLive(fechaReferencia, datosPrimitivaConsenso, resum
       '🇪🇺 *EUROJACKPOT*\n' +
       '🎱 ' + once.eurojackpot.combinacion.map(pad2Num).join(' · ') + '\n' +
       '☀️ Soles: ' + once.eurojackpot.soles.map(pad2Num).join(' · ')
-    );
-    gamesCount++;
-  }
-  if (once.superOnce) {
-    bloquesONCE.push(
-      '🟠 *SUPER ONCE*\n' +
-      '🎱 ' + once.superOnce.slice(0, 10).map(pad2Num).join(' · ') + '\n' +
-      '🎱 ' + once.superOnce.slice(10, 20).map(pad2Num).join(' · ')
     );
     gamesCount++;
   }
