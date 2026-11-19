@@ -489,6 +489,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   });
 
   // Formulario multi-boleto y programación para el día del sorteo
+  const [selectedLotteryGame, setSelectedLotteryGame] = useState<'La Primitiva' | 'Euromillones'>('La Primitiva');
   const [newTicketJornada, setNewTicketJornada] = useState(settings.currentJornada);
   const [newTicketDrawDate, setNewTicketDrawDate] = useState(() => getNextPrimitivaDrawDate());
   const [newTicketPublishMode, setNewTicketPublishMode] = useState<'PROGRAMADO' | 'AHORA'>('PROGRAMADO');
@@ -818,8 +819,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const preset =
         MODALITY_PRESETS.find(p => p.key === draft.modalityKey) ||
         inferModalityPresetFromCount(nums.length);
-      const modalityLabel =
-        draft.modalityLabel?.trim() || preset.label;
+      const rawModality = draft.modalityLabel?.trim() || preset.label;
+      const modalityLabel = `${selectedLotteryGame} — ${rawModality}`;
       const betsCount =
         draft.betsCount > 0 ? draft.betsCount : preset.betsCount;
 
@@ -2619,7 +2620,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           {/* Datos comunes de la Jornada y Programación */}
           <div className="rounded-2xl border border-slate-200 bg-[#F4F6F9] p-4 sm:p-5 space-y-4 text-base">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="font-bold text-[#0A2540] block mb-1.5">Juego de Lotería:</label>
+                <select
+                  value={selectedLotteryGame}
+                  onChange={e => {
+                    const game = e.target.value as 'La Primitiva' | 'Euromillones';
+                    setSelectedLotteryGame(game);
+                    if (game === 'Euromillones') {
+                      setNewTicketPublishTime('20:30');
+                    } else {
+                      setNewTicketPublishTime('20:35');
+                    }
+                  }}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 min-h-[46px] font-bold text-[#0A2540]"
+                >
+                  <option value="La Primitiva">La Primitiva (L/J/S · Cierre 21:15 h)</option>
+                  <option value="Euromillones">Euromillones (M/V · Cierre 20:30 h)</option>
+                </select>
+              </div>
               <div>
                 <label className="font-bold text-[#0A2540] block mb-1.5">Jornada del Ciclo:</label>
                 <input
