@@ -30,19 +30,22 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
 
   const isTitular = accessLevel === 'TITULAR';
 
-  // Conservar todas las combinaciones de las últimas 4 jornadas ya jugadas/pasadas (sin imágenes)
+  // Conservar todas las combinaciones de las últimas 4 jornadas ya jugadas/pasadas (sin imágenes, excluyendo la jornada activa más reciente)
   const playedTickets = (() => {
     if (!isTitular) return [];
-    const sorted = sortTicketsNewestFirst(tickets.filter(t => t.isScrutinized));
+    const sorted = sortTicketsNewestFirst(tickets);
+    if (sorted.length === 0) return [];
+    const activeKey = getTicketJornadaKey(sorted[0]);
+    const playedRaw = sorted.filter(t => getTicketJornadaKey(t) !== activeKey);
     const keptKeys = new Set<string>();
     const result: TicketDraw[] = [];
-    for (const t of sorted) {
+    for (const t of playedRaw) {
       const k = getTicketJornadaKey(t);
       if (!keptKeys.has(k)) {
         if (keptKeys.size >= MAX_STORED_TICKETS) continue;
         keptKeys.add(k);
       }
-      result.push({ ...t, receiptImageUrl: '' });
+      result.push({ ...t, receiptImageUrl: '', isScrutinized: true });
     }
     return result;
   })();

@@ -13,7 +13,7 @@ const STORAGE_KEYS = {
   CLEAN_VERSION: 'primitiva_tordueles_clean_v3',
 };
 
-export const MAX_STORED_TICKETS = 4;
+export const MAX_STORED_TICKETS = 1;
 
 export function sortTicketsNewestFirst(tickets: TicketDraw[]): TicketDraw[] {
   return [...tickets].sort((a, b) => {
@@ -51,36 +51,31 @@ export function getTicketJornadaKey(t: Pick<TicketDraw, 'cycleNumber' | 'jornada
 
 export function capTicketsKeepingPlayed(tickets: TicketDraw[]): TicketDraw[] {
   const sorted = sortTicketsNewestFirst(tickets);
-  const rawPending = sorted.filter(t => !t.isScrutinized);
-  const rawPlayed = sorted.filter(t => t.isScrutinized);
+  if (sorted.length === 0) return [];
 
-  // Se conservan TODOS los resguardos activos/programados de la jornada pendiente más reciente
-  const activeKey = rawPending.length > 0 ? getTicketJornadaKey(rawPending[0]) : null;
+  // La jornada activa es estrictamente la más reciente (primer elemento tras ordenar newest first)
+  const activeKey = getTicketJornadaKey(sorted[0]);
   const activePending: TicketDraw[] = [];
-  const retiredPending: TicketDraw[] = [];
+  const playedList: TicketDraw[] = [];
 
-  for (const t of rawPending) {
-    if (activeKey && getTicketJornadaKey(t) === activeKey) {
+  for (const t of sorted) {
+    const k = getTicketJornadaKey(t);
+    if (k === activeKey) {
       activePending.push({
         ...t,
         receiptImageUrl: normalizeReceiptImageUrl(t.receiptImageUrl),
       });
     } else {
-      retiredPending.push(toNumericOnlyPlayedTicket(t));
+      playedList.push(toNumericOnlyPlayedTicket(t));
     }
   }
 
-  const combinedPlayed = sortTicketsNewestFirst([
-    ...retiredPending,
-    ...rawPlayed.map(toNumericOnlyPlayedTicket),
-  ]);
-
-  // Conservar todas las combinaciones de las últimas 4 jornadas (MAX_STORED_TICKETS = 4 jornadas)
+  // Conservar las combinaciones de las últimas 4 jornadas ANTERIORES (MAX_STORED_TICKETS = 4 jornadas)
   const seenIds = new Set<string>();
   const keptJornadaKeys = new Set<string>();
   const dedupedPlayed: TicketDraw[] = [];
 
-  for (const t of combinedPlayed) {
+  for (const t of sortTicketsNewestFirst(playedList)) {
     if (seenIds.has(t.id)) continue;
     const jKey = getTicketJornadaKey(t);
     if (!keptJornadaKeys.has(jKey)) {

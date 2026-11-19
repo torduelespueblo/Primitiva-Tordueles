@@ -1325,23 +1325,7 @@ function obtenerUltimosBoletosJugadosPublico(ss) {
     var rows = sheetSorteos.getRange(2, 1, lastRow - 1, numCols).getValues();
     var zona = 'Europe/Madrid';
 
-    // Detectar qué jornada/fecha corresponde al bloque activo/programado actual (para excluir todos sus boletos de "Últimos Jugados")
-    var claveActivaActual = null;
-    for (var k = rows.length - 1; k >= 0; k--) {
-      var rk = rows[k];
-      var combJk = String(rk[5] || '').trim();
-      var combGk = String(rk[6] || '').trim();
-      var estK = String(rk[10] || 'PUBLICADO').trim().toUpperCase();
-      if (combJk && !combGk && estK !== 'HISTORIAL') {
-        var fK = rk[1] instanceof Date
-          ? Utilities.formatDate(rk[1], zona, 'yyyy-MM-dd')
-          : String(rk[1] || '').trim();
-        claveActivaActual = (parseInt(rk[13], 10) || 1) + '-' + (parseInt(rk[0], 10) || 1) + '-' + fK;
-        break;
-      }
-    }
-
-    var jugados = [];
+    var allParsedRows = [];
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       var combJugada = String(r[5] || '').trim();
@@ -1354,11 +1338,6 @@ function obtenerUltimosBoletosJugadosPublico(ss) {
       var cicloNum = parseInt(r[13], 10) || 1;
       var claveFila = cicloNum + '-' + jornadaNum + '-' + fechaStr;
       var combGanadora = String(r[6] || '').trim();
-      var estFila = String(r[10] || 'PUBLICADO').trim().toUpperCase();
-
-      if (claveActivaActual && claveFila === claveActivaActual && !combGanadora && estFila !== 'HISTORIAL') {
-        continue;
-      }
 
       var aciertosVal = (r[7] !== '' && r[7] !== null && r[7] !== undefined && !isNaN(parseInt(r[7], 10)))
         ? parseInt(r[7], 10)
@@ -1366,7 +1345,7 @@ function obtenerUltimosBoletosJugadosPublico(ss) {
       var premioVal = parseFloat(r[8]) || 0;
       var idStored = String(r[16] || '').trim();
 
-      jugados.push({
+      allParsedRows.push({
         id: idStored || ('gas-hist-' + fechaStr + '-j' + jornadaNum + '-c' + cicloNum + '-r' + i),
         jornada: jornadaNum,
         ciclo: cicloNum,
@@ -1385,7 +1364,7 @@ function obtenerUltimosBoletosJugadosPublico(ss) {
       });
     }
 
-    jugados.sort(function (a, b) {
+    allParsedRows.sort(function (a, b) {
       var ta = a.fecha ? new Date(a.fecha).getTime() : 0;
       var tb = b.fecha ? new Date(b.fecha).getTime() : 0;
       if (isNaN(ta)) ta = 0;
@@ -1396,12 +1375,21 @@ function obtenerUltimosBoletosJugadosPublico(ss) {
       return b._rowOrder - a._rowOrder;
     });
 
+    if (allParsedRows.length === 0) return [];
+
+    // La jornada activa actual es estrictamente la más reciente (primer elemento tras ordenar newest first)
+    var claveActivaActual = allParsedRows[0]._claveJornada;
+
     var jornadasUnicas = [];
     var resultado = [];
-    for (var idx = 0; idx < jugados.length; idx++) {
-      var it = jugados[idx];
+    for (var idx = 0; idx < allParsedRows.length; idx++) {
+      var it = allParsedRows[idx];
+      // Excluir estrictamente la jornada activa/en curso actual
+      if (it._claveJornada === claveActivaActual) {
+        continue;
+      }
       if (jornadasUnicas.indexOf(it._claveJornada) === -1) {
-        if (jornadasUnicas.length >= 4) break;
+        if (jornadasUnicas.length >= 1) break;
         jornadasUnicas.push(it._claveJornada);
       }
       delete it._rowOrder;
