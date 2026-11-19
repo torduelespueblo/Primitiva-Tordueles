@@ -2631,7 +2631,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     if (game === 'Euromillones') {
                       setNewTicketPublishTime('20:30');
                     } else {
-                      setNewTicketPublishTime('20:35');
+                      setNewTicketPublishTime('21:15');
                     }
                   }}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3.5 min-h-[46px] font-bold text-[#0A2540]"
