@@ -16,11 +16,15 @@ import {
   CreditCard,
   Smartphone,
   Building2,
-  Loader2
+  Loader2,
+  Sun,
+  Moon,
+  Sparkles
 } from 'lucide-react';
 import { SyndicateSettings } from '../types/lottery';
 import { pushNotificationService } from '../services/pushNotifications';
 import { notifyMemberPaymentToSheet } from '../services/registrationService';
+import { ThemeMode } from '../services/themeService';
 
 interface NavbarProps {
   currentTab: string;
@@ -34,6 +38,8 @@ interface NavbarProps {
   memberPaymentStatus?: string;
   memberPaymentNotifiedAt?: string;
   onMemberPaymentNotified?: (newStatus: string, notifiedAt: string) => void;
+  themeMode?: ThemeMode;
+  onToggleTheme?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -48,6 +54,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   memberPaymentStatus = '',
   memberPaymentNotifiedAt = '',
   onMemberPaymentNotified,
+  themeMode = 'auto',
+  onToggleTheme,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [pushState, setPushState] = useState<NotificationPermission>(
@@ -363,6 +371,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Bell className="w-5 h-5" />
               </button>
+
+              {/* Theme Mode Toggle (Auto / Light / Dark) */}
+              {onToggleTheme && (
+                <button
+                  type="button"
+                  onClick={onToggleTheme}
+                  className="min-w-[44px] min-h-[44px] rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition flex items-center justify-center cursor-pointer"
+                  title={`Tema actual: ${themeMode === 'auto' ? 'Automático (Día/Noche)' : themeMode === 'light' ? 'Modo Día' : 'Modo Noche'}. Haz clic para cambiar.`}
+                  aria-label="Cambiar tema día/noche"
+                >
+                  {themeMode === 'dark' ? (
+                    <Moon className="w-5 h-5 text-[#FF6B00]" />
+                  ) : themeMode === 'light' ? (
+                    <Sun className="w-5 h-5 text-amber-500" />
+                  ) : (
+                    <Sparkles className="w-5 h-5 text-[#0A2540]" />
+                  )}
+                </button>
+              )}
 
               {/* PWA Install Button */}
               <PWAInstallButton />
