@@ -81,8 +81,8 @@ export const Footer: React.FC<FooterProps> = ({
           <p>
             WebApp PWA oficial desarrollada para la Peña de Lotería de Tordueles.
           </p>
-          <p>
-            Imparcialidad garantizada por terminal SELAE &amp; Google Workspace
+          <p className="text-slate-500 font-mono tracking-wider text-xs sm:text-sm">
+            kikesti &copy; 2026
           </p>
         </div>
       </div>
