@@ -18,7 +18,6 @@ import {
 } from './services/storage';
 import { MultipleBetType } from './types/lottery';
 import { Navbar } from './components/Navbar';
-import { ThemeMode, getStoredTheme, setStoredTheme, applyTheme } from './services/themeService';
 import { UserDashboard } from './components/UserDashboard';
 import { TicketsHistory } from './components/TicketsHistory';
 import { MembersAndWaitlist } from './components/MembersAndWaitlist';
@@ -52,18 +51,6 @@ function hasRegistrationUrlFlag(): boolean {
 }
 
 export default function App() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
-
-  useEffect(() => {
-    applyTheme(themeMode);
-  }, [themeMode]);
-
-  const handleToggleTheme = () => {
-    const next: ThemeMode = themeMode === 'auto' ? 'light' : themeMode === 'light' ? 'dark' : 'auto';
-    setStoredTheme(next);
-    setThemeMode(next);
-  };
-
   const [settings, setSettings] = useState<SyndicateSettings>(() => storageService.getSettings());
   const [players, setPlayers] = useState<Player[]>(() => storageService.getPlayers());
   const [waitingList, setWaitingList] = useState<WaitingListEntry[]>(() => storageService.getWaitingList());
@@ -892,8 +879,6 @@ export default function App() {
             // ignore
           }
         }}
-        themeMode={themeMode}
-        onToggleTheme={handleToggleTheme}
       />
 
       {/* Main Content Area */}
