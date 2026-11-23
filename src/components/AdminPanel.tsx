@@ -491,6 +491,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Formulario multi-boleto y programación para el día del sorteo
   const [selectedLotteryGame, setSelectedLotteryGame] = useState<'La Primitiva' | 'Euromillones'>('La Primitiva');
   const [newTicketJornada, setNewTicketJornada] = useState(settings.currentJornada);
+
+  useEffect(() => {
+    setNewTicketJornada(settings.currentJornada);
+  }, [settings.currentJornada]);
+
   const [newTicketDrawDate, setNewTicketDrawDate] = useState(() => getNextPrimitivaDrawDate());
   const [newTicketPublishMode, setNewTicketPublishMode] = useState<'PROGRAMADO' | 'AHORA'>('PROGRAMADO');
   const [newTicketPublishTime, setNewTicketPublishTime] = useState('20:35');
@@ -1021,6 +1026,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           : `${totalBoletos} ${totalBoletos === 1 ? 'resguardo programado' : 'resguardos programados'} localmente para el ${label} (${syncedCount}/${totalBoletos} en Apps Script).`
       );
     }
+
+    // Avance automático de jornada y ciclo
+    const maxJor = settings.cycleLength || 10;
+    let nextJor = newTicketJornada + 1;
+    let nextCyc = settings.currentCycle;
+    if (nextJor > maxJor) {
+      nextCyc += 1;
+      nextJor = 1;
+    }
+    onUpdateSettings({
+      ...settings,
+      currentCycle: nextCyc,
+      currentJornada: nextJor,
+    });
 
     setTimeout(() => setTicketSaveSuccess(false), 4000);
   };
@@ -2076,6 +2095,90 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {resetFundFeedback}
                 </span>
               )}
+            </div>
+          </div>
+
+          {/* Gestión de Ciclos y Jornadas */}
+          <div className="rounded-3xl bg-white border-2 border-[#0A2540]/15 p-5 sm:p-7 shadow-xs space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <h2 className="font-extrabold text-xl text-[#0A2540] flex items-center gap-2.5">
+                  <CalendarClock className="w-6 h-6 text-[#FF6B00]" />
+                  Gestión de Ciclos y Jornadas
+                </h2>
+                <p className="text-base text-slate-600 mt-1">
+                  Configura la duración de cada ciclo (por defecto 10 jornadas), el ciclo actual y la jornada activa, o resetea los contadores para pruebas.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 shrink-0 tabular-nums">
+                <div className="rounded-2xl bg-[#0A2540] text-white px-4 py-2.5">
+                  <span className="text-xs uppercase font-bold text-slate-300 block">Estado Actual</span>
+                  <span className="text-xl font-black text-[#FF6B00]">
+                    Ciclo {settings.currentCycle} · J{settings.currentJornada}/{settings.cycleLength || 10}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="font-bold text-[#0A2540] block mb-1.5">Jornadas por Ciclo:</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={52}
+                  value={settings.cycleLength || 10}
+                  onChange={e => {
+                    const len = parseInt(e.target.value, 10) || 10;
+                    onUpdateSettings({ ...settings, cycleLength: len });
+                  }}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-[#0A2540] block mb-1.5">Ciclo Actual:</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={settings.currentCycle}
+                  onChange={e => {
+                    const cyc = parseInt(e.target.value, 10) || 1;
+                    onUpdateSettings({ ...settings, currentCycle: cyc });
+                  }}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-[#0A2540] block mb-1.5">Jornada Actual:</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={settings.cycleLength || 10}
+                  value={settings.currentJornada}
+                  onChange={e => {
+                    const jor = parseInt(e.target.value, 10) || 1;
+                    onUpdateSettings({ ...settings, currentJornada: jor });
+                  }}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 min-h-[46px] font-mono font-bold text-[#0A2540]"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateSettings({
+                    ...settings,
+                    currentCycle: 1,
+                    currentJornada: 1,
+                  });
+                }}
+                className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 font-bold text-sm cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Resetear Ciclo y Jornada a (1 / 1)</span>
+              </button>
             </div>
           </div>
 
