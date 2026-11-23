@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
+import { getOfficialRulesSections, OFFICIAL_RULES_TITLE } from '../data/officialRules';
 import { OFFICIAL_CREST_LOGO_DATA_URI } from './pdfLogoData';
 
 export interface PdfDownloadResult {
@@ -65,11 +65,31 @@ function getBestSyncLogoDataUri(): string {
   return OFFICIAL_CREST_LOGO_DATA_URI;
 }
 
+function drawWatermark(doc: jsPDF, pageWidth: number, pageHeight: number) {
+  try {
+    const logoUri = getBestSyncLogoDataUri();
+    const gStateClass = (doc as any).GState;
+    if (gStateClass) {
+      (doc as any).setGState(new gStateClass({ opacity: 0.06 }));
+    }
+    const imgSize = 105; // 105 mm en el centro de cada hoja
+    const imgX = (pageWidth - imgSize) / 2;
+    const imgY = (pageHeight - imgSize) / 2;
+    doc.addImage(logoUri, 'PNG', imgX, imgY, imgSize, imgSize);
+    if (gStateClass) {
+      (doc as any).setGState(new gStateClass({ opacity: 1.0 }));
+    }
+  } catch {
+    // Continuar sin marca de agua si falla
+  }
+}
+
 /**
  * Genera físicamente el documento PDF A4 multipágina con el Reglamento Oficial íntegro
- * y dispara la descarga directa al almacenamiento del dispositivo (sin abrir menús de impresión).
+ * (con ciclo dinámico y marca de agua corporativa en el centro de cada folio)
+ * y dispara la descarga directa al almacenamiento del dispositivo.
  */
-export function downloadOfficialRulesPdf(): PdfDownloadResult {
+export function downloadOfficialRulesPdf(cycleLength: number = 10): PdfDownloadResult {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -84,6 +104,9 @@ export function downloadOfficialRulesPdf(): PdfDownloadResult {
   const bottomLimit = pageHeight - 18;
 
   let y = 0;
+
+  // Dibujar marca de agua en la página 1
+  drawWatermark(doc, pageWidth, pageHeight);
 
   // Cabecera corporativa en la página 1 con logotipo oficial destacado
   doc.setFillColor(10, 37, 64); // #0A2540
@@ -121,12 +144,15 @@ export function downloadOfficialRulesPdf(): PdfDownloadResult {
   const ensureSpace = (neededMm: number) => {
     if (y + neededMm > bottomLimit) {
       doc.addPage();
+      drawWatermark(doc, pageWidth, pageHeight);
       y = 19;
     }
   };
 
-  for (let sIdx = 0; sIdx < OFFICIAL_RULES_SECTIONS.length; sIdx++) {
-    const section = OFFICIAL_RULES_SECTIONS[sIdx];
+  const rulesSections = getOfficialRulesSections(cycleLength);
+
+  for (let sIdx = 0; sIdx < rulesSections.length; sIdx++) {
+    const section = rulesSections[sIdx];
 
     // Separación visual y salto de página inteligente para evitar títulos huérfanos
     if (sIdx > 0) {

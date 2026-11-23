@@ -1536,7 +1536,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   Avisos de Pago Pendientes de Verificar ({pendingPaymentNotices.length})
                 </h2>
                 <p className="text-sm text-amber-950/90">
-                  Socios que han pulsado «Ya he realizado el pago (10 €)» mediante Bizum o Transferencia.
+                  Socios que han pulsado «Ya he realizado el pago ({settings.cycleLength || 10} €)» mediante Bizum o Transferencia.
                 </p>
               </div>
             </div>

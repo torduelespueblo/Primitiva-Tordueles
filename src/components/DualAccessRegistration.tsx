@@ -11,7 +11,7 @@ import {
   Check
 } from 'lucide-react';
 import { Player } from '../types/lottery';
-import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
+import { OFFICIAL_RULES_TITLE, getOfficialRulesSections } from '../data/officialRules';
 import {
   submitRegistrationToSheet,
   validateMemberAccess,
@@ -19,6 +19,7 @@ import {
   PublicListRow
 } from '../services/registrationService';
 import { downloadOfficialRulesPdf } from '../services/pdfService';
+import { storageService } from '../services/storage';
 
 interface DualAccessRegistrationProps {
   initialMode?: 'ACCESS' | 'REGISTER';
@@ -185,7 +186,8 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
   };
 
   const handleDownloadPdf = () => {
-    const res = downloadOfficialRulesPdf();
+    const cycleLen = storageService.getSettings().cycleLength || 10;
+    const res = downloadOfficialRulesPdf(cycleLen);
     setPdfDownloadMsg(`¡Descargado! (${res.pages} páginas · ${res.filename})`);
     setTimeout(() => setPdfDownloadMsg(null), 4000);
   };
@@ -398,7 +400,7 @@ export const DualAccessRegistration: React.FC<DualAccessRegistrationProps> = ({
                     {OFFICIAL_RULES_TITLE}
                   </h3>
 
-                  {OFFICIAL_RULES_SECTIONS.map(section => (
+                  {getOfficialRulesSections(storageService.getSettings().cycleLength || 10).map(section => (
                     <div key={section.articleNumber} className="space-y-2.5">
                       <h4 className="font-black text-[#0A2540] text-base sm:text-lg">
                         {section.articleNumber}. {section.title}

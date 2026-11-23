@@ -60,7 +60,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isSubmittingPay, setIsSubmittingPay] = useState(false);
   const [payModalError, setPayModalError] = useState<string | null>(null);
 
-  const isRenewalPeriod = settings.currentJornada >= 7 && settings.currentJornada <= 9;
+  const cycleLen = settings.cycleLength || 10;
+  const renewalStart = Math.max(1, cycleLen - 3);
+  const renewalEnd = Math.max(renewalStart, cycleLen - 1);
+  const isRenewalPeriod = settings.currentJornada >= renewalStart && settings.currentJornada <= renewalEnd;
   const isAuthenticatedMember = Boolean(
     memberIdentifier && (memberRole === 'TITULAR' || memberRole === 'SUPLENTE')
   );
@@ -143,12 +146,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="leading-snug">
                     {isRenewalPeriod ? (
                       <>
-                        <strong>Renovación Activa (Jornada {settings.currentJornada}/10):</strong>{' '}
-                        Recuerda abonar los 10 € antes de finalizar la jornada 9.
+                        <strong>Renovación Activa (Jornada {settings.currentJornada}/{cycleLen}):</strong>{' '}
+                        Recuerda abonar los {cycleLen} € antes de finalizar la jornada {renewalEnd}.
                       </>
                     ) : (
                       <>
-                        <strong>Cuota de Participación Pendiente (10 €):</strong>{' '}
+                        <strong>Cuota de Participación Pendiente ({cycleLen} €):</strong>{' '}
                         Avisa aquí al Administrador una vez realizado el ingreso.
                       </>
                     )}
@@ -178,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="inline-flex items-center justify-center gap-2 px-4 min-h-[40px] rounded-xl bg-white hover:bg-orange-50 text-[#0A2540] text-xs sm:text-sm font-extrabold shadow-sm border border-white/80 transition cursor-pointer"
                       >
                         <CreditCard className="w-4 h-4 text-[#FF6B00] shrink-0" />
-                        <span>Ya he realizado el pago (10 €)</span>
+                        <span>Ya he realizado el pago ({cycleLen} €)</span>
                       </button>
                     )}
                   </div>
@@ -199,7 +202,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="bg-[#0A2540] px-5 py-4 text-white flex items-center justify-between gap-3">
                 <div>
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#FF6B00] block">
-                    Renovación / Cuota · 10,00 €
+                    Renovación / Cuota · {cycleLen.toFixed(2)} €
                   </span>
                   <h2 id="pay-notify-modal-title" className="text-lg font-black font-serif">
                     Notificar Pago Realizado
@@ -315,7 +318,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Primitiva<span className="sm:hidden"> </span>Tordueles
                 </span>
                 <p className="text-xs sm:text-base font-bold text-[#FF6B00] tabular-nums leading-tight mt-0.5 whitespace-nowrap">
-                  Ciclo {settings.currentCycle} · J{settings.currentJornada}/10
+                  Ciclo {settings.currentCycle} · J{settings.currentJornada}/{cycleLen}
                 </p>
               </div>
             </button>
@@ -410,7 +413,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="py-2.5 px-3.5 mb-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-base">
               <span className="text-slate-600 font-medium">Estado Peña:</span>
               <span className="font-extrabold text-[#0A2540] tabular-nums">
-                Ciclo {settings.currentCycle} · J{settings.currentJornada}/10
+                Ciclo {settings.currentCycle} · J{settings.currentJornada}/{cycleLen}
               </span>
             </div>
             {navItems.map(item => {

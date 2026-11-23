@@ -129,11 +129,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         typeof t.hitsCount === 'number')
   );
 
-  const isRenewalWindow = settings.currentJornada >= 7 && settings.currentJornada <= 9;
-  const isFinalDeadline = settings.currentJornada === 9;
+  const cycleLen = settings.cycleLength || 10;
+  const renewalStart = Math.max(1, cycleLen - 3);
+  const renewalEnd = Math.max(renewalStart, cycleLen - 1);
+  const closingJor = cycleLen;
+
+  const isRenewalWindow = settings.currentJornada >= renewalStart && settings.currentJornada <= renewalEnd;
+  const isFinalDeadline = settings.currentJornada === renewalEnd;
 
   const whatsappNotificationText = encodeURIComponent(
-    `COMUNICACIÓN DE PAGO - PEÑA PRIMITIVA TORDUELES\n\nHola Administrador, confirmo que he realizado el pago de la cuota de 10 € para la renovación del próximo Ciclo de 10 jornadas.\n\nFecha: ${new Date().toLocaleDateString('es-ES')}`
+    `COMUNICACIÓN DE PAGO - PEÑA PRIMITIVA TORDUELES\n\nHola Administrador, confirmo que he realizado el pago de la cuota de ${cycleLen} € para la renovación del próximo Ciclo de ${cycleLen} jornadas.\n\nFecha: ${new Date().toLocaleDateString('es-ES')}`
   );
   const whatsappUrl = `https://api.whatsapp.com/send?text=${whatsappNotificationText}`;
 
@@ -413,20 +418,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           >
             {isRenewalWindow
               ? isFinalDeadline
-                ? 'Último día de renovación (J9)'
-                : `Ventana de renovación (J${settings.currentJornada}/10)`
+                ? `Último día de renovación (J${renewalEnd})`
+                : `Ventana de renovación (J${settings.currentJornada}/${cycleLen})`
               : 'Ciclo en curso'}
           </span>
         </div>
 
-        {/* Progreso del Ciclo de 10 Jornadas */}
+        {/* Progreso del Ciclo */}
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-baseline justify-between gap-2 text-base">
             <span className="text-slate-700 font-semibold">
-              Progreso (1 €/semana · 10 € por ciclo)
+              Progreso (1 €/semana · {cycleLen} € por ciclo)
             </span>
             <span className="font-black text-[#0A2540] tabular-nums">
-              Jornada {settings.currentJornada} de {settings.cycleLength}
+              Jornada {settings.currentJornada} de {cycleLen}
             </span>
           </div>
 
@@ -435,16 +440,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               className={`h-4 rounded-full transition-all duration-500 ${
                 isRenewalWindow ? 'bg-[#FF6B00]' : 'bg-[#0A2540]'
               }`}
-              style={{ width: `${(settings.currentJornada / settings.cycleLength) * 100}%` }}
+              style={{ width: `${(settings.currentJornada / cycleLen) * 100}%` }}
             />
           </div>
 
           <div className="flex items-center justify-between text-sm text-slate-600 font-medium pt-0.5">
             <span>Inicio (J1)</span>
             <span className={isRenewalWindow ? 'font-extrabold text-[#FF6B00]' : ''}>
-              Renovación (J7 – J9)
+              Renovación (J{renewalStart} – J{renewalEnd})
             </span>
-            <span>Cierre (J10)</span>
+            <span>Cierre (J{closingJor})</span>
           </div>
         </div>
 
@@ -498,11 +503,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <p className="text-base text-slate-700 max-w-xl leading-relaxed">
             {isRenewalWindow ? (
               <span className="text-[#0A2540] font-semibold">
-                El pago del nuevo bloque debe realizarse entre las jornadas 7 y 9 para conservar tu plaza y antigüedad.
+                El pago del nuevo bloque debe realizarse entre las jornadas {renewalStart} y {renewalEnd} para conservar tu plaza y antigüedad.
               </span>
             ) : (
               <span>
-                Cada ciclo cubre 10 semanas indivisibles. La renovación se abona entre la jornada 7 y la 9.
+                Cada ciclo cubre {cycleLen} semanas indivisibles. La renovación se abona entre la jornada {renewalStart} y la {renewalEnd}.
               </span>
             )}
           </p>

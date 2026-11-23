@@ -10,16 +10,24 @@ import {
   Check
 } from 'lucide-react';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
-import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
+import { getOfficialRulesSections, OFFICIAL_RULES_TITLE } from '../data/officialRules';
 import { downloadOfficialRulesPdf } from '../services/pdfService';
+import { storageService } from '../services/storage';
+import { SyndicateSettings } from '../types/lottery';
 
 const SECTION_ICONS = [DollarSign, Shuffle, Clock, UserX, Trophy];
 
-export const OfficialRules: React.FC = () => {
+interface OfficialRulesProps {
+  settings?: SyndicateSettings;
+}
+
+export const OfficialRules: React.FC<OfficialRulesProps> = ({ settings }) => {
   const [downloaded, setDownloaded] = useState(false);
+  const cycleLen = settings?.cycleLength || storageService.getSettings().cycleLength || 10;
+  const sections = getOfficialRulesSections(cycleLen);
 
   const handleDownloadPdf = () => {
-    downloadOfficialRulesPdf();
+    downloadOfficialRulesPdf(cycleLen);
     setDownloaded(true);
     setTimeout(() => setDownloaded(false), 3500);
   };
@@ -43,7 +51,7 @@ export const OfficialRules: React.FC = () => {
               {OFFICIAL_RULES_TITLE}
             </h1>
             <p className="text-base text-slate-300 mt-1">
-              Peña de Lotería La Primitiva · Tordueles (Burgos)
+              Peña de Lotería La Primitiva · Tordueles (Burgos) · Ciclo actual: {cycleLen} jornadas
             </p>
           </div>
         </div>
@@ -60,9 +68,9 @@ export const OfficialRules: React.FC = () => {
 
       {/* Verbatim Complete Official Rules */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-8 text-slate-800 leading-relaxed text-base">
-        {OFFICIAL_RULES_SECTIONS.map((section, idx) => {
+        {sections.map((section, idx) => {
           const Icon = SECTION_ICONS[idx] || Trophy;
-          const isLast = idx === OFFICIAL_RULES_SECTIONS.length - 1;
+          const isLast = idx === sections.length - 1;
 
           return (
             <section

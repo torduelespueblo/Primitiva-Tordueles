@@ -12,8 +12,9 @@ import {
   ArrowRight,
   Sparkles
 } from 'lucide-react';
-import { OFFICIAL_RULES_SECTIONS, OFFICIAL_RULES_TITLE } from '../data/officialRules';
+import { getOfficialRulesSections, OFFICIAL_RULES_TITLE } from '../data/officialRules';
 import { downloadOfficialRulesPdf } from '../services/pdfService';
+import { storageService } from '../services/storage';
 
 interface ConformityModalProps {
   isOpen: boolean;
@@ -33,8 +34,14 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({
 
   if (!isOpen) return null;
 
+  const cycleLen = storageService.getSettings().cycleLength || 10;
+  const renewalStart = Math.max(1, cycleLen - 3);
+  const renewalEnd = Math.max(1, cycleLen - 1);
+  const totalCost = `${(cycleLen * 1.00).toFixed(2).replace('.', ',')} €`;
+  const sections = getOfficialRulesSections(cycleLen);
+
   const handleDownloadPdf = () => {
-    downloadOfficialRulesPdf();
+    downloadOfficialRulesPdf(cycleLen);
     setDownloadedPdf(true);
     setTimeout(() => setDownloadedPdf(false), 3500);
   };
@@ -79,7 +86,7 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({
               <li className="flex items-start gap-2.5">
                 <span className="font-black text-[#FF6B00] shrink-0">1.</span>
                 <span>
-                  <strong>Solo mayores de 18 años y cuota fija:</strong> participación estrictamente reservada a mayores de edad (prohibida a menores). Cuota de 1,00 €/semana en ciclos indivisibles de 10 jornadas (10,00 € por ciclo), renovando entre las jornadas 7 y 9.
+                  <strong>Solo mayores de 18 años y cuota fija:</strong> participación estrictamente reservada a mayores de edad (prohibida a menores). Cuota de 1,00 €/semana en ciclos indivisibles de {cycleLen} jornadas ({totalCost} por ciclo), renovando entre las jornadas {renewalStart} y {renewalEnd}.
                 </span>
               </li>
               <li className="flex items-start gap-2.5">
@@ -145,7 +152,7 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({
             {showFullRules && (
               <div className="px-4 sm:px-5 pb-5 pt-2 border-t border-slate-200 space-y-5 text-base sm:text-[17px] text-slate-700 bg-white leading-relaxed">
                 <p className="font-black text-[#0A2540] pt-1">{OFFICIAL_RULES_TITLE}</p>
-                {OFFICIAL_RULES_SECTIONS.map(section => (
+                {sections.map(section => (
                   <div
                     key={section.articleNumber}
                     className="space-y-2.5 border-b border-slate-200 last:border-b-0 pb-4 last:pb-0"
@@ -249,4 +256,3 @@ export const ConformityModal: React.FC<ConformityModalProps> = ({
     </div>
   );
 };
-
