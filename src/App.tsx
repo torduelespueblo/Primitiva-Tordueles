@@ -289,11 +289,49 @@ export default function App() {
       ? 'MULTIPLE_11'
       : 'COMBINADA';
 
-  const parseNumbersList = (raw: string | undefined): number[] =>
-    String(raw || '')
-      .split(/[,;\s-]+/)
-      .map(s => parseInt(s.trim(), 10))
-      .filter(n => !isNaN(n) && n >= 1 && n <= 49);
+  const parseNumbersList = (raw: string | undefined): number[] => {
+    const text = String(raw || '').trim();
+    if (!text) return [];
+
+    const lines = text.split(/\r?\n/);
+    const allNums: number[] = [];
+
+    for (const line of lines) {
+      let cleanedLine = line
+        .replace(/^\s*\d{1,2}[\.\-]/g, ' ')
+        .replace(/\b\d{1,3}[,\.]\d{2}\b/g, ' ')
+        .replace(/\b\d{3,}\b/g, ' ');
+
+      const tokens = cleanedLine.match(/\b\d{1,2}\b/g) || [];
+      const lineNums: number[] = [];
+
+      for (let i = 0; i < tokens.length; i++) {
+        const n = parseInt(tokens[i], 10);
+        if (!isNaN(n) && n >= 1 && n <= 49) {
+          if (i === 0 && tokens.length >= 6 && n >= 1 && n <= 15) {
+            continue;
+          }
+          lineNums.push(n);
+        }
+      }
+      allNums.push(...lineNums);
+    }
+
+    if (allNums.length === 0) {
+      const tokens = text.match(/\b\d{1,2}\b/g) || [];
+      const flatNums: number[] = [];
+      for (let i = 0; i < tokens.length; i++) {
+        const n = parseInt(tokens[i], 10);
+        if (!isNaN(n) && n >= 1 && n <= 49) {
+          if (i === 0 && tokens.length >= 7 && n <= 2) continue;
+          flatNums.push(n);
+        }
+      }
+      allNums.push(...flatNums);
+    }
+
+    return Array.from(new Set(allNums)).sort((a, b) => a - b);
+  };
 
   const applyServerTicketsState = (params: {
     boletoActivo?: MemberAccessResponse['boletoActivo'];
