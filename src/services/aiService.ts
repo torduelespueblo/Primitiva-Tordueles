@@ -3,7 +3,8 @@ import { createWorker, PSM } from 'tesseract.js';
 /**
  * Servicio híbrido de extracción OCR + IA para la Peña Primitiva Tordueles.
  * Combina preprocesamiento en Canvas (escala de grises, contraste +40% y binarizado),
- * Tesseract.js configurado con lista blanca numérica ('0123456789 ') y respaldo /api/extract-ticket.
+ * Tesseract.js configurado con lista blanca numérica ('0123456789 '), filtrado inteligente de índices de columnas
+ * y estimación de coste/tipo de apuesta a partir del precio.
  */
 
 export interface ExtractedTicketData {
@@ -176,7 +177,6 @@ export async function preprocessTicketImageForOCR(
         }
       }
 
-      // Sesgo ligero para proteger trazos finos de impresora térmica
       const finalThreshold = Math.min(220, Math.max(60, threshold - 6));
 
       for (let i = 0, p = 0; i < data.length; i += 4, p++) {
@@ -196,9 +196,52 @@ export async function preprocessTicketImageForOCR(
 }
 
 /**
- * Filtra el texto devuelto por Tesseract extrayendo exclusivamente números válidos
- * de La Primitiva (01 al 49), descartando fechas, importes o códigos de barras,
- * y devolviéndolos ordenados de menor a mayor sin duplicados.
+ * Extrae coste y tipo de apuesta según el precio (ej. 4,00 EUR, 7,00 EUR, 210,00 EUR) y cantidad de números.
+ */
+export function extractCostAndBetTypeFromOcrText(
+  rawText: string,
+  numbersCount: number
+): { cost?: number; betType?: string } {
+  const priceMatch = (rawText.match(/(\d{1,3})[,\.](\d{2})\s*(?:EUR|€)/i) ||
+    rawText.match(/(\d{1,3})[,\.](\d{2})/)) as RegExpMatchArray | null;
+  let cost: number | undefined;
+  if (priceMatch) {
+    const val = parseFloat(`${priceMatch[1]}.${priceMatch[2]}`);
+    if (!isNaN(val) && val > 0 && val < 1000) {
+      cost = val;
+    }
+  }
+
+  let betType =
+    numbersCount === 7
+      ? 'MULTIPLE_7'
+      : numbersCount === 8
+      ? 'MULTIPLE_8'
+      : numbersCount === 5
+      ? 'MULTIPLE_5'
+      : numbersCount === 9
+      ? 'MULTIPLE_9'
+      : numbersCount === 10
+      ? 'MULTIPLE_10'
+      : numbersCount === 11
+      ? 'MULTIPLE_11'
+      : numbersCount > 0
+      ? `MULTIPLE_${numbersCount}`
+      : 'SIMPLE';
+
+  if (cost === 7.0) betType = 'MULTIPLE_7';
+  else if (cost === 28.0) betType = 'MULTIPLE_8';
+  else if (cost === 44.0) betType = 'MULTIPLE_5';
+  else if (cost === 84.0) betType = 'MULTIPLE_9';
+  else if (cost === 210.0) betType = 'MULTIPLE_10';
+  else if (cost === 462.0) betType = 'MULTIPLE_11';
+
+  return { cost, betType };
+}
+
+/**
+ * Filtra el texto devuelto por Tesseract extrayendo números válidos de La Primitiva (01 al 49),
+ * descartando índices de columnas/filas (ej. "1.", "2."), años, importes o códigos de barras.
  */
 export function extractPrimitivaNumbersFromOcrText(rawText: string): number[] {
   const lines = String(rawText || '')
@@ -209,18 +252,27 @@ export function extractPrimitivaNumbersFromOcrText(rawText: string): number[] {
   const lineCandidates: number[][] = [];
 
   for (const rawLine of lines) {
-    // Descartar líneas que contienen años (2020-2039) o códigos de barras largos (>= 5 dígitos)
     if (/\b20[2-3]\d\b/.test(rawLine) || /\b\d{5,}\b/.test(rawLine)) {
       continue;
     }
 
-    // Eliminar importes decimales (ej. "44 00" o "14 00") y números de >=3 cifras (sorteo, año, serie)
     let cleaned = rawLine
       .replace(/\b\d{1,3}[,\.]\d{2}\b/g, ' ')
       .replace(/\b\d+\s+00\b/g, ' ')
       .replace(/\b\d{3,}\b/g, ' ');
 
-    const tokens = cleaned.match(/\b\d{1,2}\b/g) || [];
+    let tokens: string[] = cleaned.match(/\b\d{1,2}\b/g) || [];
+    if (tokens.length === 0) continue;
+
+    // Descartar índice de fila o columna (ej. "1.", "2.", o primer token 1..15 cuando hay varios números en la línea)
+    const firstTokenVal = tokens[0] ? parseInt(tokens[0], 10) : 0;
+    const startsWithIndex =
+      /^\s*\d{1,2}\s*[\.\-]?/.test(rawLine) ||
+      (tokens.length >= 5 && firstTokenVal >= 1 && firstTokenVal <= 15);
+    if (startsWithIndex && tokens.length >= 5 && firstTokenVal >= 1 && firstTokenVal <= 15) {
+      tokens = tokens.slice(1);
+    }
+
     const validOnLine: number[] = [];
     for (const tok of tokens) {
       const n = parseInt(tok, 10);
@@ -230,11 +282,10 @@ export function extractPrimitivaNumbersFromOcrText(rawText: string): number[] {
     }
 
     if (validOnLine.length > 0) {
-      lineCandidates.push(validOnLine);
+      lineCandidates.push(Array.from(new Set(validOnLine)));
     }
   }
 
-  // Priorizar bloques de líneas que contengan entre 5 y 11 números (típica línea múltiple SELAE)
   let bestWindow: number[] = [];
   for (let i = 0; i < lineCandidates.length; i++) {
     const single = Array.from(new Set(lineCandidates[i]));
@@ -253,7 +304,6 @@ export function extractPrimitivaNumbersFromOcrText(rawText: string): number[] {
     return bestWindow.sort((a, b) => a - b);
   }
 
-  // Respaldo: unir todos los números válidos 01–49 detectados en líneas limpias
   const allValid = new Set<number>();
   for (const group of lineCandidates) {
     for (const n of group) {
@@ -309,8 +359,8 @@ export async function fileToBase64(file: File | Blob): Promise<{ base64: string;
 /**
  * Procesa una imagen o PDF de un boleto:
  * - Si hay servidor /api/extract-ticket operativo, intenta extracción completa con IA.
- * - Si no está disponible (p.ej. GitHub Pages / estático) o devuelve vacío, aplica
- *   Canvas preprocesado (escala de grises + contraste +40% + binarización) + Tesseract.js.
+ * - Si no está disponible o devuelve vacío, aplica Canvas preprocesado + Tesseract.js
+ *   con filtrado inteligente de columnas e inferencia de coste/tipo de apuesta.
  */
 export async function processTicketWithAI(
   fileOrBase64: File | Blob | string,
@@ -363,11 +413,14 @@ export async function processTicketWithAI(
           ).sort((a, b) => a - b);
 
           if (cleanNums.length > 0) {
+            const meta = extractCostAndBetTypeFromOcrText('', cleanNums.length);
             return {
               success: true,
               data: {
                 ...(json.data as ExtractedTicketData),
                 numbers: cleanNums,
+                cost: json.data.cost || meta.cost,
+                betType: json.data.betType || meta.betType,
               },
             };
           }
@@ -385,17 +438,20 @@ export async function processTicketWithAI(
       };
     }
 
-    // 2. Motor OCR local con Canvas preprocesado + Tesseract.js
+    // 2. Motor OCR local con Canvas preprocesado + Tesseract.js + Filtrado inteligente
     const imageInput = typeof fileOrBase64 === 'string' ? fileOrBase64 : `data:${mimeType};base64,${base64}`;
     const ocrResult = await runPreprocessedTesseractOCR(imageInput);
 
     if (ocrResult.numbers.length > 0) {
+      const meta = extractCostAndBetTypeFromOcrText(ocrResult.rawText, ocrResult.numbers.length);
       return {
         success: true,
         data: {
           numbers: ocrResult.numbers,
+          cost: meta.cost,
+          betType: meta.betType,
           notes:
-            'Lectura OCR aplicada con preprocesado térmico (grises, +40% contraste y binarización). Verifica los chips o ajusta en la cuadrícula 1-49.',
+            'Lectura OCR aplicada con preprocesado térmico, filtrado de columnas (1., 2.) e inferencia de coste. Verifica los chips.',
         },
       };
     }

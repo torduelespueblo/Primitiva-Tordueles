@@ -385,17 +385,22 @@ export const TicketCard: React.FC<TicketCardProps> = ({
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 text-base text-[#0A2540] flex flex-wrap items-center justify-between gap-2">
-              <span className="flex items-center gap-2 font-bold">
-                <Sparkles className="w-5 h-5 text-[#FF6B00] shrink-0" />
-                Sorteo pendiente · Publicación 20:35 h
-              </span>
-              <span className="text-sm font-extrabold uppercase tracking-wide text-emerald-700">
-                En Juego
-              </span>
-            </div>
-          )}
+          ) : (() => {
+            const drawTime = ticket.drawDate ? new Date(ticket.drawDate).setHours(0, 0, 0, 0) : 0;
+            const todayTime = new Date().setHours(0, 0, 0, 0);
+            const isPastDraw = drawTime > 0 && drawTime < todayTime;
+            return (
+              <div className="rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4 text-base text-[#0A2540] flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-2 font-bold">
+                  <Sparkles className="w-5 h-5 text-[#FF6B00] shrink-0" />
+                  {isPastDraw ? 'Sorteo realizado · Pendiente de escrutinio' : 'Sorteo pendiente · Publicación 20:35 h'}
+                </span>
+                <span className={`text-sm font-extrabold uppercase tracking-wide ${isPastDraw ? 'text-slate-600' : 'text-emerald-700'}`}>
+                  {isPastDraw ? 'Sorteo Finalizado' : 'En Juego'}
+                </span>
+              </div>
+            );
+          })()}
 
           {/* Action to view sealed official ticket receipt */}
           <button
