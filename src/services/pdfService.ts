@@ -11,18 +11,40 @@ export interface PdfDownloadResult {
 const PDF_FILENAME = 'Reglamento_Oficial_Pena_Primitiva_Tordueles.pdf';
 let cachedRgbaLogoUri: string | null = null;
 
-function convertImageToRgbaDataUri(img: HTMLImageElement): string | null {
+function convertImageToTransparentSilhouette(img: HTMLImageElement): string | null {
   try {
     if (!img.complete || !img.naturalWidth || !img.naturalHeight) return null;
-    const size = 256;
+    const size = 300;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    ctx.fillStyle = '#0A2540';
-    ctx.fillRect(0, 0, size, size);
+
+    ctx.clearRect(0, 0, size, size);
     ctx.drawImage(img, 0, 0, size, size);
+    const imgData = ctx.getImageData(0, 0, size, size);
+    const data = imgData.data;
+
+    // Eliminar fondo blanco/claro y convertir la silueta a color corporativo #0A2540
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+
+      const brightness = (r + g + b) / 3;
+      if (brightness > 230 || a < 25) {
+        data[i + 3] = 0; // Transparente total para el fondo
+      } else {
+        data[i] = 10;   // R (#0A2540)
+        data[i + 1] = 37; // G
+        data[i + 2] = 64; // B
+        data[i + 3] = Math.min(255, a * 1.3); // Opacidad del trazo
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
     return canvas.toDataURL('image/png');
   } catch {
     return null;
@@ -35,7 +57,7 @@ function preloadOfficialCrestLogo() {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const converted = convertImageToRgbaDataUri(img);
+      const converted = convertImageToTransparentSilhouette(img);
       if (converted) cachedRgbaLogoUri = converted;
     };
     img.src = './assets/logo.png';
@@ -54,7 +76,7 @@ function getBestSyncLogoDataUri(): string {
       'img[src*="splash-logo"], img[src*="assets/logo"], img[src*="logo"]'
     );
     if (domLogo) {
-      const fromDom = convertImageToRgbaDataUri(domLogo);
+      const fromDom = convertImageToTransparentSilhouette(domLogo);
       if (fromDom) {
         cachedRgbaLogoUri = fromDom;
         return fromDom;
@@ -70,9 +92,9 @@ function drawWatermark(doc: jsPDF, pageWidth: number, pageHeight: number) {
     const logoUri = getBestSyncLogoDataUri();
     const gStateClass = (doc as any).GState;
     if (gStateClass) {
-      (doc as any).setGState(new gStateClass({ opacity: 0.06 }));
+      (doc as any).setGState(new gStateClass({ opacity: 0.05 }));
     }
-    const imgSize = 105; // 105 mm en el centro de cada hoja
+    const imgSize = 138; // Aumentado a 138 mm para ocupar una zona amplia y central
     const imgX = (pageWidth - imgSize) / 2;
     const imgY = (pageHeight - imgSize) / 2;
     doc.addImage(logoUri, 'PNG', imgX, imgY, imgSize, imgSize);
@@ -86,7 +108,7 @@ function drawWatermark(doc: jsPDF, pageWidth: number, pageHeight: number) {
 
 /**
  * Genera físicamente el documento PDF A4 multipágina con el Reglamento Oficial íntegro
- * (con ciclo dinámico y marca de agua corporativa en el centro de cada folio)
+ * (con ciclo dinámico y marca de agua corporativa transparente de gran tamaño en el centro de cada hoja)
  * y dispara la descarga directa al almacenamiento del dispositivo.
  */
 export function downloadOfficialRulesPdf(cycleLength: number = 10): PdfDownloadResult {
