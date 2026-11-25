@@ -332,11 +332,39 @@ export function downloadOfficialRulesPdf(cycleLength: number = 10): PdfDownloadR
   };
 }
 
+export interface PlayerPdfOptions {
+  includeMemberNumber?: boolean;
+  includeName?: boolean;
+  includeDni?: boolean;
+  includePhone?: boolean;
+  includeIban?: boolean;
+  includeEmail?: boolean;
+  includeStatus?: boolean;
+  includePaymentStatus?: boolean;
+}
+
+export const DEFAULT_PLAYER_PDF_OPTIONS: PlayerPdfOptions = {
+  includeMemberNumber: true,
+  includeName: true,
+  includeDni: false,
+  includePhone: false,
+  includeIban: false,
+  includeEmail: false,
+  includeStatus: true,
+  includePaymentStatus: true,
+};
+
 export function downloadPlayerListPdf(
   listType: 'TITULAR' | 'SUPLENTE' | 'BAJA' | 'ALL',
   players: Player[],
-  cycleNumber: number = 1
+  cycleNumber: number = 1,
+  options?: PlayerPdfOptions
 ): PdfDownloadResult {
+  const opts: PlayerPdfOptions = {
+    ...DEFAULT_PLAYER_PDF_OPTIONS,
+    ...(options || {}),
+  };
+
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -407,6 +435,38 @@ export function downloadPlayerListPdf(
   doc.text(`Total Registros: ${filtered.length}`, marginX, y);
   y += 7;
 
+  interface ColDef {
+    key: keyof PlayerPdfOptions;
+    label: string;
+    weight: number;
+    getValue: (p: Player, idx: number) => string;
+  }
+
+  const allCols: ColDef[] = [
+    { key: 'includeMemberNumber', label: 'N.º', weight: 1.0, getValue: (_, idx) => String(idx + 1) },
+    { key: 'includeName', label: 'Nombre y Apellidos', weight: 4.0, getValue: p => String(p.name || 'Sin nombre') },
+    { key: 'includeDni', label: 'DNI', weight: 2.0, getValue: p => String(p.dni || '-') },
+    { key: 'includePhone', label: 'Teléfono', weight: 2.2, getValue: p => String(p.phone || '-') },
+    { key: 'includeIban', label: 'IBAN', weight: 3.5, getValue: p => String(p.iban || '-') },
+    { key: 'includeEmail', label: 'Correo', weight: 3.0, getValue: p => String(p.email || '-') },
+    { key: 'includeStatus', label: 'Categoría', weight: 2.0, getValue: p => String(p.status || '-') },
+    { key: 'includePaymentStatus', label: 'Estado Pago', weight: 2.4, getValue: p => String(p.paymentStatusLabel || (p.currentCyclePaid ? 'Pagado' : 'Pendiente')) },
+  ];
+
+  const activeCols = allCols.filter(c => opts[c.key]);
+  if (activeCols.length === 0) {
+    activeCols.push(allCols[1]); // Ensure at least Name is present
+  }
+
+  const totalWeight = activeCols.reduce((sum, c) => sum + c.weight, 0);
+  let curX = marginX;
+  const colPositions = activeCols.map(c => {
+    const w = (c.weight / totalWeight) * contentWidth;
+    const x = curX;
+    curX += w;
+    return { col: c, x, width: w };
+  });
+
   // Tabla cabecera
   doc.setFillColor(244, 246, 249);
   doc.setDrawColor(203, 213, 225);
@@ -414,18 +474,16 @@ export function downloadPlayerListPdf(
   doc.rect(marginX, y, contentWidth, 8, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(10, 37, 64);
-  doc.text('N.º', marginX + 3, y + 5.5);
-  doc.text('Nombre y Apellidos', marginX + 15, y + 5.5);
-  doc.text('Teléfono', marginX + 85, y + 5.5);
-  doc.text('Categoría', marginX + 115, y + 5.5);
-  doc.text('Estado Pago', marginX + 145, y + 5.5);
+  colPositions.forEach(({ col, x, width }) => {
+    doc.text(col.label, x + 1.5, y + 5.5, { maxWidth: width - 3 });
+  });
 
   y += 10;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
 
   filtered.forEach((p, index) => {
     ensureSpace(8);
@@ -436,11 +494,10 @@ export function downloadPlayerListPdf(
     }
 
     doc.setTextColor(30, 41, 59);
-    doc.text(String(index + 1), marginX + 3, y);
-    doc.text(String(p.name || 'Sin nombre').substring(0, 38), marginX + 15, y);
-    doc.text(String(p.phone || '-'), marginX + 85, y);
-    doc.text(String(p.status || '-'), marginX + 115, y);
-    doc.text(String(p.paymentStatusLabel || (p.currentCyclePaid ? 'Pagado' : 'Pendiente')), marginX + 145, y);
+    colPositions.forEach(({ col, x, width }) => {
+      const val = col.getValue(p, index);
+      doc.text(val, x + 1.5, y, { maxWidth: width - 3 });
+    });
 
     y += 7;
   });

@@ -37,7 +37,7 @@ import {
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
 import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
-import { downloadPlayerListPdf } from '../services/pdfService';
+import { downloadPlayerListPdf, PlayerPdfOptions, DEFAULT_PLAYER_PDF_OPTIONS } from '../services/pdfService';
 
 import {
   Settings,
@@ -243,6 +243,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isSavingRecruitmentMode, setIsSavingRecruitmentMode] = useState(false);
   const [recruitmentModeFeedback, setRecruitmentModeFeedback] = useState<string | null>(null);
   const [showAllCombinations, setShowAllCombinations] = useState(false);
+
+  // Estados del Modal de Configuración de Exportación PDF
+  const [showPdfExportModal, setShowPdfExportModal] = useState(false);
+  const [pdfExportListType, setPdfExportListType] = useState<'TITULAR' | 'SUPLENTE' | 'BAJA' | 'ALL'>('TITULAR');
+  const [pdfExportOptions, setPdfExportOptions] = useState<PlayerPdfOptions>(DEFAULT_PLAYER_PDF_OPTIONS);
+
+  const handleOpenPdfExportModal = (type: 'TITULAR' | 'SUPLENTE' | 'BAJA' | 'ALL') => {
+    setPdfExportListType(type);
+    setPdfExportOptions(DEFAULT_PLAYER_PDF_OPTIONS);
+    setShowPdfExportModal(true);
+  };
 
   useEffect(() => {
     setPrizeFundInput(settings.prizeFundBalance.toFixed(2));
@@ -2477,7 +2488,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                   <button
                     type="button"
-                    onClick={() => downloadPlayerListPdf('TITULAR', players, settings.currentCycle)}
+                    onClick={() => handleOpenPdfExportModal('TITULAR')}
                     className="inline-flex items-center gap-2 px-3.5 min-h-[44px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#0A2540] text-sm font-bold cursor-pointer"
                     title="Exportar listado de Titulares a PDF"
                   >
@@ -2486,7 +2497,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => downloadPlayerListPdf('SUPLENTE', players, settings.currentCycle)}
+                    onClick={() => handleOpenPdfExportModal('SUPLENTE')}
                     className="inline-flex items-center gap-2 px-3.5 min-h-[44px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#0A2540] text-sm font-bold cursor-pointer"
                     title="Exportar listado de Suplentes a PDF"
                   >
@@ -2495,7 +2506,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => downloadPlayerListPdf('ALL', players, settings.currentCycle)}
+                    onClick={() => handleOpenPdfExportModal('BAJA')}
+                    className="inline-flex items-center gap-2 px-3.5 min-h-[44px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#0A2540] text-sm font-bold cursor-pointer"
+                    title="Exportar listado de Bajas a PDF"
+                  >
+                    <FileDown className="w-4 h-4 text-[#FF6B00]" />
+                    <span>PDF Bajas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPdfExportModal('ALL')}
                     className="inline-flex items-center gap-2 px-3.5 min-h-[44px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#0A2540] text-sm font-bold cursor-pointer"
                     title="Exportar listado completo a PDF"
                   >
@@ -4194,6 +4214,188 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {activeSection === 'MULTIPLE_BETS' && (
         <div className="space-y-4">
           <MultipleBetsGuide />
+        </div>
+      )}
+
+      {/* Modal de Configuración de Datos para PDF */}
+      {showPdfExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-xs">
+          <div className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-[#0A2540] px-5 py-4 text-white flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-serif font-black text-xl text-white">
+                  Configurar Datos del Listado en PDF
+                </h3>
+                <p className="text-sm text-slate-300 font-medium">
+                  {pdfExportListType === 'TITULAR'
+                    ? 'Exportar Socios Titulares'
+                    : pdfExportListType === 'SUPLENTE'
+                    ? 'Exportar Lista de Espera / Suplentes'
+                    : pdfExportListType === 'BAJA'
+                    ? 'Exportar Bajas Definitivas'
+                    : 'Exportar Listado General Completo'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPdfExportModal(false)}
+                className="rounded-xl p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4">
+              <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
+                Selecciona qué campos deseas que aparezcan en el PDF. El teléfono y el IBAN son datos privados que no tienen por qué saber los demás usuarios, por lo que vienen desmarcados por defecto, pero todos los campos son completamente editables.
+              </p>
+
+              <div className="space-y-3 rounded-2xl bg-[#F4F6F9] border border-slate-200 p-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pdfExportOptions.includeMemberNumber)}
+                    onChange={e =>
+                      setPdfExportOptions(prev => ({ ...prev, includeMemberNumber: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                  />
+                  <span className="text-sm sm:text-base font-bold text-[#0A2540]">
+                    Número de socio (N.º)
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pdfExportOptions.includeName)}
+                    onChange={e =>
+                      setPdfExportOptions(prev => ({ ...prev, includeName: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                  />
+                  <span className="text-sm sm:text-base font-bold text-[#0A2540]">
+                    Nombre y Apellidos
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pdfExportOptions.includeDni)}
+                    onChange={e =>
+                      setPdfExportOptions(prev => ({ ...prev, includeDni: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                  />
+                  <span className="text-sm sm:text-base font-bold text-[#0A2540]">
+                    DNI / NIF
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pdfExportOptions.includePhone)}
+                    onChange={e =>
+                      setPdfExportOptions(prev => ({ ...prev, includePhone: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm sm:text-base font-bold text-[#0A2540]">
+                      Teléfono de contacto
+                    </span>
+                    <span className="text-xs font-semibold text-rose-700">
+                      (Dato privado — desmarcado por defecto)
+                    </span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pdfExportOptions.includeIban)}
+                    onChange={e =>
+                      setPdfExportOptions(prev => ({ ...prev, includeIban: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm sm:text-base font-bold text-[#0A2540]">
+                      IBAN bancario
+                    </span>
+                    <span className="text-xs font-semibold text-rose-700">
+                      (Dato privado — desmarcado por defecto)
+                    </span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pdfExportOptions.includeEmail)}
+                    onChange={e =>
+                      setPdfExportOptions(prev => ({ ...prev, includeEmail: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                  />
+                  <span className="text-sm sm:text-base font-bold text-[#0A2540]">
+                    Correo electrónico (Email)
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pdfExportOptions.includeStatus)}
+                    onChange={e =>
+                      setPdfExportOptions(prev => ({ ...prev, includeStatus: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                  />
+                  <span className="text-sm sm:text-base font-bold text-[#0A2540]">
+                    Categoría (Titular / Suplente / Baja)
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pdfExportOptions.includePaymentStatus)}
+                    onChange={e =>
+                      setPdfExportOptions(prev => ({ ...prev, includePaymentStatus: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                  />
+                  <span className="text-sm sm:text-base font-bold text-[#0A2540]">
+                    Estado de pago / Cuota
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 px-5 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowPdfExportModal(false)}
+                className="px-5 min-h-[46px] rounded-xl border border-slate-300 bg-white text-slate-700 font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-100 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  downloadPlayerListPdf(pdfExportListType, players, settings.currentCycle, pdfExportOptions);
+                  setShowPdfExportModal(false);
+                }}
+                className="inline-flex items-center gap-2 px-6 min-h-[46px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-white font-extrabold text-sm sm:text-base shadow-sm transition cursor-pointer"
+              >
+                <FileDown className="w-5 h-5" />
+                <span>Descargar PDF Configurado</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
