@@ -37,6 +37,7 @@ import {
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
 import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
+import { downloadPlayerListPdf } from '../services/pdfService';
 
 import {
   Settings,
@@ -67,6 +68,7 @@ import {
   EyeOff,
   Plus,
   LayoutGrid,
+  FileDown,
   X
 } from 'lucide-react';
 
@@ -2473,6 +2475,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => downloadPlayerListPdf('TITULAR', players, settings.currentCycle)}
+                    className="inline-flex items-center gap-2 px-3.5 min-h-[44px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#0A2540] text-sm font-bold cursor-pointer"
+                    title="Exportar listado de Titulares a PDF"
+                  >
+                    <FileDown className="w-4 h-4 text-[#FF6B00]" />
+                    <span>PDF Titulares</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadPlayerListPdf('SUPLENTE', players, settings.currentCycle)}
+                    className="inline-flex items-center gap-2 px-3.5 min-h-[44px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#0A2540] text-sm font-bold cursor-pointer"
+                    title="Exportar listado de Suplentes a PDF"
+                  >
+                    <FileDown className="w-4 h-4 text-[#FF6B00]" />
+                    <span>PDF Suplentes</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadPlayerListPdf('ALL', players, settings.currentCycle)}
+                    className="inline-flex items-center gap-2 px-3.5 min-h-[44px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#0A2540] text-sm font-bold cursor-pointer"
+                    title="Exportar listado completo a PDF"
+                  >
+                    <FileDown className="w-4 h-4 text-[#FF6B00]" />
+                    <span>PDF General</span>
+                  </button>
                   <button
                     type="button"
                     onClick={fetchUncensoredAdminUsers}
