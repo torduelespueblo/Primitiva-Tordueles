@@ -1077,77 +1077,170 @@ function consultarJuegosONCEEnVivo(fechaReferencia) {
 }
 
 /**
- * MOTOR DE EXTRACCIÓN Y CONSENSO CRUZADO PARA LA PRIMITIVA
- * Compara resultados reales de SELAE Oficial + RTVE / El País para la fecha actual.
- * NUNCA envía errores ni mensajes vacíos al grupo público de WhatsApp.
+ * Valida estrictamente que el resultado cumpla con las reglas matemáticas de La Primitiva:
+ * - 6 números principales únicos ordenados de 1 a 49.
+ * - Complementario de 1 a 49, distinto de los 6 principales.
+ * - Reintegro de 0 a 9.
+ */
+function validarResultadoSorteo(res) {
+  if (!res || !res.combinacion || !Array.isArray(res.combinacion)) {
+    return { valido: false, error: 'Combinación ausente o estructura no válida.' };
+  }
+  var nums = res.combinacion.map(function(n) { return parseInt(n, 10); }).filter(function(n) { return !isNaN(n); });
+  if (nums.length !== 6) {
+    return { valido: false, error: 'Se requieren exactamente 6 números principales (encontrados: ' + nums.length + ').' };
+  }
+
+  var unicos = [];
+  for (var i = 0; i < nums.length; i++) {
+    var n = nums[i];
+    if (n < 1 || n > 49) {
+      return { valido: false, error: 'Número fuera de rango [1-49]: ' + n };
+    }
+    if (unicos.indexOf(n) !== -1) {
+      return { valido: false, error: 'Número duplicado en la combinación: ' + n };
+    }
+    unicos.push(n);
+  }
+
+  var comp = parseInt(res.complementario, 10);
+  if (isNaN(comp) || comp < 1 || comp > 49) {
+    return { valido: false, error: 'Número complementario inválido: ' + res.complementario };
+  }
+  if (unicos.indexOf(comp) !== -1) {
+    return { valido: false, error: 'El complementario coincide con uno de los 6 números principales: ' + comp };
+  }
+
+  var reint = parseInt(res.reintegro, 10);
+  if (isNaN(reint) || reint < 0 || reint > 9) {
+    return { valido: false, error: 'Reintegro fuera de rango [0-9]: ' + res.reintegro };
+  }
+
+  return { valido: true };
+}
+
+/**
+ * MOTOR DE EXTRACCIÓN Y CONSENSO CRUZADO ESCALONADO (LA PRIMITIVA)
+ * Consulta un pool modular de fuentes (SELAE Oficial, Prensa El País, RTVE),
+ * aplica validación matemática y de fecha estricta, y realiza reintentos escalonados si alguna fuente no responde o está desactualizada.
  */
 function ejecutarMotorPuenteRSSConsenso(fechaOpcional) {
   var fecha = fechaOpcional || new Date();
-  Logger.log('Ejecutando Motor Puente + Consenso (La Primitiva)...');
+  Logger.log('Ejecutando Motor Puente + Consenso Escalonado (La Primitiva)...');
 
-  var candidatos = [];
-  var errores = [];
+  var maxIntentos = 2;
+  var esperaMilisegundos = 4000;
+  var candidatosValidos = [];
+  var diagnosticoFuentes = {};
 
-  try {
-    var fSelae = consultarSELAEJson('LAPR', fecha);
-    if (fSelae) candidatos.push(fSelae);
-  } catch (e1) {
-    errores.push('SELAE: ' + e1.message);
+  for (var intento = 1; intento <= maxIntentos; intento++) {
+    candidatosValidos = [];
+    diagnosticoFuentes = {};
+
+    // 1. Fuente SELAE Oficial JSON
+    try {
+      var sSelae = consultarSELAEJson('LAPR', fecha);
+      if (sSelae) {
+        var vSelae = validarResultadoSorteo(sSelae);
+        if (vSelae.valido) {
+          candidatosValidos.push(sSelae);
+          diagnosticoFuentes['SELAE Oficial'] = 'OK (Válido)';
+        } else {
+          diagnosticoFuentes['SELAE Oficial'] = 'Falló validación matemática: ' + vSelae.error;
+        }
+      } else {
+        diagnosticoFuentes['SELAE Oficial'] = 'Sin datos o fecha no publicada todavía.';
+      }
+    } catch (e1) {
+      diagnosticoFuentes['SELAE Oficial'] = 'Excepción HTTP/Timeout: ' + e1.message;
+    }
+
+    // 2. Fuente Prensa El País
+    try {
+      var sPrensa = consultarFuentePrensa(fecha);
+      if (sPrensa) {
+        var vPrensa = validarResultadoSorteo(sPrensa);
+        if (vPrensa.valido) {
+          candidatosValidos.push(sPrensa);
+          diagnosticoFuentes['Prensa El País'] = 'OK (Válido)';
+        } else {
+          diagnosticoFuentes['Prensa El País'] = 'Falló validación matemática: ' + vPrensa.error;
+        }
+      } else {
+        diagnosticoFuentes['Prensa El País'] = 'Sin datos o fecha no encontrada en texto.';
+      }
+    } catch (e2) {
+      diagnosticoFuentes['Prensa El País'] = 'Excepción HTTP/Timeout: ' + e2.message;
+    }
+
+    // 3. Fuente RTVE / Portada
+    try {
+      var sRtve = consultarFuenteRTVE(fecha);
+      if (sRtve) {
+        var vRtve = validarResultadoSorteo(sRtve);
+        if (vRtve.valido) {
+          candidatosValidos.push(sRtve);
+          diagnosticoFuentes['RTVE / Portada'] = 'OK (Válido)';
+        } else {
+          diagnosticoFuentes['RTVE / Portada'] = 'Falló validación matemática: ' + vRtve.error;
+        }
+      } else {
+        diagnosticoFuentes['RTVE / Portada'] = 'Sin datos o fecha no encontrada en texto.';
+      }
+    } catch (e3) {
+      diagnosticoFuentes['RTVE / Portada'] = 'Excepción HTTP/Timeout: ' + e3.message;
+    }
+
+    if (candidatosValidos.length >= 2) {
+      break; // Consenso alcanzado con 2+ fuentes válidas
+    }
+
+    if (intento < maxIntentos) {
+      Logger.log('Intento ' + intento + ' insuficiente (' + candidatosValidos.length + '/2 fuentes). Reintentando en ' + (esperaMilisegundos/1000) + 's...');
+      Utilities.sleep(esperaMilisegundos);
+    }
   }
 
-  try {
-    var fPrensa = consultarFuentePrensa(fecha);
-    if (fPrensa) candidatos.push(fPrensa);
-  } catch (e2) {
-    errores.push('Prensa: ' + e2.message);
-  }
-
-  try {
-    var fRtve = consultarFuenteRTVE(fecha);
-    if (fRtve) candidatos.push(fRtve);
-  } catch (e3) {
-    errores.push('RTVE: ' + e3.message);
-  }
-
-  if (candidatos.length < 2) {
-    var detalleFallo = 'Fuentes válidas disponibles hoy: ' + candidatos.length + '/2 necesarias. ' + errores.join(' | ');
-    Logger.log('Consenso en espera: ' + detalleFallo);
+  if (candidatosValidos.length < 2) {
+    var detalleFallo = 'Fuentes válidas obtenidas: ' + candidatosValidos.length + '/2 necesarias.';
     enviarAlertaConsensoAdmin(false, null, {
-      motivo: 'No se pudieron obtener 2 fuentes públicas coincidentes para hoy.',
+      motivo: 'No se pudieron validar 2 fuentes públicas coincidentes para el sorteo.',
       detalle: detalleFallo,
-      fuenteA: candidatos[0] || null,
-      fuenteB: null
+      diagnostico: diagnosticoFuentes
     });
     return {
       consenso: false,
       bloqueado: true,
-      mensaje: 'Ejecución automática pausada a la espera de validación manual o publicación oficial.',
-      errores: errores
+      mensaje: 'Consenso en espera. Menos de 2 fuentes válidas confirmadas.',
+      diagnostico: diagnosticoFuentes
     };
   }
 
-  var comparacion = compararResultadosConsenso(candidatos[0], candidatos[1]);
+  var comparacion = compararResultadosConsenso(candidatosValidos[0], candidatosValidos[1]);
   if (comparacion.coincide100) {
-    enviarAlertaConsensoAdmin(true, comparacion.datosConsensuados);
+    enviarAlertaConsensoAdmin(true, comparacion.datosConsensuados, null, diagnosticoFuentes);
     return {
       consenso: true,
       bloqueado: false,
-      datos: comparacion.datosConsensuados
+      datos: comparacion.datosConsensuados,
+      diagnostico: diagnosticoFuentes
     };
   }
 
   enviarAlertaConsensoAdmin(false, null, {
-    motivo: 'Discrepancia entre fuentes públicas en los resultados del sorteo.',
+    motivo: 'Discrepancia matemática entre las dos primeras fuentes validadas.',
     detalle: comparacion.discrepancias.join(', '),
-    fuenteA: candidatos[0],
-    fuenteB: candidatos[1]
+    diagnostico: diagnosticoFuentes,
+    fuenteA: candidatosValidos[0],
+    fuenteB: candidatosValidos[1]
   });
 
   return {
     consenso: false,
     bloqueado: true,
-    mensaje: 'Discrepancia detectada entre fuentes. Cálculos paralizados.',
-    discrepancias: comparacion.discrepancias
+    mensaje: 'Discrepancia detectada entre fuentes válidas. Publicación automática abortada.',
+    discrepancias: comparacion.discrepancias,
+    diagnostico: diagnosticoFuentes
   };
 }
 
@@ -1183,19 +1276,27 @@ function compararResultadosConsenso(fA, fB) {
 }
 
 /**
- * SISTEMA DE ALERTAS EXCLUSIVO PARA EL ADMINISTRADOR (Email + Telegram opcional).
- * NUNCA envía errores técnicos ni avisos de fallo al grupo público de WhatsApp.
+ * SISTEMA DE ALERTAS EXCLUSIVO PARA EL ADMINISTRADOR (Email + Diagnóstico por fuente + Telegram).
  */
-function enviarAlertaConsensoAdmin(esExito, datos, errorDetalles) {
+function enviarAlertaConsensoAdmin(esExito, datos, errorDetalles, diagnosticoFuentes) {
   var emailDestino = ALERTA_CONFIG.EMAIL_ADMIN || Session.getEffectiveUser().getEmail();
+  var diagTexto = '';
+  if (diagnosticoFuentes) {
+    diagTexto = '\n\nDiagnóstico detallado por fuente:\n';
+    for (var fuenteName in diagnosticoFuentes) {
+      if (diagnosticoFuentes.hasOwnProperty(fuenteName)) {
+        diagTexto += ' - ' + fuenteName + ': ' + diagnosticoFuentes[fuenteName] + '\n';
+      }
+    }
+  }
 
   if (esExito && datos) {
     var asuntoExito = '[CONSENSO 100%] Resultados Oficiales La Primitiva - Peña Tordueles';
-    var cuerpoExito = 'Resultados oficiales validados con 100% de coincidencia cruzada:\n\n' +
+    var cuerpoExito = 'Resultados oficiales validados por consenso escalonado:\n\n' +
       'Fecha: ' + datos.fecha + '\n' +
       'Combinación: ' + datos.combinacion.join(' - ') + '\n' +
       'Complementario: ' + datos.complementario + ' | Reintegro: ' + datos.reintegro + '\n' +
-      'Fuentes: ' + datos.fuentes.join(' y ');
+      'Fuentes coincidentes: ' + datos.fuentes.join(' y ') + diagTexto;
     try {
       MailApp.sendEmail(emailDestino, asuntoExito, cuerpoExito);
     } catch (eMail) {}
@@ -1203,14 +1304,14 @@ function enviarAlertaConsensoAdmin(esExito, datos, errorDetalles) {
   } else {
     var asuntoFallo = '[AVISO ADMIN] Consenso La Primitiva pendiente de revisión manual';
     var cuerpoFallo = 'El Motor Puente + Consenso no ha validado automáticamente el sorteo de La Primitiva.\n\n' +
-      'Motivo: ' + (errorDetalles.motivo || 'Sin consenso.') + '\n' +
-      'Detalle: ' + (errorDetalles.detalle || '') + '\n\n' +
-      'El grupo público de WhatsApp NO ha recibido ningún mensaje de error ni resultados sin confirmar.\n' +
-      'Si ya conoces los resultados oficiales, puedes validarlos desde el Panel Admin (Override Manual).';
+      'Motivo: ' + ((errorDetalles && errorDetalles.motivo) || 'Sin consenso.') + '\n' +
+      'Detalle: ' + ((errorDetalles && errorDetalles.detalle) || '') + diagTexto + '\n\n' +
+      'El grupo público de WhatsApp NO ha recibido ningún mensaje erróneo.\n' +
+      'Puedes introducir y validar los resultados oficiales desde el Panel Admin (Override Manual), lo que ejecutará automáticamente el escrutinio y envío del boletín.';
     try {
       MailApp.sendEmail(emailDestino, asuntoFallo, cuerpoFallo);
     } catch (eMail2) {}
-    enviarMensajeTelegram('[AVISO ADMIN] Consenso La Primitiva en espera.');
+    enviarMensajeTelegram('[AVISO ADMIN] Consenso La Primitiva en espera de validación manual.');
   }
 }
 
