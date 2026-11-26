@@ -94,6 +94,31 @@ interface MultipleBetsGuideProps {
 export const MultipleBetsGuide: React.FC<MultipleBetsGuideProps> = ({ hideIdealFor = false }) => {
   return (
     <div className="space-y-6">
+      {/* Aclaración visual de escalera de combinaciones */}
+      <div className="rounded-3xl bg-white border-2 border-[#0A2540]/20 overflow-hidden shadow-sm p-4 sm:p-6 space-y-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-orange-50 text-[#FF6B00] flex items-center justify-center font-bold">
+            📊
+          </div>
+          <div>
+            <h4 className="font-serif font-black text-lg sm:text-xl text-[#0A2540]">
+              Aclaración: Escalera de Combinaciones y Resguardos
+            </h4>
+            <p className="text-xs sm:text-sm text-slate-600">
+              Esquema oficial de cómo se combinan los boletos múltiples según el número de participantes.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-[#0A2540] p-2 sm:p-3 overflow-hidden flex justify-center">
+          <img
+            src="./assets/aistudio/1795431827545_a2bd8b77.jpg"
+            alt="Escalera de Combinaciones Peña Primitiva Tordueles"
+            className="w-full max-w-2xl h-auto rounded-xl shadow-md object-contain"
+          />
+        </div>
+      </div>
+
       {!hideIdealFor && (
         <div className="rounded-3xl bg-[#0A2540] p-6 sm:p-7 text-white shadow-md">
           <div className="flex items-center gap-3.5">
