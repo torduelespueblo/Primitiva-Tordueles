@@ -47,15 +47,6 @@ export function getOfficialRulesSections(cycleLength: number = 10): RuleSection[
           code: '2.1.',
           heading: 'Ajuste al Presupuesto, Combinaciones Múltiples y Escalado de Jugadores:',
           text: 'El importe y la estructura de las apuestas oficiales se adaptarán al número exacto de jugadores que participen en cada ciclo. Dado que cada jugador aporta 1,00 € por sorteo, la peña podrá jugar un único resguardo múltiple o combinar varios resguardos múltiples oficiales en un mismo sorteo (por ejemplo, duplicando o triplicando bloques, o combinando distintas modalidades) con el objetivo de absorber al mayor número posible de inscritos y reducir al mínimo la lista de suplentes. En cualquier caso, la suma total de apuestas selladas en el conjunto de los resguardos deberá coincidir exactamente con el número de titulares al corriente de pago (1,00 € por apuesta), sin admitirse cifras intermedias.',
-          subText: 'Los bloques oficiales de apuestas múltiples de La Primitiva disponibles para jugar de forma individual o combinada son:',
-          bullets: [
-            'Múltiple de 7 números: 7 apuestas (7,00 €).',
-            'Múltiple de 8 números: 28 apuestas (28,00 €).',
-            'Múltiple de 5 números (fijo): 44 apuestas (44,00 €).',
-            'Múltiple de 9 números: 84 apuestas (84,00 €).',
-            'Múltiple de 10 números: 210 apuestas (210,00 €).',
-            'Múltiple de 11 números: 462 apuestas (462,00 €).',
-          ],
         },
         {
           code: '2.2.',

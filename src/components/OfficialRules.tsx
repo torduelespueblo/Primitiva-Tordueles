@@ -105,17 +105,17 @@ export const OfficialRules: React.FC<OfficialRulesProps> = ({ settings }) => {
                         </ul>
                       </div>
                     )}
+                    {section.articleNumber === 'Artículo 2' && p.code === '2.1.' && (
+                      <div className="pt-4">
+                        <MultipleBetsGuide hideIdealFor={true} />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </section>
           );
         })}
-
-        {/* ANEXO OFICIAL */}
-        <section className="pt-6 border-t border-slate-200">
-          <MultipleBetsGuide />
-        </section>
       </div>
     </div>
   );

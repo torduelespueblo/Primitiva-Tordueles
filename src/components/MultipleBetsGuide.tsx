@@ -87,27 +87,33 @@ export const OFFICIAL_MULTIPLE_BETS_LIST: MultipleBetOption[] = [
   },
 ];
 
-export const MultipleBetsGuide: React.FC = () => {
+interface MultipleBetsGuideProps {
+  hideIdealFor?: boolean;
+}
+
+export const MultipleBetsGuide: React.FC<MultipleBetsGuideProps> = ({ hideIdealFor = false }) => {
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl bg-[#0A2540] p-6 sm:p-7 text-white shadow-md">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 rounded-2xl bg-white/10 text-[#FF6B00] shrink-0">
-            <Layers className="w-7 h-7" />
+      {!hideIdealFor && (
+        <div className="rounded-3xl bg-[#0A2540] p-6 sm:p-7 text-white shadow-md">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-[#FF6B00] shrink-0">
+              <Layers className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="font-serif font-black text-xl sm:text-2xl">
+                Opciones Oficiales de Apuestas Múltiples
+              </h3>
+              <p className="text-sm sm:text-base text-slate-300 mt-0.5">
+                Reglamento oficial de Loterías y Apuestas del Estado para La Primitiva
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-serif font-black text-xl sm:text-2xl">
-              Opciones Oficiales de Apuestas Múltiples
-            </h3>
-            <p className="text-sm sm:text-base text-slate-300 mt-0.5">
-              Reglamento oficial de Loterías y Apuestas del Estado para La Primitiva
-            </p>
-          </div>
+          <p className="text-base text-slate-200 mt-4 leading-relaxed">
+            Las apuestas múltiples permiten marcar más (o menos, en el caso de 5) números en el boleto oficial. La peña puede jugar un único resguardo múltiple o combinar varios en un mismo sorteo (1,00 € por apuesta) para ajustarse al número exacto de participantes.
+          </p>
         </div>
-        <p className="text-base text-slate-200 mt-4 leading-relaxed">
-          Las apuestas múltiples permiten marcar más (o menos, en el caso de 5) números en el boleto oficial. La peña puede jugar un único resguardo múltiple o combinar varios en un mismo sorteo (1,00 € por apuesta) para ajustarse al número exacto de participantes.
-        </p>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {OFFICIAL_MULTIPLE_BETS_LIST.map(opt => (
@@ -133,12 +139,14 @@ export const MultipleBetsGuide: React.FC = () => {
             </div>
 
             <div className="pt-3 border-t border-slate-100 space-y-2.5 text-sm sm:text-base">
-              <div className="flex items-start gap-2 text-[#0A2540]">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Ajuste:</strong> {opt.idealFor}.
-                </span>
-              </div>
+              {!hideIdealFor && (
+                <div className="flex items-start gap-2 text-[#0A2540]">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Ajuste:</strong> {opt.idealFor}.
+                  </span>
+                </div>
+              )}
               <div className="p-3 rounded-xl bg-orange-50 border border-orange-200 text-[#0A2540]">
                 <div className="flex items-start gap-2">
                   <TrendingUp className="w-5 h-5 text-[#FF6B00] shrink-0 mt-0.5" />
