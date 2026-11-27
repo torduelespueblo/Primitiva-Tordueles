@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { TicketDraw, PrizeHistoryEntry } from '../types/lottery';
 import { TicketCard } from './TicketCard';
-import { Receipt, Trophy, ArrowUpDown, Calendar, Lock, UserPlus, KeyRound } from 'lucide-react';
+import { Receipt, Trophy, ArrowUpDown, Calendar, Lock, UserPlus, KeyRound, FileDown } from 'lucide-react';
 import { MAX_STORED_TICKETS, getTicketJornadaKey, sortTicketsNewestFirst } from '../services/storage';
+import { downloadPrizeHistoryPdf } from '../services/pdfService';
 
 interface TicketsHistoryProps {
   tickets: TicketDraw[];
@@ -301,16 +302,28 @@ export const TicketsHistory: React.FC<TicketsHistoryProps> = ({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setPrizeSortOrder(prev => (prev === 'DESC' ? 'ASC' : 'DESC'))}
-            className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl border border-slate-300 bg-[#F4F6F9] hover:bg-slate-200 text-sm sm:text-base font-bold text-[#0A2540] transition cursor-pointer shrink-0"
-          >
-            <ArrowUpDown className="w-4 h-4 text-[#FF6B00]" />
-            <span>
-              {prizeSortOrder === 'DESC' ? 'Fecha: Más recientes primero' : 'Fecha: Más antiguos primero'}
-            </span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => downloadPrizeHistoryPdf(sortedPrizes)}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#FF6B00] hover:bg-[#E55E00] text-sm sm:text-base font-extrabold text-white transition cursor-pointer shadow-xs"
+              title="Descargar listado oficial de premios en PDF"
+            >
+              <FileDown className="w-5 h-5" />
+              <span>Descargar PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPrizeSortOrder(prev => (prev === 'DESC' ? 'ASC' : 'DESC'))}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl border border-slate-300 bg-[#F4F6F9] hover:bg-slate-200 text-sm sm:text-base font-bold text-[#0A2540] transition cursor-pointer shrink-0"
+            >
+              <ArrowUpDown className="w-4 h-4 text-[#FF6B00]" />
+              <span>
+                {prizeSortOrder === 'DESC' ? 'Fecha: Más recientes primero' : 'Fecha: Más antiguos primero'}
+              </span>
+            </button>
+          </div>
         </div>
 
         {sortedPrizes.length === 0 ? (

@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { getOfficialRulesSections, OFFICIAL_RULES_TITLE } from '../data/officialRules';
 import { OFFICIAL_CREST_LOGO_DATA_URI } from './pdfLogoData';
-import { Player } from '../types/lottery';
+import { Player, PrizeHistoryEntry } from '../types/lottery';
 
 export interface PdfDownloadResult {
   success: boolean;
@@ -139,8 +139,10 @@ export function downloadOfficialRulesPdf(cycleLength: number = 10): PdfDownloadR
   doc.rect(0, 38, pageWidth, 1.8, 'F');
 
   try {
+    doc.setFillColor(255, 255, 255);
+    doc.circle(marginX + 14, 19, 13.5, 'F');
     const logoUri = getBestSyncLogoDataUri();
-    doc.addImage(logoUri, 'PNG', marginX, 5, 28, 28);
+    doc.addImage(logoUri, 'PNG', marginX + 0.5, 5.5, 27, 27);
   } catch {
     // Continuar con cabecera tipográfica si falla la imagen
   }
@@ -390,8 +392,10 @@ export function downloadPlayerListPdf(
   doc.rect(0, 38, pageWidth, 1.8, 'F');
 
   try {
+    doc.setFillColor(255, 255, 255);
+    doc.circle(marginX + 14, 19, 13.5, 'F');
     const logoUri = getBestSyncLogoDataUri();
-    doc.addImage(logoUri, 'PNG', marginX, 5, 28, 28);
+    doc.addImage(logoUri, 'PNG', marginX + 0.5, 5.5, 27, 27);
   } catch {}
 
   const headerTextX = marginX + 33;
@@ -536,6 +540,222 @@ export function downloadPlayerListPdf(
     doc.setTextColor(100, 116, 139);
     doc.text(
       `Peña La Primitiva Tordueles · Listado de Administración (${dateLabel})`,
+      marginX,
+      pageHeight - 8
+    );
+    doc.text(`Página ${page} de ${totalPages}`, pageWidth - marginX, pageHeight - 8, {
+      align: 'right',
+    });
+  }
+
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+
+  setTimeout(() => {
+    if (link.parentNode) link.parentNode.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  }, 2000);
+
+  return {
+    success: true,
+    filename,
+    pages: totalPages,
+  };
+}
+
+export interface PrizeHistoryPdfOptions {
+  includeDate?: boolean;
+  includeCycleJornada?: boolean;
+  includeHits?: boolean;
+  includeReintegro?: boolean;
+  includeCategory?: boolean;
+  includeAmount?: boolean;
+  includeDestination?: boolean;
+}
+
+export const DEFAULT_PRIZE_HISTORY_PDF_OPTIONS: PrizeHistoryPdfOptions = {
+  includeDate: true,
+  includeCycleJornada: true,
+  includeHits: true,
+  includeReintegro: true,
+  includeCategory: true,
+  includeAmount: true,
+  includeDestination: true,
+};
+
+export function downloadPrizeHistoryPdf(
+  prizeEntries: PrizeHistoryEntry[],
+  options?: PrizeHistoryPdfOptions
+): PdfDownloadResult {
+  const opts: PrizeHistoryPdfOptions = {
+    ...DEFAULT_PRIZE_HISTORY_PDF_OPTIONS,
+    ...(options || {}),
+  };
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+    compress: true,
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 15;
+  const contentWidth = pageWidth - marginX * 2;
+  const bottomLimit = pageHeight - 20;
+
+  let y = 0;
+
+  drawWatermark(doc, pageWidth, pageHeight);
+
+  // Cabecera corporativa
+  doc.setFillColor(10, 37, 64); // #0A2540
+  doc.rect(0, 0, pageWidth, 38, 'F');
+
+  doc.setFillColor(255, 107, 0); // #FF6B00
+  doc.rect(0, 38, pageWidth, 1.8, 'F');
+
+  try {
+    doc.setFillColor(255, 255, 255);
+    doc.circle(marginX + 14, 19, 13.5, 'F');
+    const logoUri = getBestSyncLogoDataUri();
+    doc.addImage(logoUri, 'PNG', marginX + 0.5, 5.5, 27, 27);
+  } catch {}
+
+  const headerTextX = marginX + 33;
+  doc.setTextColor(255, 107, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('DOCUMENTO OFICIAL DE ADMINISTRACIÓN', headerTextX, 12.5);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text('Peña La Primitiva Tordueles', headerTextX, 20.5);
+
+  doc.setTextColor(226, 232, 240);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text('Histórico Oficial de Premios Obtenidos · Tordueles (Burgos)', headerTextX, 28);
+
+  y = 48;
+
+  const ensureSpace = (neededMm: number) => {
+    if (y + neededMm > bottomLimit) {
+      doc.addPage();
+      drawWatermark(doc, pageWidth, pageHeight);
+      y = 19;
+    }
+  };
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(10, 37, 64);
+  const totalPrizeSum = prizeEntries.reduce((sum, e) => sum + (e.prizeAmount || 0), 0);
+  doc.text(`Total Premios Registrados: ${prizeEntries.length} (Bote Acumulado: ${totalPrizeSum.toFixed(2)} €)`, marginX, y);
+  y += 7;
+
+  interface ColDef {
+    key: keyof PrizeHistoryPdfOptions;
+    label: string;
+    weight: number;
+    getValue: (e: PrizeHistoryEntry, idx: number) => string;
+  }
+
+  const allCols: ColDef[] = [
+    { key: 'includeDate', label: 'Fecha Sorteo', weight: 2.2, getValue: e => String(e.drawDate || '-') },
+    { key: 'includeCycleJornada', label: 'Ciclo / J.', weight: 1.8, getValue: e => `C${e.cycleNumber} J${e.jornadaNumber}` },
+    { key: 'includeHits', label: 'Aciertos', weight: 1.8, getValue: e => `${e.hitsCount} aciertos` },
+    { key: 'includeReintegro', label: 'Reint.', weight: 1.2, getValue: e => (e.hasReintegro ? 'Sí' : 'No') },
+    { key: 'includeCategory', label: 'Categoría', weight: 3.2, getValue: e => String(e.prizeCategory || '-') },
+    { key: 'includeAmount', label: 'Importe (€)', weight: 2.2, getValue: e => `${e.prizeAmount.toFixed(2)} €` },
+    { key: 'includeDestination', label: 'Destino', weight: 2.5, getValue: e => (e.prizeType === 'MENOR_BOLSA' ? 'Bolsa' : 'Banco') },
+  ];
+
+  const activeCols = allCols.filter(c => opts[c.key]);
+  if (activeCols.length === 0) {
+    activeCols.push(allCols[4]);
+  }
+
+  const totalWeight = activeCols.reduce((sum, c) => sum + c.weight, 0);
+  let curX = marginX;
+  const colPositions = activeCols.map(c => {
+    const w = (c.weight / totalWeight) * contentWidth;
+    const x = curX;
+    curX += w;
+    return { col: c, x, width: w };
+  });
+
+  // Tabla cabecera
+  doc.setFillColor(244, 246, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.rect(marginX, y, contentWidth, 8, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(10, 37, 64);
+  colPositions.forEach(({ col, x, width }) => {
+    doc.text(col.label, x + 1.5, y + 5.5, { maxWidth: width - 3 });
+  });
+
+  y += 10;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+
+  prizeEntries.forEach((entry, index) => {
+    ensureSpace(8);
+
+    if (index % 2 === 1) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(marginX, y - 4, contentWidth, 7, 'F');
+    }
+
+    doc.setTextColor(30, 41, 59);
+    colPositions.forEach(({ col, x, width }) => {
+      const val = col.getValue(entry, index);
+      doc.text(val, x + 1.5, y, { maxWidth: width - 3 });
+    });
+
+    y += 7;
+  });
+
+  if (prizeEntries.length === 0) {
+    ensureSpace(15);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 116, 139);
+    doc.text('No hay premios registrados en el histórico actualmente.', marginX + 5, y);
+  }
+
+  const totalPages = doc.getNumberOfPages();
+  const dateLabel = new Date().toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  const filename = 'Historico_Premios_Pena_Tordueles.pdf';
+
+  for (let page = 1; page <= totalPages; page++) {
+    doc.setPage(page);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, pageHeight - 13, pageWidth - marginX, pageHeight - 13);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+      `Peña La Primitiva Tordueles · Histórico de Premios (${dateLabel})`,
       marginX,
       pageHeight - 8
     );
