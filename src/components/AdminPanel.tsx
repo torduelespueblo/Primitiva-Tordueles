@@ -37,7 +37,7 @@ import {
 import { AppsScriptDeployModal } from './AppsScriptDeployModal';
 import { GoogleWorkspacePanel } from './GoogleWorkspacePanel';
 import { MultipleBetsGuide } from './MultipleBetsGuide';
-import { downloadPlayerListPdf, PlayerPdfOptions, DEFAULT_PLAYER_PDF_OPTIONS } from '../services/pdfService';
+import { downloadPlayerListPdf, PlayerPdfOptions, DEFAULT_PLAYER_PDF_OPTIONS, downloadPrizeHistoryPdf } from '../services/pdfService';
 
 import {
   Settings,
@@ -2521,6 +2521,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   >
                     <FileDown className="w-4 h-4 text-[#FF6B00]" />
                     <span>PDF General</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadPrizeHistoryPdf(prizeHistory)}
+                    className="inline-flex items-center gap-2 px-3.5 min-h-[44px] rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#0A2540] text-sm font-bold cursor-pointer"
+                    title="Exportar histórico oficial de premios a PDF"
+                  >
+                    <FileDown className="w-4 h-4 text-[#FF6B00]" />
+                    <span>PDF Histórico Premios</span>
                   </button>
                   <button
                     type="button"

@@ -88,17 +88,42 @@ function getBestSyncLogoDataUri(): string {
   return OFFICIAL_CREST_LOGO_DATA_URI;
 }
 
+let cachedWatermarkDataUri: string | null = null;
+
+function preloadWatermarkLogo() {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') return;
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const size = 400;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, size, size);
+        cachedWatermarkDataUri = canvas.toDataURL('image/jpeg');
+      } catch {}
+    };
+    img.src = './assets/aistudio/1794320243754_d503f3a7.jpg';
+  } catch {}
+}
+
+preloadWatermarkLogo();
+
 function drawWatermark(doc: jsPDF, pageWidth: number, pageHeight: number) {
   try {
-    const logoUri = getBestSyncLogoDataUri();
+    const watermarkUri = cachedWatermarkDataUri || OFFICIAL_CREST_LOGO_DATA_URI;
     const gStateClass = (doc as any).GState;
     if (gStateClass) {
-      (doc as any).setGState(new gStateClass({ opacity: 0.05 }));
+      (doc as any).setGState(new gStateClass({ opacity: 0.08 }));
     }
     const imgSize = 138; // Aumentado a 138 mm para ocupar una zona amplia y central
     const imgX = (pageWidth - imgSize) / 2;
     const imgY = (pageHeight - imgSize) / 2;
-    doc.addImage(logoUri, 'PNG', imgX, imgY, imgSize, imgSize);
+    doc.addImage(watermarkUri, 'JPEG', imgX, imgY, imgSize, imgSize);
     if (gStateClass) {
       (doc as any).setGState(new gStateClass({ opacity: 1.0 }));
     }
