@@ -89,6 +89,7 @@ function getBestSyncLogoDataUri(): string {
 }
 
 let cachedWatermarkDataUri: string | null = null;
+let watermarkAspect: number = 1.0;
 
 function preloadWatermarkLogo() {
   if (typeof window === 'undefined' || typeof Image === 'undefined') return;
@@ -97,13 +98,15 @@ function preloadWatermarkLogo() {
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
-        const size = 400;
+        const w = img.naturalWidth || 400;
+        const h = img.naturalHeight || 400;
+        watermarkAspect = w / h;
         const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        ctx.drawImage(img, 0, 0, size, size);
+        ctx.drawImage(img, 0, 0, w, h);
         cachedWatermarkDataUri = canvas.toDataURL('image/jpeg');
       } catch {}
     };
@@ -120,10 +123,16 @@ function drawWatermark(doc: jsPDF, pageWidth: number, pageHeight: number) {
     if (gStateClass) {
       (doc as any).setGState(new gStateClass({ opacity: 0.08 }));
     }
-    const imgSize = 138; // Aumentado a 138 mm para ocupar una zona amplia y central
-    const imgX = (pageWidth - imgSize) / 2;
-    const imgY = (pageHeight - imgSize) / 2;
-    doc.addImage(watermarkUri, 'JPEG', imgX, imgY, imgSize, imgSize);
+    const baseSize = 168; // Aumentado para ocupar más espacio del folio en blanco
+    let imgW = baseSize;
+    let imgH = baseSize / watermarkAspect;
+    if (imgH > baseSize) {
+      imgH = baseSize;
+      imgW = baseSize * watermarkAspect;
+    }
+    const imgX = (pageWidth - imgW) / 2;
+    const imgY = (pageHeight - imgH) / 2;
+    doc.addImage(watermarkUri, 'JPEG', imgX, imgY, imgW, imgH);
     if (gStateClass) {
       (doc as any).setGState(new gStateClass({ opacity: 1.0 }));
     }
