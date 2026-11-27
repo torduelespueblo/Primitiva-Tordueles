@@ -509,35 +509,35 @@ export function downloadPlayerListPdf(
   doc.setFillColor(244, 246, 249);
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.3);
-  doc.rect(marginX, y, contentWidth, 9, 'FD');
+  doc.rect(marginX, y, contentWidth, 11, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(11.5);
   doc.setTextColor(10, 37, 64);
   colPositions.forEach(({ col, x, width }) => {
-    doc.text(col.label, x + 1.5, y + 6.0, { maxWidth: width - 3 });
+    doc.text(col.label, x + 2.0, y + 7.5, { maxWidth: width - 4 });
   });
 
-  y += 13.5;
+  y += 18;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(11);
 
   filtered.forEach((p, index) => {
-    ensureSpace(9);
+    ensureSpace(11);
 
     if (index % 2 === 1) {
       doc.setFillColor(248, 250, 252);
-      doc.rect(marginX, y - 5, contentWidth, 8.5, 'F');
+      doc.rect(marginX, y - 6, contentWidth, 10, 'F');
     }
 
     doc.setTextColor(30, 41, 59);
     colPositions.forEach(({ col, x, width }) => {
       const val = col.getValue(p, index);
-      doc.text(val, x + 1.5, y, { maxWidth: width - 3 });
+      doc.text(val, x + 2.0, y, { maxWidth: width - 4 });
     });
 
-    y += 8.5;
+    y += 11;
   });
 
   if (filtered.length === 0) {
@@ -732,35 +732,35 @@ export function downloadPrizeHistoryPdf(
   doc.setFillColor(244, 246, 249);
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.3);
-  doc.rect(marginX, y, contentWidth, 9, 'FD');
+  doc.rect(marginX, y, contentWidth, 11, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(11.5);
   doc.setTextColor(10, 37, 64);
   colPositions.forEach(({ col, x, width }) => {
-    doc.text(col.label, x + 1.5, y + 6.0, { maxWidth: width - 3 });
+    doc.text(col.label, x + 2.0, y + 7.5, { maxWidth: width - 4 });
   });
 
-  y += 13.5;
+  y += 18;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(11);
 
   prizeEntries.forEach((entry, index) => {
-    ensureSpace(9);
+    ensureSpace(11);
 
     if (index % 2 === 1) {
       doc.setFillColor(248, 250, 252);
-      doc.rect(marginX, y - 5, contentWidth, 8.5, 'F');
+      doc.rect(marginX, y - 6, contentWidth, 10, 'F');
     }
 
     doc.setTextColor(30, 41, 59);
     colPositions.forEach(({ col, x, width }) => {
       const val = col.getValue(entry, index);
-      doc.text(val, x + 1.5, y, { maxWidth: width - 3 });
+      doc.text(val, x + 2.0, y, { maxWidth: width - 4 });
     });
 
-    y += 8.5;
+    y += 11;
   });
 
   if (prizeEntries.length === 0) {
